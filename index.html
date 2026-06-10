@@ -123,6 +123,28 @@
   .r-待面試 { background: var(--purple-bg); color: var(--purple-text); }
   .r-other { background: #F3F4F6; color: var(--text-tertiary); }
   .table-hdr { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; flex-wrap: wrap; gap: 10px; }
+  .search-input { font-size: 13px; padding: 7px 14px 7px 34px; border: 1.5px solid var(--border); border-radius: 8px; outline: none; font-family: inherit; background: var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%239CA3AF' stroke-width='2'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.35-4.35'/%3E%3C/svg%3E") no-repeat 10px center; width: 220px; }
+  .search-input:focus { border-color: var(--accent); }
+  /* Calendar */
+  .cal-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px 24px; }
+  .cal-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+  .cal-nav-title { font-size: 16px; font-weight: 600; }
+  .cal-nav-btn { font-size: 18px; background: none; border: 1px solid var(--border); border-radius: 8px; width: 32px; height: 32px; cursor: pointer; color: var(--text-secondary); display: flex; align-items: center; justify-content: center; }
+  .cal-nav-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .cal-grid { display: grid; grid-template-columns: repeat(7,1fr); gap: 4px; }
+  .cal-dow { font-size: 11px; font-weight: 600; color: var(--text-tertiary); text-align: center; padding: 6px 0; }
+  .cal-day { min-height: 80px; border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; background: var(--surface); }
+  .cal-day.other-month { background: var(--bg); }
+  .cal-day.today { border-color: var(--accent); }
+  .cal-date { font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 4px; }
+  .cal-day.today .cal-date { color: var(--accent); }
+  .cal-event { font-size: 11px; padding: 2px 5px; border-radius: 4px; margin-bottom: 2px; line-height: 1.4; cursor: pointer; }
+  .cal-event:hover { opacity: 0.85; }
+  .ev-phone { background: var(--teal-bg); color: var(--teal-text); }
+  .ev-interview { background: var(--purple-bg); color: var(--purple-text); }
+  .cal-legend { display: flex; gap: 16px; margin-bottom: 14px; }
+  .cal-legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-secondary); }
+  .cal-legend-dot { width: 10px; height: 10px; border-radius: 2px; }
 
   @media(max-width:640px) {
     .metrics { grid-template-columns: repeat(2,1fr); }
@@ -163,8 +185,9 @@
 <div class="container">
 
   <div class="tab-bar">
-    <div class="tab active" onclick="switchTab('progress', this)">📋 Recruitment Progress</div>
+    <div class="tab active" onclick="switchTab('progress', this)">📋 Recruitment Overview</div>
     <div class="tab" onclick="switchTab('pi', this)">📞 Phone Interview Record</div>
+    <div class="tab" onclick="switchTab('cal', this)">📅 Calendar</div>
   </div>
 
   <!-- 招募進度頁 -->
@@ -231,6 +254,7 @@
         <div class="page-hdr-sub" id="piSubtitle">從 Phone Interview 工作表載入</div>
       </div>
       <div>
+        <div>
         <div class="filter-bar" id="piFilterBar">
           <button class="bu-btn active" onclick="filterPiBu('all',this)">全部 BU</button>
         </div>
@@ -240,6 +264,7 @@
           <button class="pos-btn" onclick="filterPiPos('FAE',this)">FAE</button>
         </div>
       </div>
+      <input class="search-input" type="text" id="piSearch" placeholder="搜尋姓名、職缺..." oninput="renderPiTable()">
     </div>
     <div class="table-wrap">
       <table class="pi-table">
@@ -256,6 +281,29 @@
         </thead>
         <tbody id="piTableBody"></tbody>
       </table>
+    </div>
+  </div>
+
+
+  <!-- 行事曆頁 -->
+  <div id="view-cal" style="display:none">
+    <div class="page-hdr">
+      <div>
+        <div class="page-hdr-title">Calendar</div>
+        <div class="page-hdr-sub">已排電訪與已排面試時程</div>
+      </div>
+    </div>
+    <div class="cal-legend">
+      <div class="cal-legend-item"><div class="cal-legend-dot" style="background:#10B981"></div>待電訪</div>
+      <div class="cal-legend-item"><div class="cal-legend-dot" style="background:#8B5CF6"></div>待面試</div>
+    </div>
+    <div class="cal-wrap">
+      <div class="cal-nav">
+        <button class="cal-nav-btn" onclick="changeMonth(-1)">‹</button>
+        <div class="cal-nav-title" id="calTitle"></div>
+        <button class="cal-nav-btn" onclick="changeMonth(1)">›</button>
+      </div>
+      <div class="cal-grid" id="calGrid"></div>
     </div>
   </div>
 
@@ -340,6 +388,8 @@ function switchTab(tab, el) {
   el.classList.add('active');
   document.getElementById('view-progress').style.display = tab === 'progress' ? '' : 'none';
   document.getElementById('view-pi').style.display = tab === 'pi' ? '' : 'none';
+  document.getElementById('view-cal').style.display = tab === 'cal' ? '' : 'none';
+  if (tab === 'cal') renderCalendar();
 }
 
 function filterBU(bu, el) {
@@ -457,7 +507,8 @@ function renderProgress() {
 }
 
 function renderPiTable() {
-  const filtered = piData.filter(d => (currentPiBU === 'all' || String(d.BU || '').trim() === currentPiBU) && (currentPiPos === 'all' || String(d.Position || '').includes(currentPiPos)));
+  const search = (document.getElementById('piSearch') ? document.getElementById('piSearch').value : '').toLowerCase();
+  const filtered = piData.filter(d => (currentPiBU === 'all' || String(d.BU || '').trim() === currentPiBU) && (currentPiPos === 'all' || String(d.Position || '').includes(currentPiPos)) && (!search || String(d.Name || '').toLowerCase().includes(search) || String(d.Position || '').toLowerCase().includes(search)));
   document.getElementById('piSubtitle').textContent = `共 ${filtered.length} 筆電訪記錄`;
 
   const resultClass = r => {
@@ -481,8 +532,8 @@ function renderPiTable() {
 
   document.getElementById('piTableBody').innerHTML = filtered.map(d => {
     const memoKey = Object.keys(d).find(k => k.includes('Memo') || k.includes('文案')) || '';
-    const recKey  = Object.keys(d).find(k => k.includes('推薦')) || '';
-    const provKey = Object.keys(d).find(k => k.includes('提供')) || '';
+    const recKey  = Object.keys(d).find(k => k === 'Result' || k.includes('推薦')) || '';
+    const provKey = Object.keys(d).find(k => k.includes('提供給主管') || k.includes('提供')) || '';
     const memo = memoKey ? d[memoKey] : '';
     const rec  = recKey  ? d[recKey]  : '';
     const prov = provKey ? d[provKey] : '';
@@ -497,6 +548,78 @@ function renderPiTable() {
       <td><span class="result-badge ${resultClass(d.Result)}">${d.Result || '—'}</span></td>
     </tr>`;
   }).join('');
+}
+
+
+// ===== 行事曆 =====
+let calYear = new Date().getFullYear();
+let calMonth = new Date().getMonth();
+
+function changeMonth(dir) {
+  calMonth += dir;
+  if (calMonth > 11) { calMonth = 0; calYear++; }
+  if (calMonth < 0)  { calMonth = 11; calYear--; }
+  renderCalendar();
+}
+
+function renderCalendar() {
+  const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  document.getElementById('calTitle').textContent = `${monthNames[calMonth]} ${calYear}`;
+
+  // 收集有時間的事件
+  const events = {};
+  const addEvent = (dateStr, name, position, bu, type) => {
+    if (!dateStr) return;
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return;
+    if (d.getFullYear() !== calYear || d.getMonth() !== calMonth) return;
+    const key = d.getDate();
+    if (!events[key]) events[key] = [];
+    const hh = String(d.getHours()).padStart(2,'0');
+    const mm = String(d.getMinutes()).padStart(2,'0');
+    events[key].push({ name, position, bu, type, time: `${hh}:${mm}` });
+  };
+
+  allData.forEach(d => {
+    if (d.Result === '待電訪') addEvent(d.Interview_date || d.PI_date, d.Name, d.Position, d.BU, 'phone');
+    if (d.Result === '待面試') addEvent(d.PI_date || d.Interview_date, d.Name, d.Position, d.BU, 'interview');
+  });
+
+  const firstDay = new Date(calYear, calMonth, 1).getDay();
+  const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+  const daysInPrev = new Date(calYear, calMonth, 0).getDate();
+  const today = new Date();
+  const dowLabels = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+  let html = dowLabels.map(d => `<div class="cal-dow">${d}</div>`).join('');
+
+  // 上月補白
+  for (let i = 0; i < firstDay; i++) {
+    html += `<div class="cal-day other-month"><div class="cal-date" style="opacity:0.35">${daysInPrev - firstDay + i + 1}</div></div>`;
+  }
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    const isToday = today.getFullYear() === calYear && today.getMonth() === calMonth && today.getDate() === d;
+    const evs = (events[d] || []).sort((a,b) => a.time.localeCompare(b.time));
+    const evHtml = evs.map(e =>
+      `<div class="cal-event ${e.type === 'phone' ? 'ev-phone' : 'ev-interview'}" title="${e.name} - ${e.position} (BU ${e.bu})">
+        ${e.time} ${e.name}
+      </div>`
+    ).join('');
+    html += `<div class="cal-day${isToday ? ' today' : ''}">
+      <div class="cal-date">${d}</div>
+      ${evHtml}
+    </div>`;
+  }
+
+  // 下月補白
+  const total = firstDay + daysInMonth;
+  const remaining = total % 7 === 0 ? 0 : 7 - (total % 7);
+  for (let i = 1; i <= remaining; i++) {
+    html += `<div class="cal-day other-month"><div class="cal-date" style="opacity:0.35">${i}</div></div>`;
+  }
+
+  document.getElementById('calGrid').innerHTML = html;
 }
 
 fetchData();
