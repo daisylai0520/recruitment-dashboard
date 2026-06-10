@@ -18,6 +18,18 @@
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text-primary); min-height: 100vh; }
 
+  /* 密碼頁 */
+  #lockScreen { position: fixed; inset: 0; background: var(--bg); display: flex; align-items: center; justify-content: center; z-index: 9999; }
+  .lock-box { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 40px 36px; width: 340px; text-align: center; box-shadow: 0 4px 24px rgba(0,0,0,0.08); }
+  .lock-icon { font-size: 36px; margin-bottom: 16px; }
+  .lock-title { font-size: 18px; font-weight: 600; margin-bottom: 6px; }
+  .lock-sub { font-size: 13px; color: var(--text-secondary); margin-bottom: 24px; }
+  .lock-input { width: 100%; padding: 10px 14px; font-size: 15px; border: 1.5px solid var(--border); border-radius: 8px; outline: none; letter-spacing: 2px; text-align: center; font-family: inherit; }
+  .lock-input:focus { border-color: var(--accent); }
+  .lock-btn { margin-top: 14px; width: 100%; padding: 11px; background: var(--accent); color: #fff; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; font-family: inherit; }
+  .lock-btn:hover { background: #4338CA; }
+  .lock-error { margin-top: 10px; font-size: 12px; color: #EF4444; display: none; }
+
   .topbar { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 32px; height: 56px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 10; }
   .topbar-left { display: flex; align-items: center; gap: 12px; }
   .logo { width: 28px; height: 28px; background: var(--accent); border-radius: 6px; display: flex; align-items: center; justify-content: center; }
@@ -109,6 +121,19 @@
 </head>
 <body>
 
+<!-- 密碼鎖定畫面 -->
+<div id="lockScreen">
+  <div class="lock-box">
+    <div class="lock-icon">🔒</div>
+    <div class="lock-title">招募儀表板</div>
+    <div class="lock-sub">請輸入密碼以繼續</div>
+    <input class="lock-input" type="password" id="pwdInput" placeholder="輸入密碼" onkeydown="if(event.key==='Enter')checkPwd()" />
+    <button class="lock-btn" onclick="checkPwd()">進入</button>
+    <div class="lock-error" id="pwdError">密碼錯誤，請再試一次</div>
+  </div>
+</div>
+
+<div id="mainContent" style="display:none">
 <div class="topbar">
   <div class="topbar-left">
     <div class="logo">
@@ -395,6 +420,21 @@ function renderPiTable() {
 
 fetchData();
 setInterval(fetchData, 5 * 60 * 1000);
+
+// 密碼驗證
+function checkPwd() {
+  const input = document.getElementById('pwdInput').value;
+  if (input === 'WT84498860') {
+    document.getElementById('lockScreen').style.display = 'none';
+    document.getElementById('mainContent').style.display = '';
+    fetchData();
+  } else {
+    document.getElementById('pwdError').style.display = 'block';
+    document.getElementById('pwdInput').value = '';
+    document.getElementById('pwdInput').focus();
+  }
+}
 </script>
+</div>
 </body>
 </html>
