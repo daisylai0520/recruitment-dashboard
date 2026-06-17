@@ -517,7 +517,7 @@ async function fetchData() {
     });
     var piBus=[...new Set(piData.map(function(d){return String(d.BU||'').trim();}))].filter(Boolean).sort();
     document.getElementById('piBuBar').innerHTML=
-      '<button class="bu-btn '+(piBU==='all'?'active':'')+'" onclick="piFilter(\'bu\',\'all\',this)">全部單位</button>'+
+      '<button class="bu-btn '+(piBU==='all'?'active':'')+'" onclick="piFilter("bu","all",this)">全部單位</button>'+
       piBus.map(function(b){return '<button class="bu-btn '+(piBU===b?'active':'')+'" onclick="piFilter(\'bu\',\''+b+'\',this)">'+b+'</button>';}).join('');
     dot.className='sync-dot';
     var now=new Date();
@@ -690,26 +690,28 @@ function openModal(row, name, pos, bu, currentStage) {
 
 function closeModal(){document.getElementById('modal').style.display='none';selectedCard=null;}
 
-async async function changeStage(newStage) {
+async function changeStage(newStage) {
   if (!selectedCard) return;
   if (newStage===selectedCard.currentStage){closeModal();return;}
+  // 先儲存再關 modal，避免 selectedCard 被清空
+  var card = {row:selectedCard.row, name:selectedCard.name};
   closeModal();
   showToast('更新中...');
   try {
+    var payload = {row:card.row, result:newStage};
+    console.log('Sending:', JSON.stringify(payload));
     var res=await fetch(APPS_SCRIPT_URL, {
       method:'POST',
-      body:JSON.stringify({row:selectedCard.row, result:newStage})
+      mode:'no-cors',
+      headers:{'Content-Type':'text/plain'},
+      body:JSON.stringify(payload)
     });
-    var json=await res.json();
-    if (json.success||json.error===undefined) {
-      showToast('✓ 已更新：'+selectedCard.name+' → '+newStage);
-      // 本地更新
-      var d=allData.find(function(x){return x._row===selectedCard.row;});
-      if(d) d.Result=newStage;
-      renderAll();
-    } else {
-      showToast('❌ 更新失敗：'+json.error);
-    }
+    console.log('Response status:', res.status, res.type);
+    // no-cors 下無法讀取 response body，直接假設成功並本地更新
+    showToast('✓ 已更新：'+card.name+' → '+newStage);
+    var d=allData.find(function(x){return x._row===card.row;});
+    if(d) d.Result=newStage;
+    renderAll();
   } catch(e) {
     showToast('❌ 更新失敗：'+e.message);
   }
