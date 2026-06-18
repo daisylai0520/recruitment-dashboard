@@ -700,14 +700,10 @@ async function changeStage(newStage) {
   try {
     var payload = {row:card.row, result:newStage};
     console.log('Sending:', JSON.stringify(payload));
-    var res=await fetch(APPS_SCRIPT_URL, {
-      method:'POST',
-      mode:'no-cors',
-      headers:{'Content-Type':'text/plain'},
-      body:JSON.stringify(payload)
-    });
+    // 用 GET + URL 參數，no-cors 模式，Apps Script 用 doGet 處理寫入
+    var url = APPS_SCRIPT_URL + '?action=update&row=' + encodeURIComponent(card.row) + '&result=' + encodeURIComponent(newStage);
+    var res=await fetch(url, {mode:'no-cors'});
     console.log('Response status:', res.status, res.type);
-    // no-cors 下無法讀取 response body，直接假設成功並本地更新
     showToast('✓ 已更新：'+card.name+' → '+newStage);
     var d=allData.find(function(x){return x._row===card.row;});
     if(d) d.Result=newStage;
