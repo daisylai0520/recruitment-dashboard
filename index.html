@@ -610,6 +610,7 @@ function renderKanban() {
     boardHtml+='<div style="margin-bottom:10px"><div class="kanban-phase-label">'+phase.label+'</div><div style="display:flex;gap:10px;">';
     phase.stages.forEach(function(stage){
       var cands=filtered.filter(function(d){return d.Result===stage;});
+      cands.sort(function(a,b){return getSortTs(a)-getSortTs(b);});
       var cards=cands.length===0?'<div class="kanban-empty">無人選</div>':
         cands.map(function(d){
           var t=(stage==='待電訪'||stage==='待排電訪')?(d.Interview_date||d.PI_date||''):(d.Interview_date||'');
