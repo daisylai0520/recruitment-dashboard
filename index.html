@@ -1134,7 +1134,7 @@ function renderHeadcount() {
     if (isVacant) groups[div].vacantTotal++;
     groups[div].jobs[job].rows.push({
       _row: r._row,
-      unit: [div, String(r[deptKey]||'').trim(), String(r[sectionKey]||'').trim()].filter(Boolean).join(' / '),
+      unit: [String(r[deptKey]||'').trim(), String(r[sectionKey]||'').trim()].filter(Boolean).join(' / '),
       grade: String(r[gradeKey]||'').trim() || '—',
       duties: String(r[dutiesKey]||'').trim() || '—',
       reason: String(r[reasonKey]||'').trim() || '—',
