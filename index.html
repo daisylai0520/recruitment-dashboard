@@ -1163,7 +1163,6 @@ function renderHeadcount() {
       if (vacantInJob === 0) return ''; // 已補實的 Job Function 不顯示
 
       var rowsHtml = vacantRows.map(function(r){
-        var memoDisplay = r.memo ? '<div style="font-size:10px;color:var(--text-tertiary);margin-top:2px;max-width:160px;white-space:normal;">'+r.memo+'</div>' : '';
         return '<tr>'+
           '<td style="font-size:11px;color:var(--text-secondary);padding:5px 8px;">'+r.unit+'</td>'+
           '<td style="font-size:11px;color:var(--text-secondary);padding:5px 8px;">'+r.reason+'</td>'+
@@ -1171,8 +1170,7 @@ function renderHeadcount() {
           '<td style="font-size:11px;color:var(--text-secondary);padding:5px 8px;">'+r.grade+'</td>'+
           '<td style="font-size:11px;color:var(--text-secondary);padding:5px 8px;">'+r.pred+'</td>'+
           '<td style="padding:5px 8px;">'+
-            '<button class="hc-memo-btn" data-row="'+r._row+'" data-memo="'+r.memo.replace(/"/g,'&quot;')+'" onclick="openMemoModal(this)" style="font-size:11px;padding:3px 8px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text-secondary);cursor:pointer;">📝 備註</button>'+
-            memoDisplay+
+            '<button class="hc-memo-btn" data-row="'+r._row+'" data-memo="'+r.memo.replace(/"/g,'&quot;')+'" onclick="openMemoModal(this)" style="font-size:11px;padding:3px 8px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text-secondary);cursor:pointer;">📝 備註'+(r.memo?' •':'')+'</button>'+
           '</td>'+
         '</tr>';
       }).join('');
