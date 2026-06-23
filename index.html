@@ -488,6 +488,19 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
   </div>
 </div>
 
+<!-- MEMO MODAL -->
+<div id="memoModal" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeMemoModal()">
+  <div class="modal">
+    <div class="modal-title">編輯備註</div>
+    <div class="modal-sub">內容會同步寫入 Headcount Record 試算表的 Memo 欄位</div>
+    <textarea id="memoTextarea" style="width:100%;min-height:100px;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px;resize:vertical;outline:none;" placeholder="輸入備註..."></textarea>
+    <div class="modal-actions" style="margin-top:14px;">
+      <button class="btn-cancel" onclick="closeMemoModal()">取消</button>
+      <button class="lock-btn" style="width:auto;margin-top:0;padding:8px 18px;" onclick="saveMemo()">儲存</button>
+    </div>
+  </div>
+</div>
+
 <script>
 var APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby0h1OkoC_xNWeAAbuh4cBicbTl4B8g1KDtL-s2YK9f80TYjIyxQtdeu9RkWFQVtY3pnw/exec';
 var allData=[], piData=[];
@@ -1089,12 +1102,15 @@ function hcFilter(type,val,el) {
 function renderHeadcount() {
   if (!hcRawData.length) return;
   var divKey = Object.keys(hcRawData[0]).find(function(k){return k.trim()==='Division';}) || 'Division';
+  var deptKey = Object.keys(hcRawData[0]).find(function(k){return k.trim()==='Department';}) || 'Department';
+  var sectionKey = Object.keys(hcRawData[0]).find(function(k){return k.trim()==='Section';}) || 'Section';
   var jobKey = Object.keys(hcRawData[0]).find(function(k){return k.trim()==='Job Function';}) || 'Job Function';
   var gradeKey = Object.keys(hcRawData[0]).find(function(k){return k.trim()==='職等';}) || '職等';
   var dutiesKey = Object.keys(hcRawData[0]).find(function(k){return k.trim()==='Duties';}) || 'Duties';
   var reasonKey = Object.keys(hcRawData[0]).find(function(k){return k.includes('Reason');}) || 'Reason for Request';
   var predKey = Object.keys(hcRawData[0]).find(function(k){return k.includes('Predecessor');}) || 'Predecessor';
   var succKey = Object.keys(hcRawData[0]).find(function(k){return k.includes('Successor');}) || 'Successor';
+  var memoKey = Object.keys(hcRawData[0]).find(function(k){return k.trim()==='Memo';}) || 'Memo';
 
   var filtered = hcRawData.filter(function(r){
     return hcBU==='all' || String(r[divKey]||'').trim()===hcBU;
@@ -1117,11 +1133,14 @@ function renderHeadcount() {
     var isVacant = !succ;
     if (isVacant) groups[div].vacantTotal++;
     groups[div].jobs[job].rows.push({
+      _row: r._row,
+      unit: [div, String(r[deptKey]||'').trim(), String(r[sectionKey]||'').trim()].filter(Boolean).join(' / '),
       grade: String(r[gradeKey]||'').trim() || '—',
       duties: String(r[dutiesKey]||'').trim() || '—',
       reason: String(r[reasonKey]||'').trim() || '—',
       pred: String(r[predKey]||'').trim() || '—',
       succ: succ,
+      memo: String(r[memoKey]||'').trim(),
       vacant: isVacant
     });
   });
@@ -1129,7 +1148,7 @@ function renderHeadcount() {
   var divArr = Object.values(groups).sort(function(a,b){return b.vacantTotal - a.vacantTotal;});
 
   document.getElementById('hcCards').innerHTML = divArr.map(function(g){
-    var divColor = g.vacantTotal===0 ? '#10B981' : g.vacantTotal<=3 ? '#F59E0B' : '#EF4444';
+    var divColor = '#4F46E5';
     var jobArr = Object.values(g.jobs).sort(function(a,b){
       var av = a.rows.filter(function(r){return r.vacant;}).length;
       var bv = b.rows.filter(function(r){return r.vacant;}).length;
@@ -1139,16 +1158,22 @@ function renderHeadcount() {
     var jobsHtml = jobArr.map(function(j){
       var vacantRows = j.rows.filter(function(r){return r.vacant;});
       var vacantInJob = vacantRows.length;
-      var jc = vacantInJob===0 ? '#10B981' : vacantInJob<=2 ? '#F59E0B' : '#EF4444';
+      var jc = '#4F46E5';
 
       if (vacantInJob === 0) return ''; // 已補實的 Job Function 不顯示
 
       var rowsHtml = vacantRows.map(function(r){
+        var memoDisplay = r.memo ? '<div style="font-size:10px;color:var(--text-tertiary);margin-top:2px;max-width:160px;white-space:normal;">'+r.memo+'</div>' : '';
         return '<tr>'+
-          '<td style="font-size:11px;color:var(--text-secondary);padding:5px 8px;">'+r.grade+'</td>'+
-          '<td style="font-size:11px;color:var(--text-primary);padding:5px 8px;font-weight:500;">'+r.duties+'</td>'+
+          '<td style="font-size:11px;color:var(--text-secondary);padding:5px 8px;">'+r.unit+'</td>'+
           '<td style="font-size:11px;color:var(--text-secondary);padding:5px 8px;">'+r.reason+'</td>'+
+          '<td style="font-size:11px;color:var(--text-primary);padding:5px 8px;font-weight:500;">'+r.duties+'</td>'+
+          '<td style="font-size:11px;color:var(--text-secondary);padding:5px 8px;">'+r.grade+'</td>'+
           '<td style="font-size:11px;color:var(--text-secondary);padding:5px 8px;">'+r.pred+'</td>'+
+          '<td style="padding:5px 8px;">'+
+            '<button class="hc-memo-btn" data-row="'+r._row+'" data-memo="'+r.memo.replace(/"/g,'&quot;')+'" onclick="openMemoModal(this)" style="font-size:11px;padding:3px 8px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text-secondary);cursor:pointer;">📝 備註</button>'+
+            memoDisplay+
+          '</td>'+
         '</tr>';
       }).join('');
 
@@ -1158,12 +1183,14 @@ function renderHeadcount() {
           '<span style="font-size:11px;font-weight:700;color:'+jc+';background:'+jc+'18;padding:1px 8px;border-radius:10px;">'+vacantInJob+' 缺額</span>'+
         '</div>'+
         '<div style="overflow-x:auto;border:1px solid var(--border);border-radius:8px;">'+
-          '<table style="width:100%;border-collapse:collapse;min-width:320px;">'+
+          '<table style="width:100%;border-collapse:collapse;min-width:420px;">'+
             '<thead><tr style="background:var(--bg);">'+
-              '<th style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-align:left;padding:5px 8px;">職等</th>'+
-              '<th style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-align:left;padding:5px 8px;">職務</th>'+
+              '<th style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-align:left;padding:5px 8px;">單位</th>'+
               '<th style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-align:left;padding:5px 8px;">原因</th>'+
+              '<th style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-align:left;padding:5px 8px;">Duties</th>'+
+              '<th style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-align:left;padding:5px 8px;">職等</th>'+
               '<th style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-align:left;padding:5px 8px;">原任</th>'+
+              '<th style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-align:left;padding:5px 8px;">備註</th>'+
             '</tr></thead>'+
             '<tbody>'+rowsHtml+'</tbody>'+
           '</table>'+
@@ -1182,6 +1209,44 @@ function renderHeadcount() {
       (jobsHtml || '<div style="font-size:12px;color:var(--text-tertiary);text-align:center;padding:12px 0;">目前無缺額</div>')+
     '</div>';
   }).join('');
+}
+
+// ===== HEADCOUNT MEMO =====
+var selectedMemoRow = null;
+
+function openMemoModal(el) {
+  selectedMemoRow = parseInt(el.getAttribute('data-row'));
+  var currentMemo = el.getAttribute('data-memo') || '';
+  document.getElementById('memoTextarea').value = currentMemo;
+  document.getElementById('memoModal').style.display = 'flex';
+  setTimeout(function(){document.getElementById('memoTextarea').focus();}, 50);
+}
+
+function closeMemoModal() {
+  document.getElementById('memoModal').style.display = 'none';
+  selectedMemoRow = null;
+}
+
+async function saveMemo() {
+  if (!selectedMemoRow) return;
+  var memo = document.getElementById('memoTextarea').value;
+  var row = selectedMemoRow;
+  closeMemoModal();
+  showToast('儲存中...');
+  try {
+    var url = APPS_SCRIPT_URL + '?action=updateMemo&row=' + encodeURIComponent(row) + '&memo=' + encodeURIComponent(memo);
+    await fetch(url, {mode:'no-cors'});
+    showToast('✓ 備註已儲存');
+    // 本地更新
+    var rec = hcRawData.find(function(r){return r._row===row;});
+    if (rec) {
+      var memoKey2 = Object.keys(rec).find(function(k){return k.trim()==='Memo';}) || 'Memo';
+      rec[memoKey2] = memo;
+    }
+    renderHeadcount();
+  } catch(e) {
+    showToast('❌ 儲存失敗：'+e.message);
+  }
 }
 
 fetchData();
