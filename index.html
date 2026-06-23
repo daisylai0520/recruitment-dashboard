@@ -229,6 +229,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
     <div class="tab" onclick="switchTab('overview',this)">📋 Recruitment Overview</div>
     <div class="tab" onclick="switchTab('pi',this)">📞 Phone Interview Record</div>
     <div class="tab" onclick="switchTab('trend',this)">📈 Weekly Trends</div>
+    <div class="tab" onclick="switchTab('hc',this)">👥 Headcount Overview</div>
   </div>
 
   <div class="error-banner" id="errorBanner"></div>
@@ -451,6 +452,27 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
       </table>
     </div>
   </div>
+
+  <!-- ===== HEADCOUNT OVERVIEW ===== -->
+  <div id="view-hc" style="display:none">
+    <div class="page-title">Headcount Overview</div>
+    <div class="page-sub" id="hcSub">尚未載入資料</div>
+
+    <div id="hcEmptyState" style="text-align:center;padding:60px 20px;color:var(--text-tertiary);">
+      <div style="font-size:40px;margin-bottom:12px;">📊</div>
+      <div style="font-size:14px;">尚無 Headcount 資料</div>
+    </div>
+
+    <div id="hcContent" style="display:none">
+      <div class="filter-bar">
+        <div class="filter-group">
+          <div class="filter-group-label">單位</div>
+          <div class="filter-btns" id="hcBuBar"><button class="bu-btn active" onclick="hcFilter('bu','all',this)">全部單位</button></div>
+        </div>
+      </div>
+      <div class="collapse-grid" id="hcCards" style="grid-template-columns:repeat(3,1fr);gap:14px;"></div>
+    </div>
+  </div>
 </div>
 
 <!-- MODAL -->
@@ -555,6 +577,7 @@ async function fetchData() {
     var json=await res.json();
     allData=(json.candidates||[]).filter(function(d){return d.Name&&d.Result;});
     piData=(json.piRecords||[]).filter(function(d){return d.Name;});
+    loadHeadcountData(json.headcount||[]);
     var bus=[...new Set(allData.map(function(d){return String(d.BU||'').trim();}))].filter(Boolean).sort();
     ['kbBuBar','calBuBar','ovBuBar','trBuBar'].forEach(function(barId){
       var filterFn=barId==='kbBuBar'?'kbFilter':barId==='calBuBar'?'calFilter':barId==='trBuBar'?'trFilter':'ovFilter';
@@ -586,7 +609,7 @@ function switchTab(tab,el) {
   currentTab=tab;
   document.querySelectorAll('.tab').forEach(function(t){t.classList.remove('active');});
   el.classList.add('active');
-  ['kanban','cal','overview','pi','trend'].forEach(function(v){
+  ['kanban','cal','overview','pi','trend','hc'].forEach(function(v){
     document.getElementById('view-'+v).style.display=v===tab?'':'none';
   });
   if(tab==='trend') renderTrend();
@@ -1039,6 +1062,128 @@ function renderTrend() {
   }).join('');
   tbodyHtml += '<tr style="background:var(--bg)"><td style="font-weight:700">總計</td>'+totalCells+'</tr>';
   document.getElementById('trTableBody').innerHTML = tbodyHtml;
+}
+
+// ===== HEADCOUNT OVERVIEW =====
+// 資料來源：自動從 Apps Script 回傳的 headcount 陣列載入（doGet 已包含 Headcount Record 分頁）
+var hcRawData = [];
+var hcBU = 'all';
+
+function loadHeadcountData(records) {
+  hcRawData = records || [];
+  document.getElementById('hcEmptyState').style.display = hcRawData.length ? 'none' : '';
+  document.getElementById('hcContent').style.display = hcRawData.length ? '' : 'none';
+  document.getElementById('hcSub').textContent = hcRawData.length
+    ? '共 '+hcRawData.length+' 筆職缺異動記錄'
+    : '尚無 Headcount 資料';
+  renderHeadcount();
+}
+
+function hcFilter(type,val,el) {
+  if(type==='bu') hcBU=val;
+  document.querySelectorAll('#hcBuBar .bu-btn').forEach(function(b){b.classList.remove('active');});
+  el.classList.add('active');
+  renderHeadcount();
+}
+
+function renderHeadcount() {
+  if (!hcRawData.length) return;
+  var divKey = Object.keys(hcRawData[0]).find(function(k){return k.trim()==='Division';}) || 'Division';
+  var jobKey = Object.keys(hcRawData[0]).find(function(k){return k.trim()==='Job Function';}) || 'Job Function';
+  var gradeKey = Object.keys(hcRawData[0]).find(function(k){return k.trim()==='職等';}) || '職等';
+  var dutiesKey = Object.keys(hcRawData[0]).find(function(k){return k.trim()==='Duties';}) || 'Duties';
+  var reasonKey = Object.keys(hcRawData[0]).find(function(k){return k.includes('Reason');}) || 'Reason for Request';
+  var predKey = Object.keys(hcRawData[0]).find(function(k){return k.includes('Predecessor');}) || 'Predecessor';
+  var succKey = Object.keys(hcRawData[0]).find(function(k){return k.includes('Successor');}) || 'Successor';
+
+  var filtered = hcRawData.filter(function(r){
+    return hcBU==='all' || String(r[divKey]||'').trim()===hcBU;
+  });
+
+  var bus = [...new Set(hcRawData.map(function(r){return String(r[divKey]||'').trim();}))].filter(Boolean).sort();
+  document.getElementById('hcBuBar').innerHTML =
+    '<button class="bu-btn '+(hcBU==='all'?'active':'')+'" data-bu="all" onclick="hcFilter(\'bu\',this.getAttribute(\'data-bu\'),this)">全部單位</button>'+
+    bus.map(function(b){return '<button class="bu-btn '+(hcBU===b?'active':'')+'" data-bu="'+b+'" onclick="hcFilter(\'bu\',this.getAttribute(\'data-bu\'),this)">'+b+'</button>';}).join('');
+
+  var groups = {};
+  filtered.forEach(function(r){
+    var div = String(r[divKey]||'').trim();
+    var job = String(r[jobKey]||'').trim();
+    if (!groups[div]) groups[div] = {div:div, total:0, vacantTotal:0, jobs:{}};
+    if (!groups[div].jobs[job]) groups[div].jobs[job] = {job:job, total:0, rows:[]};
+    groups[div].total++;
+    groups[div].jobs[job].total++;
+    var succ = String(r[succKey]||'').trim();
+    var isVacant = !succ;
+    if (isVacant) groups[div].vacantTotal++;
+    groups[div].jobs[job].rows.push({
+      grade: String(r[gradeKey]||'').trim() || '—',
+      duties: String(r[dutiesKey]||'').trim() || '—',
+      reason: String(r[reasonKey]||'').trim() || '—',
+      pred: String(r[predKey]||'').trim() || '—',
+      succ: succ,
+      vacant: isVacant
+    });
+  });
+
+  var divArr = Object.values(groups).sort(function(a,b){return b.vacantTotal - a.vacantTotal;});
+
+  document.getElementById('hcCards').innerHTML = divArr.map(function(g){
+    var divColor = g.vacantTotal===0 ? '#10B981' : g.vacantTotal<=3 ? '#F59E0B' : '#EF4444';
+    var jobArr = Object.values(g.jobs).sort(function(a,b){
+      var av = a.rows.filter(function(r){return r.vacant;}).length;
+      var bv = b.rows.filter(function(r){return r.vacant;}).length;
+      return bv - av;
+    });
+
+    var jobsHtml = jobArr.map(function(j){
+      var vacantInJob = j.rows.filter(function(r){return r.vacant;}).length;
+      var jc = vacantInJob===0 ? '#10B981' : vacantInJob<=2 ? '#F59E0B' : '#EF4444';
+
+      var rowsHtml = j.rows.map(function(r){
+        var statusBadge = r.vacant
+          ? '<span style="font-size:10px;font-weight:600;padding:1px 6px;border-radius:6px;background:#FEE2E2;color:#991B1B;">缺額</span>'
+          : '<span style="font-size:10px;font-weight:600;padding:1px 6px;border-radius:6px;background:#DCFCE7;color:#166534;">已補實</span>';
+        return '<tr>'+
+          '<td style="font-size:11px;color:var(--text-secondary);padding:5px 8px;">'+r.grade+'</td>'+
+          '<td style="font-size:11px;color:var(--text-primary);padding:5px 8px;font-weight:500;">'+r.duties+'</td>'+
+          '<td style="font-size:11px;color:var(--text-secondary);padding:5px 8px;">'+r.reason+'</td>'+
+          '<td style="font-size:11px;color:var(--text-secondary);padding:5px 8px;">'+r.pred+'</td>'+
+          '<td style="font-size:11px;padding:5px 8px;">'+statusBadge+'</td>'+
+        '</tr>';
+      }).join('');
+
+      return '<div style="margin-bottom:10px;">'+
+        '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;">'+
+          '<span style="font-size:12px;font-weight:600;">'+j.job+'</span>'+
+          '<span style="font-size:11px;font-weight:600;color:'+jc+';">'+vacantInJob+' 缺額</span>'+
+        '</div>'+
+        '<div style="overflow-x:auto;border:1px solid var(--border);border-radius:8px;">'+
+          '<table style="width:100%;border-collapse:collapse;min-width:380px;">'+
+            '<thead><tr style="background:var(--bg);">'+
+              '<th style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-align:left;padding:5px 8px;">職等</th>'+
+              '<th style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-align:left;padding:5px 8px;">職務</th>'+
+              '<th style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-align:left;padding:5px 8px;">原因</th>'+
+              '<th style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-align:left;padding:5px 8px;">原任</th>'+
+              '<th style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-align:left;padding:5px 8px;">狀態</th>'+
+            '</tr></thead>'+
+            '<tbody>'+rowsHtml+'</tbody>'+
+          '</table>'+
+        '</div>'+
+      '</div>';
+    }).join('');
+
+    return '<div class="mini-card" style="padding:16px 18px;">'+
+      '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">'+
+        '<div style="font-size:16px;font-weight:700;">'+g.div+'</div>'+
+        '<div style="display:flex;align-items:baseline;gap:5px;">'+
+          '<span style="font-size:26px;font-weight:700;color:'+divColor+';">'+g.vacantTotal+'</span>'+
+          '<span style="font-size:12px;color:var(--text-secondary);">個缺額</span>'+
+        '</div>'+
+      '</div>'+
+      jobsHtml+
+    '</div>';
+  }).join('');
 }
 
 fetchData();
