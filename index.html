@@ -1137,35 +1137,33 @@ function renderHeadcount() {
     });
 
     var jobsHtml = jobArr.map(function(j){
-      var vacantInJob = j.rows.filter(function(r){return r.vacant;}).length;
+      var vacantRows = j.rows.filter(function(r){return r.vacant;});
+      var vacantInJob = vacantRows.length;
       var jc = vacantInJob===0 ? '#10B981' : vacantInJob<=2 ? '#F59E0B' : '#EF4444';
 
-      var rowsHtml = j.rows.map(function(r){
-        var statusBadge = r.vacant
-          ? '<span style="font-size:10px;font-weight:600;padding:1px 6px;border-radius:6px;background:#FEE2E2;color:#991B1B;">缺額</span>'
-          : '<span style="font-size:10px;font-weight:600;padding:1px 6px;border-radius:6px;background:#DCFCE7;color:#166534;">已補實</span>';
+      if (vacantInJob === 0) return ''; // 已補實的 Job Function 不顯示
+
+      var rowsHtml = vacantRows.map(function(r){
         return '<tr>'+
           '<td style="font-size:11px;color:var(--text-secondary);padding:5px 8px;">'+r.grade+'</td>'+
           '<td style="font-size:11px;color:var(--text-primary);padding:5px 8px;font-weight:500;">'+r.duties+'</td>'+
           '<td style="font-size:11px;color:var(--text-secondary);padding:5px 8px;">'+r.reason+'</td>'+
           '<td style="font-size:11px;color:var(--text-secondary);padding:5px 8px;">'+r.pred+'</td>'+
-          '<td style="font-size:11px;padding:5px 8px;">'+statusBadge+'</td>'+
         '</tr>';
       }).join('');
 
       return '<div style="margin-bottom:10px;">'+
-        '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;">'+
+        '<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;">'+
           '<span style="font-size:12px;font-weight:600;">'+j.job+'</span>'+
-          '<span style="font-size:11px;font-weight:600;color:'+jc+';">'+vacantInJob+' 缺額</span>'+
+          '<span style="font-size:11px;font-weight:700;color:'+jc+';background:'+jc+'18;padding:1px 8px;border-radius:10px;">'+vacantInJob+' 缺額</span>'+
         '</div>'+
         '<div style="overflow-x:auto;border:1px solid var(--border);border-radius:8px;">'+
-          '<table style="width:100%;border-collapse:collapse;min-width:380px;">'+
+          '<table style="width:100%;border-collapse:collapse;min-width:320px;">'+
             '<thead><tr style="background:var(--bg);">'+
               '<th style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-align:left;padding:5px 8px;">職等</th>'+
               '<th style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-align:left;padding:5px 8px;">職務</th>'+
               '<th style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-align:left;padding:5px 8px;">原因</th>'+
               '<th style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-align:left;padding:5px 8px;">原任</th>'+
-              '<th style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-align:left;padding:5px 8px;">狀態</th>'+
             '</tr></thead>'+
             '<tbody>'+rowsHtml+'</tbody>'+
           '</table>'+
@@ -1173,15 +1171,15 @@ function renderHeadcount() {
       '</div>';
     }).join('');
 
-    return '<div class="mini-card" style="padding:16px 18px;">'+
-      '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">'+
-        '<div style="font-size:16px;font-weight:700;">'+g.div+'</div>'+
-        '<div style="display:flex;align-items:baseline;gap:5px;">'+
-          '<span style="font-size:26px;font-weight:700;color:'+divColor+';">'+g.vacantTotal+'</span>'+
-          '<span style="font-size:12px;color:var(--text-secondary);">個缺額</span>'+
+    return '<div class="mini-card" style="padding:18px 20px;border:1.5px solid '+divColor+'40;">'+
+      '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;padding-bottom:12px;border-bottom:2px solid '+divColor+'30;">'+
+        '<div style="font-size:19px;font-weight:800;color:var(--text-primary);">'+g.div+'</div>'+
+        '<div style="display:flex;align-items:baseline;gap:6px;background:'+divColor+'15;padding:4px 12px;border-radius:10px;">'+
+          '<span style="font-size:30px;font-weight:800;color:'+divColor+';line-height:1;">'+g.vacantTotal+'</span>'+
+          '<span style="font-size:12px;font-weight:600;color:'+divColor+';">個缺額</span>'+
         '</div>'+
       '</div>'+
-      jobsHtml+
+      (jobsHtml || '<div style="font-size:12px;color:var(--text-tertiary);text-align:center;padding:12px 0;">目前無缺額</div>')+
     '</div>';
   }).join('');
 }
