@@ -121,7 +121,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
 .metrics-wrap{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:24px;}
 .metrics-col-label{font-size:11px;font-weight:600;color:var(--text-tertiary);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px;}
 .metrics-inner{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
-.metric{background:var(--surface);border:1.5px solid var(--border);border-radius:12px;padding:14px 16px;cursor:pointer;transition:all .15s;}
+.metric{background:var(--surface);border:1.5px solid var(--border);border-radius:12px;padding:14px 16px;transition:all .15s;}
 .metric:hover{border-color:var(--accent);}
 .metric.active-filter{border-color:var(--accent);box-shadow:0 0 0 3px rgba(79,70,229,.1);}
 .metric-top{display:flex;align-items:center;gap:7px;margin-bottom:8px;}
@@ -256,18 +256,16 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
   <div class="error-banner" id="errorBanner"></div>
 
   <!-- ===== KANBAN ===== -->
-  <div id="view-kanban">
+  <div id="view-kanban" style="position:relative;">
+    <div style="position:absolute;top:0;right:0;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 22px;text-align:center;">
+      <div style="font-size:10px;font-weight:600;color:var(--text-tertiary);letter-spacing:.06em;text-transform:uppercase;">轉換率</div>
+      <div style="font-size:26px;font-weight:700;color:var(--accent);line-height:1.3;" id="kbConversionRate">—</div>
+    </div>
     <div class="page-title">Recruitment Overview</div>
     <div class="page-sub">點擊人選卡片可變更招募階段</div>
-    <div style="display:flex;align-items:flex-end;gap:14px;margin-bottom:10px;">
-      <div class="search-wrap" style="width:280px;margin-bottom:0;">
-        <div class="search-label">搜尋</div>
-        <input class="search-input" type="text" id="kbSearch" placeholder="姓名..." oninput="renderKanban()" style="width:100%;">
-      </div>
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px 18px;text-align:center;display:flex;align-items:center;gap:10px;">
-        <span style="font-size:10px;font-weight:600;color:var(--text-tertiary);letter-spacing:.06em;text-transform:uppercase;">轉換率</span>
-        <span style="font-size:20px;font-weight:700;color:var(--accent);" id="kbConversionRate">—</span>
-      </div>
+    <div class="search-wrap" style="width:280px;margin-bottom:10px;">
+      <div class="search-label">搜尋</div>
+      <input class="search-input" type="text" id="kbSearch" placeholder="姓名..." oninput="renderKanban()" style="width:100%;">
     </div>
     <div class="filter-bar" style="margin-bottom:20px;">
       <div class="filter-group">
@@ -276,7 +274,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
       </div>
       <div class="filter-divider"></div>
       <div class="filter-group">
-        <div class="filter-group-label">職缺</div>
+        <div class="filter-group-label">Job Function</div>
         <div class="filter-btns">
           <button class="pos-btn active" onclick="kbFilter('pos','all',this)">全部職缺</button>
           <button class="pos-btn" onclick="kbFilter('pos','Sales',this)">Sales</button>
@@ -307,7 +305,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
       </div>
       <div class="filter-divider"></div>
       <div class="filter-group">
-        <div class="filter-group-label">職缺</div>
+        <div class="filter-group-label">Job Function</div>
         <div class="filter-btns">
           <button class="pos-btn active" onclick="calFilter('pos','all',this)">全部職缺</button>
           <button class="pos-btn" onclick="calFilter('pos','Sales',this)">Sales</button>
@@ -347,7 +345,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
       </div>
       <div class="filter-divider"></div>
       <div class="filter-group">
-        <div class="filter-group-label">職缺</div>
+        <div class="filter-group-label">Job Function</div>
         <div class="filter-btns">
           <button class="pos-btn active" onclick="ovFilter('pos','all',this)">全部職缺</button>
           <button class="pos-btn" onclick="ovFilter('pos','Sales',this)">Sales</button>
@@ -359,31 +357,34 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
       <div>
         <div class="metrics-col-label">📞 電訪</div>
         <div class="metrics-inner">
-          <div class="metric" onclick="toggleFilter('待排電訪')" id="m-待排電訪">
+          <div class="metric" id="m-待排電訪">
             <div class="metric-top"><div class="metric-dot" style="background:#F59E0B"></div><span class="metric-label">待排電訪</span></div>
-            <div class="metric-val" id="c-待排電訪">—</div><div class="metric-sub">點擊篩選</div>
+            <div class="metric-val" id="c-待排電訪">—</div>
+            <div id="list-待排電訪" style="margin-top:10px;display:flex;flex-direction:column;gap:6px;"></div>
           </div>
-          <div class="metric" onclick="toggleFilter('待電訪')" id="m-待電訪">
+          <div class="metric" id="m-待電訪">
             <div class="metric-top"><div class="metric-dot" style="background:#10B981"></div><span class="metric-label">待電訪</span></div>
-            <div class="metric-val" id="c-待電訪">—</div><div class="metric-sub">點擊篩選</div>
+            <div class="metric-val" id="c-待電訪">—</div>
+            <div id="list-待電訪" style="margin-top:10px;display:flex;flex-direction:column;gap:6px;"></div>
           </div>
         </div>
       </div>
       <div>
         <div class="metrics-col-label">🗣️ 面試</div>
         <div class="metrics-inner">
-          <div class="metric" onclick="toggleFilter('待排面試')" id="m-待排面試">
+          <div class="metric" id="m-待排面試">
             <div class="metric-top"><div class="metric-dot" style="background:#3B82F6"></div><span class="metric-label">待排面試</span></div>
-            <div class="metric-val" id="c-待排面試">—</div><div class="metric-sub">點擊篩選</div>
+            <div class="metric-val" id="c-待排面試">—</div>
+            <div id="list-待排面試" style="margin-top:10px;display:flex;flex-direction:column;gap:6px;"></div>
           </div>
-          <div class="metric" onclick="toggleFilter('待面試')" id="m-待面試">
+          <div class="metric" id="m-待面試">
             <div class="metric-top"><div class="metric-dot" style="background:#8B5CF6"></div><span class="metric-label">待面試</span></div>
-            <div class="metric-val" id="c-待面試">—</div><div class="metric-sub">點擊篩選</div>
+            <div class="metric-val" id="c-待面試">—</div>
+            <div id="list-待面試" style="margin-top:10px;display:flex;flex-direction:column;gap:6px;"></div>
           </div>
         </div>
       </div>
     </div>
-    <div id="stagesContainer"></div>
     <div class="collapse-section">
       <div class="collapse-hdr" onclick="toggleCollapse('phone')">
         <div class="collapse-hdr-left"><span>📞</span><span>已電訪</span><span class="collapse-count" id="cc-phone">0 人</span></div>
@@ -415,7 +416,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
       </div>
       <div class="filter-divider"></div>
       <div class="filter-group">
-        <div class="filter-group-label">職缺</div>
+        <div class="filter-group-label">Job Function</div>
         <div class="filter-btns">
           <button class="pos-btn active" onclick="piFilter('pos','all',this)">全部職缺</button>
           <button class="pos-btn" onclick="piFilter('pos','Sales',this)">Sales</button>
@@ -426,7 +427,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
     <div class="table-wrap">
       <table class="pi-table">
         <thead>
-          <tr><th>姓名</th><th>職缺</th><th>電訪時間</th><th style="min-width:200px">Memo</th><th>是否推薦</th><th>已提供給主管</th><th>目前狀態</th></tr>
+          <tr><th>姓名</th><th>職缺</th><th>電訪時間</th><th style="min-width:200px">Memo</th><th>已提供給主管</th><th>目前狀態</th></tr>
         </thead>
         <tbody id="piBody"></tbody>
       </table>
@@ -842,33 +843,27 @@ function renderOverview() {
            (!search||String(d.Name||'').toLowerCase().includes(search));
   });
   var activeStages=['待排電訪','待電訪','待排面試','待面試'];
-  activeStages.forEach(function(s){
-    document.getElementById('c-'+s).textContent=filtered.filter(function(d){return d.Result===s;}).length;
-    document.getElementById('m-'+s).classList.toggle('active-filter',activeFilter===s);
-  });
   document.getElementById('overviewSub').textContent='共 '+filtered.length+' 筆人選資料';
-  var stageDot={'待排電訪':'#F59E0B','待電訪':'#10B981','待排面試':'#3B82F6','待面試':'#8B5CF6'};
   var timeCls={'待排電訪':'t-amber','待電訪':'t-teal','待排面試':'t-blue','待面試':'t-purple'};
   var timeIcon={'待排電訪':'📅','待電訪':'📞','待排面試':'📅','待面試':'🗣️'};
   var timeLabel={'待排電訪':'可排電訪時段','待電訪':'電訪時間','待排面試':'可排面試時段','待面試':'面試時間'};
+
   function makeCard(d,stage,cls,icon,label){
     var rawT=(stage==='待電訪'||stage==='待排電訪')?(d.Interview_date||d.PI_date||''):(d.Interview_date||'');
     var t=fmtDate(rawT);
     var th=t?'<div class="card-time '+(cls||'t-gray')+'"><span style="font-size:13px">'+(icon||'🕐')+'</span><div><div class="card-time-label">'+(label||'時間')+'</div><div style="font-size:11px;opacity:.85;margin-top:1px">'+t+'</div></div></div>':'<div class="card-time t-gray"><span style="font-size:13px">🕐</span><div><div class="card-time-label">尚未排定時間</div></div></div>';
     return '<div class="card"><div class="card-top"><div class="card-name">'+d.Name+'</div><div class="card-bu">'+d.BU+'</div></div><div class="card-pos">'+(d.Position||'')+(d.Source?' · '+d.Source:'')+'</div>'+th+'</div>';
   }
-  function makeBlock(stage){
-    var cands=filtered.filter(function(d){return d.Result===stage;});
+
+  activeStages.forEach(function(stage){
+    var cands = filtered.filter(function(d){return d.Result===stage;});
     cands.sort(function(a,b){return getSortTs(a)-getSortTs(b);});
-    var cards=cands.length===0?'<div class="empty">目前無人選</div>':cands.map(function(d){return makeCard(d,stage,timeCls[stage],timeIcon[stage],timeLabel[stage]);}).join('');
-    return '<div class="stage-block"><div class="section-hdr"><div class="section-dot" style="background:'+stageDot[stage]+'"></div><span class="section-title">'+stage+'</span><span class="section-count">'+cands.length+' 人</span></div><div class="cards">'+cards+'</div></div>';
-  }
-  var toShow=activeFilter?[activeFilter]:activeStages;
-  var left=toShow.filter(function(s){return ['待排電訪','待電訪'].includes(s);});
-  var right=toShow.filter(function(s){return ['待排面試','待面試'].includes(s);});
-  document.getElementById('stagesContainer').innerHTML=
-    '<div class="stages-grid"><div class="stage-col"><div class="stage-col-label">📞 電訪</div>'+(left.length?left.map(makeBlock).join(''):'<div class="empty">—</div>')+'</div>'+
-    '<div class="stage-col"><div class="stage-col-label">🗣️ 面試</div>'+(right.length?right.map(makeBlock).join(''):'<div class="empty">—</div>')+'</div></div>';
+    document.getElementById('c-'+stage).textContent = cands.length;
+    var listHtml = cands.length===0 ? '<div class="empty" style="padding:8px 0;">目前無人選</div>' :
+      cands.map(function(d){return makeCard(d,stage,timeCls[stage],timeIcon[stage],timeLabel[stage]);}).join('');
+    document.getElementById('list-'+stage).innerHTML = listHtml;
+  });
+
   var dp=filtered.filter(function(d){return (d.Result==='待電訪'||d.Result==='待排電訪')&&isDonePhone(d);});
   dp.sort(function(a,b){return getSortTs(b)-getSortTs(a);});
   document.getElementById('cc-phone').textContent=dp.length+' 人';
@@ -887,6 +882,11 @@ function renderPi() {
            (piPos==='all'||String(d.Position||'').includes(piPos)) &&
            (!search||String(d.Name||'').toLowerCase().includes(search)||String(d.Position||'').toLowerCase().includes(search));
   });
+  filtered.sort(function(a,b){
+    var ta=parseDateTime(a.PI_date||''), tb=parseDateTime(b.PI_date||'');
+    var tsa=ta?ta.getTime():Infinity, tsb=tb?tb.getTime():Infinity;
+    return tsa-tsb;
+  });
   document.getElementById('piSub').textContent='共 '+filtered.length+' 筆電訪記錄';
   function yesNo(v){v=String(v||'').trim();var yes=(v==='Y'||v==='y'||v==='是'||v.toLowerCase()==='yes'||v==='TRUE'||v==='true');return yes?'<span class="badge badge-yes">✓ 是</span>':v?'<span class="badge badge-no">'+v+'</span>':'<span class="badge badge-no">—</span>';}
   if (!filtered.length){document.getElementById('piBody').innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--text-tertiary);padding:24px">目前無電訪記錄</td></tr>';return;}
@@ -895,7 +895,7 @@ function renderPi() {
     var provKey=Object.keys(d).find(function(k){return k.includes('提供');})||'';
     var resKey=Object.keys(d).find(function(k){return k==='Result';})||'';
     var memo=memoKey?d[memoKey]:'',prov=provKey?d[provKey]:'',res=resKey?d[resKey]:'';
-    return '<tr><td style="font-weight:600;white-space:nowrap">'+d.Name+'</td><td style="white-space:nowrap">'+(d.Position||'')+'</td><td style="white-space:nowrap">'+fmtDate(d.PI_date||'')+'</td><td class="memo-cell">'+(memo||'<span style="color:var(--text-tertiary)">—</span>')+'</td><td>'+yesNo(res)+'</td><td>'+yesNo(prov)+'</td><td><span class="result-badge">'+( d.Result||'—')+'</span></td></tr>';
+    return '<tr><td style="font-weight:600;white-space:nowrap">'+d.Name+'</td><td style="white-space:nowrap">'+(d.Position||'')+'</td><td style="white-space:nowrap">'+fmtDate(d.PI_date||'')+'</td><td class="memo-cell">'+(memo||'<span style="color:var(--text-tertiary)">—</span>')+'</td><td>'+yesNo(prov)+'</td><td><span class="result-badge">'+( d.Result||'—')+'</span></td></tr>';
   }).join('');
 }
 
@@ -1046,12 +1046,12 @@ function renderHeadcount() {
 
       var rowsHtml = vacantRows.map(function(r){
         return '<tr>'+
-          '<td style="font-size:11px;color:var(--text-secondary);padding:5px 8px;">'+r.unit+'</td>'+
-          '<td style="font-size:11px;color:var(--text-secondary);padding:5px 8px;">'+r.reason+'</td>'+
-          '<td style="font-size:11px;color:var(--text-primary);padding:5px 8px;font-weight:500;">'+r.duties+'</td>'+
-          '<td style="font-size:11px;color:var(--text-secondary);padding:5px 8px;">'+r.grade+'</td>'+
-          '<td style="font-size:11px;color:var(--text-secondary);padding:5px 8px;">'+r.pred+'</td>'+
-          '<td style="padding:5px 8px;">'+
+          '<td style="font-size:11px;color:var(--text-secondary);padding:5px 6px;">'+r.unit+'</td>'+
+          '<td style="font-size:11px;color:var(--text-secondary);padding:5px 6px;">'+r.reason+'</td>'+
+          '<td style="font-size:11px;color:var(--text-primary);padding:5px 6px;font-weight:500;">'+r.duties+'</td>'+
+          '<td style="font-size:11px;color:var(--text-secondary);padding:5px 6px;">'+r.grade+'</td>'+
+          '<td style="font-size:11px;color:var(--text-secondary);padding:5px 6px;">'+r.pred+'</td>'+
+          '<td style="padding:5px 6px;">'+
             '<button class="hc-memo-btn" data-row="'+r._row+'" data-memo="'+r.memo.replace(/"/g,'&quot;')+'" onclick="openMemoModal(this)" style="font-size:11px;padding:3px 8px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text-secondary);cursor:pointer;">備註'+(r.memo?' •':'')+'</button>'+
           '</td>'+
         '</tr>';
@@ -1063,14 +1063,14 @@ function renderHeadcount() {
           '<span style="font-size:11px;font-weight:700;color:'+jc+';background:'+jc+'18;padding:1px 8px;border-radius:10px;">'+vacantInJob+' 缺額</span>'+
         '</div>'+
         '<div style="overflow-x:auto;border:1px solid var(--border);border-radius:8px;">'+
-          '<table style="width:100%;border-collapse:collapse;min-width:420px;">'+
+          '<table style="width:100%;border-collapse:collapse;min-width:340px;">'+
             '<thead><tr style="background:var(--bg);">'+
-              '<th style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-align:left;padding:5px 8px;">單位</th>'+
-              '<th style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-align:left;padding:5px 8px;">原因</th>'+
-              '<th style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-align:left;padding:5px 8px;">Duties</th>'+
-              '<th style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-align:left;padding:5px 8px;">職等</th>'+
-              '<th style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-align:left;padding:5px 8px;">原任</th>'+
-              '<th style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-align:left;padding:5px 8px;">備註</th>'+
+              '<th style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-align:left;padding:5px 6px;">單位</th>'+
+              '<th style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-align:left;padding:5px 6px;">原因</th>'+
+              '<th style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-align:left;padding:5px 6px;">Duties</th>'+
+              '<th style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-align:left;padding:5px 6px;">職等</th>'+
+              '<th style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-align:left;padding:5px 6px;">原任</th>'+
+              '<th style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-align:left;padding:5px 6px;">備註</th>'+
             '</tr></thead>'+
             '<tbody>'+rowsHtml+'</tbody>'+
           '</table>'+
