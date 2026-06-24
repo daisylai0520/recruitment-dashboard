@@ -61,7 +61,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
 .kanban-board{display:flex;gap:12px;min-width:max-content;align-items:flex-start;}
 .kanban-phase{display:flex;gap:10px;}
 .kanban-phase-divider{width:2px;background:var(--border);border-radius:2px;align-self:stretch;margin:0 4px;min-height:200px;}
-.kanban-col{width:220px;flex-shrink:0;}
+.kanban-col{width:170px;flex-shrink:0;}
 .kanban-col-hdr{padding:10px 12px;border-radius:8px 8px 0 0;font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;border-bottom:3px solid transparent;}
 .kanban-col-count{font-size:11px;font-weight:500;padding:1px 7px;border-radius:10px;background:rgba(255,255,255,.5);}
 .kanban-cards{display:flex;flex-direction:column;gap:6px;min-height:80px;}
@@ -242,7 +242,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
       <span id="syncText">資料載入中...</span>
     </div>
     <button class="refresh-btn" onclick="fetchData()">↻ 重新整理</button>
-    <button class="refresh-btn" onclick="switchRole()">🔄 切換角色</button>
+    <button class="refresh-btn" onclick="switchRole()">🔄 切換身分</button>
   </div>
 </div>
 
@@ -263,6 +263,10 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
   <div id="view-kanban">
     <div class="page-title">Recruitment Overview</div>
     <div class="page-sub">點擊人選卡片可變更招募階段</div>
+    <div class="search-wrap" style="margin-bottom:10px;width:280px;">
+      <div class="search-label">搜尋</div>
+      <input class="search-input" type="text" id="kbSearch" placeholder="姓名..." oninput="renderKanban()" style="width:100%;">
+    </div>
     <div style="display:flex;align-items:flex-start;gap:14px;margin-bottom:20px;">
     <div class="filter-bar" style="margin-bottom:0;flex:1;">
       <div class="filter-group">
@@ -278,15 +282,10 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
           <button class="pos-btn" onclick="kbFilter('pos','FAE',this)">FAE</button>
         </div>
       </div>
-      <div class="filter-divider"></div>
-      <div class="search-wrap">
-        <div class="search-label">搜尋</div>
-        <input class="search-input" type="text" id="kbSearch" placeholder="姓名..." oninput="renderKanban()">
-      </div>
     </div>
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 22px;text-align:center;flex-shrink:0;">
       <div style="font-size:10px;font-weight:600;color:var(--text-tertiary);letter-spacing:.06em;text-transform:uppercase;">轉換率</div>
-      <div style="font-size:26px;font-weight:700;color:var(--accent);line-height:1.3;margin-top:4px;" id="kbConversionRate">—</div>
+      <div style="font-size:38px;font-weight:700;color:var(--accent);line-height:1.3;margin-top:4px;" id="kbConversionRate">—</div>
     </div>
     </div>
     <div class="kanban-wrap">
@@ -301,6 +300,10 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
   <div id="view-cal" style="display:none">
     <div class="page-title">Calendar</div>
     <div class="page-sub">電訪與面試時程總覽</div>
+    <div class="search-wrap" style="margin-bottom:10px;width:280px;">
+      <div class="search-label">搜尋</div>
+      <input class="search-input" type="text" id="calSearch" placeholder="姓名..." oninput="renderCalendar()" style="width:100%;">
+    </div>
     <div class="filter-bar">
       <div class="filter-group">
         <div class="filter-group-label">單位</div>
@@ -314,11 +317,6 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
           <button class="pos-btn" onclick="calFilter('pos','Sales',this)">Sales</button>
           <button class="pos-btn" onclick="calFilter('pos','FAE',this)">FAE</button>
         </div>
-      </div>
-      <div class="filter-divider"></div>
-      <div class="search-wrap">
-        <div class="search-label">搜尋</div>
-        <input class="search-input" type="text" id="calSearch" placeholder="姓名..." oninput="renderCalendar()">
       </div>
     </div>
     <div class="cal-legend">
@@ -342,6 +340,10 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
   <div id="view-overview" style="display:none">
     <div class="page-title">Recruitment Status</div>
     <div class="page-sub" id="overviewSub">載入中...</div>
+    <div class="search-wrap" style="margin-bottom:10px;width:280px;">
+      <div class="search-label">搜尋</div>
+      <input class="search-input" type="text" id="ovSearch" placeholder="姓名..." oninput="renderOverview()" style="width:100%;">
+    </div>
     <div class="filter-bar">
       <div class="filter-group">
         <div class="filter-group-label">單位</div>
@@ -355,11 +357,6 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
           <button class="pos-btn" onclick="ovFilter('pos','Sales',this)">Sales</button>
           <button class="pos-btn" onclick="ovFilter('pos','FAE',this)">FAE</button>
         </div>
-      </div>
-      <div class="filter-divider"></div>
-      <div class="search-wrap">
-        <div class="search-label">搜尋</div>
-        <input class="search-input" type="text" id="ovSearch" placeholder="姓名..." oninput="renderOverview()">
       </div>
     </div>
     <div class="metrics-wrap">
@@ -411,6 +408,10 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
   <div id="view-pi" style="display:none">
     <div class="page-title">Phone Interview Record</div>
     <div class="page-sub" id="piSub">載入中...</div>
+    <div class="search-wrap" style="margin-bottom:10px;width:280px;">
+      <div class="search-label">搜尋</div>
+      <input class="search-input" type="text" id="piSearch" placeholder="姓名、職缺..." oninput="renderPi()" style="width:100%;">
+    </div>
     <div class="filter-bar">
       <div class="filter-group">
         <div class="filter-group-label">單位</div>
@@ -424,11 +425,6 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
           <button class="pos-btn" onclick="piFilter('pos','Sales',this)">Sales</button>
           <button class="pos-btn" onclick="piFilter('pos','FAE',this)">FAE</button>
         </div>
-      </div>
-      <div class="filter-divider"></div>
-      <div class="search-wrap">
-        <div class="search-label">搜尋</div>
-        <input class="search-input" type="text" id="piSearch" placeholder="姓名、職缺..." oninput="renderPi()">
       </div>
     </div>
     <div class="table-wrap">
@@ -452,13 +448,18 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
     </div>
 
     <div id="hcContent" style="display:none">
-      <div class="filter-bar">
+      <div class="filter-bar" id="hcFilterBar">
         <div class="filter-group">
           <div class="filter-group-label">單位</div>
           <div class="filter-btns" id="hcBuBar"><button class="bu-btn active" onclick="hcFilter('bu','all',this)">全部單位</button></div>
         </div>
+        <div class="filter-divider"></div>
+        <div class="filter-group">
+          <div class="filter-group-label">Job Function</div>
+          <div class="filter-btns" id="hcJobBar"><button class="pos-btn active" onclick="hcFilter('job','all',this)">全部</button></div>
+        </div>
       </div>
-      <div class="collapse-grid" id="hcCards" style="grid-template-columns:repeat(3,1fr);gap:14px;"></div>
+      <div class="collapse-grid" id="hcCards" style="grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;"></div>
     </div>
   </div>
 </div>
@@ -954,6 +955,7 @@ function renderCalendar(){
 // 資料來源：自動從 Apps Script 回傳的 headcount 陣列載入（doGet 已包含 Headcount Record 分頁）
 var hcRawData = [];
 var hcBU = 'all';
+var hcJob = 'all';
 
 function loadHeadcountData(records) {
   hcRawData = records || [];
@@ -966,8 +968,13 @@ function loadHeadcountData(records) {
 }
 
 function hcFilter(type,val,el) {
-  if(type==='bu') hcBU=val;
-  document.querySelectorAll('#hcBuBar .bu-btn').forEach(function(b){b.classList.remove('active');});
+  if(type==='bu') {
+    hcBU=val;
+    document.querySelectorAll('#hcBuBar .bu-btn').forEach(function(b){b.classList.remove('active');});
+  } else if(type==='job') {
+    hcJob=val;
+    document.querySelectorAll('#hcJobBar .pos-btn').forEach(function(b){b.classList.remove('active');});
+  }
   el.classList.add('active');
   renderHeadcount();
 }
@@ -986,13 +993,19 @@ function renderHeadcount() {
   var memoKey = Object.keys(hcRawData[0]).find(function(k){return k.trim()==='Memo';}) || 'Memo';
 
   var filtered = hcRawData.filter(function(r){
-    return hcBU==='all' || String(r[divKey]||'').trim()===hcBU;
+    return (hcBU==='all' || String(r[divKey]||'').trim()===hcBU) &&
+           (hcJob==='all' || String(r[jobKey]||'').trim()===hcJob);
   });
 
   var bus = [...new Set(hcRawData.map(function(r){return String(r[divKey]||'').trim();}))].filter(Boolean).sort();
   document.getElementById('hcBuBar').innerHTML =
     '<button class="bu-btn '+(hcBU==='all'?'active':'')+'" data-bu="all" onclick="hcFilter(\'bu\',this.getAttribute(\'data-bu\'),this)">全部單位</button>'+
     bus.map(function(b){return '<button class="bu-btn '+(hcBU===b?'active':'')+'" data-bu="'+b+'" onclick="hcFilter(\'bu\',this.getAttribute(\'data-bu\'),this)">'+b+'</button>';}).join('');
+
+  var jobs = [...new Set(hcRawData.map(function(r){return String(r[jobKey]||'').trim();}))].filter(Boolean).sort();
+  document.getElementById('hcJobBar').innerHTML =
+    '<button class="pos-btn '+(hcJob==='all'?'active':'')+'" data-job="all" onclick="hcFilter(\'job\',this.getAttribute(\'data-job\'),this)">全部</button>'+
+    jobs.map(function(j){return '<button class="pos-btn '+(hcJob===j?'active':'')+'" data-job="'+j+'" onclick="hcFilter(\'job\',this.getAttribute(\'data-job\'),this)">'+j+'</button>';}).join('');
 
   var groups = {};
   filtered.forEach(function(r){
