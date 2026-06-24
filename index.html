@@ -217,14 +217,10 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
     </div>
     <div style="display:flex;gap:16px;justify-content:center;">
       <button onclick="selectRole('recruiter')" style="width:180px;padding:28px 20px;border:1.5px solid var(--border);border-radius:14px;background:var(--surface);cursor:pointer;transition:all .15s;" onmouseover="this.style.borderColor='#4F46E5';this.style.boxShadow='0 4px 16px rgba(79,70,229,.12)'" onmouseout="this.style.borderColor='#E8EAED';this.style.boxShadow='none'">
-        <div style="font-size:32px;margin-bottom:10px;">🎯</div>
-        <div style="font-size:15px;font-weight:600;color:var(--text-primary);">我是 Recruiter</div>
-        <div style="font-size:11px;color:var(--text-tertiary);margin-top:4px;">完整功能</div>
+        <div style="font-size:16px;font-weight:600;color:var(--text-primary);">我是 Recruiter</div>
       </button>
       <button onclick="selectRole('bp')" style="width:180px;padding:28px 20px;border:1.5px solid var(--border);border-radius:14px;background:var(--surface);cursor:pointer;transition:all .15s;" onmouseover="this.style.borderColor='#4F46E5';this.style.boxShadow='0 4px 16px rgba(79,70,229,.12)'" onmouseout="this.style.borderColor='#E8EAED';this.style.boxShadow='none'">
-        <div style="font-size:32px;margin-bottom:10px;">👤</div>
-        <div style="font-size:15px;font-weight:600;color:var(--text-primary);">我是 BP</div>
-        <div style="font-size:11px;color:var(--text-tertiary);margin-top:4px;">招募進度 / 電訪記錄 / 缺額總覽</div>
+        <div style="font-size:16px;font-weight:600;color:var(--text-primary);">我是 BP</div>
       </button>
     </div>
   </div>
@@ -263,12 +259,17 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
   <div id="view-kanban">
     <div class="page-title">Recruitment Overview</div>
     <div class="page-sub">點擊人選卡片可變更招募階段</div>
-    <div class="search-wrap" style="margin-bottom:10px;width:280px;">
-      <div class="search-label">搜尋</div>
-      <input class="search-input" type="text" id="kbSearch" placeholder="姓名..." oninput="renderKanban()" style="width:100%;">
+    <div style="display:flex;align-items:flex-end;gap:14px;margin-bottom:10px;">
+      <div class="search-wrap" style="width:280px;margin-bottom:0;">
+        <div class="search-label">搜尋</div>
+        <input class="search-input" type="text" id="kbSearch" placeholder="姓名..." oninput="renderKanban()" style="width:100%;">
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px 18px;text-align:center;display:flex;align-items:center;gap:10px;">
+        <span style="font-size:10px;font-weight:600;color:var(--text-tertiary);letter-spacing:.06em;text-transform:uppercase;">轉換率</span>
+        <span style="font-size:20px;font-weight:700;color:var(--accent);" id="kbConversionRate">—</span>
+      </div>
     </div>
-    <div style="display:flex;align-items:flex-start;gap:14px;margin-bottom:20px;">
-    <div class="filter-bar" style="margin-bottom:0;flex:1;">
+    <div class="filter-bar" style="margin-bottom:20px;">
       <div class="filter-group">
         <div class="filter-group-label">單位</div>
         <div class="filter-btns" id="kbBuBar"><button class="bu-btn active" onclick="kbFilter('bu','all',this)">全部單位</button></div>
@@ -282,11 +283,6 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
           <button class="pos-btn" onclick="kbFilter('pos','FAE',this)">FAE</button>
         </div>
       </div>
-    </div>
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 22px;text-align:center;flex-shrink:0;">
-      <div style="font-size:10px;font-weight:600;color:var(--text-tertiary);letter-spacing:.06em;text-transform:uppercase;">轉換率</div>
-      <div style="font-size:38px;font-weight:700;color:var(--accent);line-height:1.3;margin-top:4px;" id="kbConversionRate">—</div>
-    </div>
     </div>
     <div class="kanban-wrap">
       <div class="kanban-board" id="kanbanBoard"></div>
@@ -459,7 +455,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
           <div class="filter-btns" id="hcJobBar"><button class="pos-btn active" onclick="hcFilter('job','all',this)">全部</button></div>
         </div>
       </div>
-      <div class="collapse-grid" id="hcCards" style="grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;"></div>
+      <div class="collapse-grid" id="hcCards" style="grid-template-columns:repeat(3,1fr);gap:14px;"></div>
     </div>
   </div>
 </div>
