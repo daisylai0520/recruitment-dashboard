@@ -242,6 +242,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
       <span id="syncText">資料載入中...</span>
     </div>
     <button class="refresh-btn" onclick="fetchData()">↻ 重新整理</button>
+    <button class="refresh-btn" onclick="switchRole()">🔄 切換角色</button>
   </div>
 </div>
 
@@ -442,9 +443,8 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
 
   <!-- ===== HEADCOUNT OVERVIEW ===== -->
   <div id="view-hc" style="display:none">
-    <div style="max-width:900px;width:100%;margin:0 auto;box-sizing:border-box;">
-    <div class="page-title" style="text-align:center;">Headcount Overview</div>
-    <div class="page-sub" id="hcSub" style="text-align:center;">尚未載入資料</div>
+    <div class="page-title">Headcount Overview</div>
+    <div class="page-sub" id="hcSub">尚未載入資料</div>
 
     <div id="hcEmptyState" style="text-align:center;padding:60px 20px;color:var(--text-tertiary);">
       <div style="font-size:40px;margin-bottom:12px;">📊</div>
@@ -459,7 +459,6 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
         </div>
       </div>
       <div class="collapse-grid" id="hcCards" style="grid-template-columns:repeat(3,1fr);gap:14px;"></div>
-    </div>
     </div>
   </div>
 </div>
@@ -619,8 +618,28 @@ function selectRole(role) {
     t.style.display = (r === 'both' || r === role) ? '' : 'none';
   });
 
-  // BP 預設停留在 Recruitment Overview（已是 active），確保畫面對齊
+  // 每次選擇身分都重設到第一個 tab，避免殘留前一個角色的畫面狀態
+  var firstTab = document.querySelector('.tab[data-tab-role]');
+  document.querySelectorAll('.tab').forEach(function(t){t.classList.remove('active');});
+  if (firstTab) {
+    firstTab.classList.add('active');
+    var onclickAttr = firstTab.getAttribute('onclick');
+    var match = onclickAttr.match(/switchTab\('(\w+)'/);
+    if (match) {
+      currentTab = match[1];
+      ['kanban','cal','overview','pi','hc'].forEach(function(v){
+        document.getElementById('view-'+v).style.display = v===currentTab ? '' : 'none';
+      });
+    }
+  }
+
   fetchData();
+}
+
+function switchRole() {
+  userRole = null;
+  document.getElementById('mainAppWrapper').style.display = 'none';
+  document.getElementById('roleScreen').style.display = 'flex';
 }
 
 // ---- tabs ----
