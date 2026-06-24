@@ -555,16 +555,16 @@ async function fetchData() {
     piData=(json.piRecords||[]).filter(function(d){return d.Name;});
     loadHeadcountData(json.headcount||[]);
     var bus=[...new Set(allData.map(function(d){return String(d.BU||'').trim();}))].filter(Boolean).sort();
-    ['kbBuBar','calBuBar','ovBuBar','trBuBar'].forEach(function(barId){
-      var filterFn=barId==='kbBuBar'?'kbFilter':barId==='calBuBar'?'calFilter':barId==='trBuBar'?'trFilter':'ovFilter';
-      var cur=barId==='kbBuBar'?kbBU:barId==='calBuBar'?calBU:barId==='trBuBar'?trBU:ovBU;
+    ['kbBuBar','calBuBar','ovBuBar'].forEach(function(barId){
+      var filterFn=barId==='kbBuBar'?'kbFilter':barId==='calBuBar'?'calFilter':'ovFilter';
+      var cur=barId==='kbBuBar'?kbBU:barId==='calBuBar'?calBU:ovBU;
       document.getElementById(barId).innerHTML=
         '<button class="bu-btn '+(cur==='all'?'active':'')+'" onclick="'+filterFn+'(\'bu\',\'all\',this)">全部單位</button>'+
         bus.map(function(b){return '<button class="bu-btn '+(cur===b?'active':'')+'" onclick="'+filterFn+'(\'bu\',\''+b+'\',this)">'+b+'</button>';}).join('');
     });
     var piBus=[...new Set(piData.map(function(d){return String(d.BU||'').trim();}))].filter(Boolean).sort();
     document.getElementById('piBuBar').innerHTML=
-      '<button class="bu-btn '+(piBU==='all'?'active':'')+'" onclick="piFilter("bu","all",this)">全部單位</button>'+
+      '<button class="bu-btn '+(piBU==='all'?'active':'')+'" onclick="piFilter(\'bu\',\'all\',this)">全部單位</button>'+
       piBus.map(function(b){return '<button class="bu-btn '+(piBU===b?'active':'')+'" onclick="piFilter(\'bu\',\''+b+'\',this)">'+b+'</button>';}).join('');
     dot.className='sync-dot';
     var now=new Date();
