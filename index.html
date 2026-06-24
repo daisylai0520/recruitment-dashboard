@@ -206,6 +206,31 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
 </style>
 </head>
 <body>
+
+<!-- ROLE SELECTION SCREEN -->
+<div id="roleScreen" style="position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:9999;">
+  <div style="text-align:center;">
+    <div style="margin-bottom:32px;">
+      <img id="roleLogoImg" style="width:56px;height:56px;object-fit:contain;margin-bottom:14px;" alt="WT">
+      <div style="font-size:20px;font-weight:700;color:var(--text-primary);">WT Recruitment Overview</div>
+      <div style="font-size:13px;color:var(--text-secondary);margin-top:4px;">請選擇您的身分</div>
+    </div>
+    <div style="display:flex;gap:16px;justify-content:center;">
+      <button onclick="selectRole('recruiter')" style="width:180px;padding:28px 20px;border:1.5px solid var(--border);border-radius:14px;background:var(--surface);cursor:pointer;transition:all .15s;" onmouseover="this.style.borderColor='#4F46E5';this.style.boxShadow='0 4px 16px rgba(79,70,229,.12)'" onmouseout="this.style.borderColor='#E8EAED';this.style.boxShadow='none'">
+        <div style="font-size:32px;margin-bottom:10px;">🎯</div>
+        <div style="font-size:15px;font-weight:600;color:var(--text-primary);">我是 Recruiter</div>
+        <div style="font-size:11px;color:var(--text-tertiary);margin-top:4px;">完整功能</div>
+      </button>
+      <button onclick="selectRole('bp')" style="width:180px;padding:28px 20px;border:1.5px solid var(--border);border-radius:14px;background:var(--surface);cursor:pointer;transition:all .15s;" onmouseover="this.style.borderColor='#4F46E5';this.style.boxShadow='0 4px 16px rgba(79,70,229,.12)'" onmouseout="this.style.borderColor='#E8EAED';this.style.boxShadow='none'">
+        <div style="font-size:32px;margin-bottom:10px;">👤</div>
+        <div style="font-size:15px;font-weight:600;color:var(--text-primary);">我是 BP</div>
+        <div style="font-size:11px;color:var(--text-tertiary);margin-top:4px;">招募進度 / 電訪記錄 / 缺額總覽</div>
+      </button>
+    </div>
+  </div>
+</div>
+
+<div id="mainAppWrapper" style="display:none;">
 <div class="topbar">
   <div class="topbar-left">
     <img src="data:image/png;base64,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" style="width:34px;height:34px;object-fit:contain;" alt="WT">
@@ -224,11 +249,11 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
 
 <div class="container">
   <div class="tab-bar">
-    <div class="tab active" onclick="switchTab('kanban',this)">🗂️ Recruitment Overview</div>
-    <div class="tab" onclick="switchTab('cal',this)">📅 Calendar</div>
-    <div class="tab" onclick="switchTab('overview',this)">📋 Recruitment Status</div>
-    <div class="tab" onclick="switchTab('pi',this)">📞 Phone Interview Record</div>
-    <div class="tab" onclick="switchTab('hc',this)">👥 Headcount Overview</div>
+    <div class="tab active" data-tab-role="both" onclick="switchTab('kanban',this)">🗂️ Recruitment Overview</div>
+    <div class="tab" data-tab-role="recruiter" onclick="switchTab('cal',this)">📅 Calendar</div>
+    <div class="tab" data-tab-role="recruiter" onclick="switchTab('overview',this)">📋 Recruitment Status</div>
+    <div class="tab" data-tab-role="both" onclick="switchTab('pi',this)">📞 Phone Interview Record</div>
+    <div class="tab" data-tab-role="both" onclick="switchTab('hc',this)">👥 Headcount Overview</div>
   </div>
 
   <div class="error-banner" id="errorBanner"></div>
@@ -237,7 +262,8 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
   <div id="view-kanban">
     <div class="page-title">Recruitment Overview</div>
     <div class="page-sub">點擊人選卡片可變更招募階段</div>
-    <div class="filter-bar">
+    <div style="display:flex;align-items:flex-start;gap:14px;margin-bottom:20px;">
+    <div class="filter-bar" style="margin-bottom:0;flex:1;">
       <div class="filter-group">
         <div class="filter-group-label">單位</div>
         <div class="filter-btns" id="kbBuBar"><button class="bu-btn active" onclick="kbFilter('bu','all',this)">全部單位</button></div>
@@ -256,11 +282,11 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
         <div class="search-label">搜尋</div>
         <input class="search-input" type="text" id="kbSearch" placeholder="姓名..." oninput="renderKanban()">
       </div>
-      <div class="filter-divider"></div>
-      <div style="background:var(--bg);border-radius:10px;padding:8px 16px;text-align:center;min-width:90px;">
-        <div style="font-size:10px;font-weight:600;color:var(--text-tertiary);letter-spacing:.06em;text-transform:uppercase;">轉換率</div>
-        <div style="font-size:22px;font-weight:700;color:var(--accent);line-height:1.3;" id="kbConversionRate">—</div>
-      </div>
+    </div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 22px;text-align:center;flex-shrink:0;">
+      <div style="font-size:10px;font-weight:600;color:var(--text-tertiary);letter-spacing:.06em;text-transform:uppercase;">轉換率</div>
+      <div style="font-size:26px;font-weight:700;color:var(--accent);line-height:1.3;margin-top:4px;" id="kbConversionRate">—</div>
+    </div>
     </div>
     <div class="kanban-wrap">
       <div class="kanban-board" id="kanbanBoard"></div>
@@ -416,7 +442,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
 
   <!-- ===== HEADCOUNT OVERVIEW ===== -->
   <div id="view-hc" style="display:none">
-    <div style="max-width:980px;margin:0 auto;">
+    <div style="max-width:900px;width:100%;margin:0 auto;box-sizing:border-box;">
     <div class="page-title" style="text-align:center;">Headcount Overview</div>
     <div class="page-sub" id="hcSub" style="text-align:center;">尚未載入資料</div>
 
@@ -466,6 +492,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
 
 <script>
 var APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby0h1OkoC_xNWeAAbuh4cBicbTl4B8g1KDtL-s2YK9f80TYjIyxQtdeu9RkWFQVtY3pnw/exec';
+var userRole = null;
 var allData=[], piData=[];
 var currentTab='kanban';
 var ovBU='all', ovPos='all';
@@ -579,6 +606,22 @@ async function fetchData() {
 }
 
 function renderAll(){renderKanban();renderCalendar();renderOverview();renderPi();}
+
+// ---- role selection ----
+function selectRole(role) {
+  userRole = role;
+  document.getElementById('roleScreen').style.display = 'none';
+  document.getElementById('mainAppWrapper').style.display = '';
+
+  // 依角色顯示/隱藏 tab
+  document.querySelectorAll('.tab[data-tab-role]').forEach(function(t){
+    var r = t.getAttribute('data-tab-role');
+    t.style.display = (r === 'both' || r === role) ? '' : 'none';
+  });
+
+  // BP 預設停留在 Recruitment Overview（已是 active），確保畫面對齊
+  fetchData();
+}
 
 // ---- tabs ----
 function switchTab(tab,el) {
@@ -919,8 +962,8 @@ function renderHeadcount() {
   var gradeKey = Object.keys(hcRawData[0]).find(function(k){return k.trim()==='職等';}) || '職等';
   var dutiesKey = Object.keys(hcRawData[0]).find(function(k){return k.trim()==='Duties';}) || 'Duties';
   var reasonKey = Object.keys(hcRawData[0]).find(function(k){return k.includes('Reason');}) || 'Reason for Request';
-  var predKey = Object.keys(hcRawData[0]).find(function(k){return k.includes('Predecessor');}) || 'Predecessor';
-  var succKey = Object.keys(hcRawData[0]).find(function(k){return k.includes('Successor');}) || 'Successor';
+  var predKey = Object.keys(hcRawData[0]).find(function(k){return k.includes('Predecessor')||k.trim()==='原任';}) || 'Predecessor';
+  var succKey = Object.keys(hcRawData[0]).find(function(k){return k.includes('Successor')||k.trim()==='遞補人員';}) || 'Successor';
   var memoKey = Object.keys(hcRawData[0]).find(function(k){return k.trim()==='Memo';}) || 'Memo';
 
   var filtered = hcRawData.filter(function(r){
@@ -1058,8 +1101,11 @@ async function saveMemo() {
   }
 }
 
-fetchData();
 setInterval(fetchData,5*60*1000);
+
+// 設定 logo 圖片（取用 topbar 的同一張 base64）
+document.getElementById('roleLogoImg').src = document.querySelector('.topbar-left img').src;
 </script>
+</div><!-- end mainAppWrapper -->
 </body>
 </html>
