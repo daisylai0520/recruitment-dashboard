@@ -224,11 +224,10 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
 
 <div class="container">
   <div class="tab-bar">
-    <div class="tab active" onclick="switchTab('kanban',this)">🗂️ Kanban</div>
+    <div class="tab active" onclick="switchTab('kanban',this)">🗂️ Recruitment Overview</div>
     <div class="tab" onclick="switchTab('cal',this)">📅 Calendar</div>
-    <div class="tab" onclick="switchTab('overview',this)">📋 Recruitment Overview</div>
+    <div class="tab" onclick="switchTab('overview',this)">📋 Recruitment Status</div>
     <div class="tab" onclick="switchTab('pi',this)">📞 Phone Interview Record</div>
-    <div class="tab" onclick="switchTab('trend',this)">📈 Weekly Trends</div>
     <div class="tab" onclick="switchTab('hc',this)">👥 Headcount Overview</div>
   </div>
 
@@ -236,7 +235,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
 
   <!-- ===== KANBAN ===== -->
   <div id="view-kanban">
-    <div class="page-title">Kanban</div>
+    <div class="page-title">Recruitment Overview</div>
     <div class="page-sub">點擊人選卡片可變更招募階段</div>
     <div class="filter-bar">
       <div class="filter-group">
@@ -256,6 +255,11 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
       <div class="search-wrap">
         <div class="search-label">搜尋</div>
         <input class="search-input" type="text" id="kbSearch" placeholder="姓名..." oninput="renderKanban()">
+      </div>
+      <div class="filter-divider"></div>
+      <div style="background:var(--bg);border-radius:10px;padding:8px 16px;text-align:center;min-width:90px;">
+        <div style="font-size:10px;font-weight:600;color:var(--text-tertiary);letter-spacing:.06em;text-transform:uppercase;">轉換率</div>
+        <div style="font-size:22px;font-weight:700;color:var(--accent);line-height:1.3;" id="kbConversionRate">—</div>
       </div>
     </div>
     <div class="kanban-wrap">
@@ -309,7 +313,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
 
   <!-- ===== RECRUITMENT OVERVIEW ===== -->
   <div id="view-overview" style="display:none">
-    <div class="page-title">Recruitment Overview</div>
+    <div class="page-title">Recruitment Status</div>
     <div class="page-sub" id="overviewSub">載入中...</div>
     <div class="filter-bar">
       <div class="filter-group">
@@ -410,53 +414,11 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
     </div>
   </div>
 
-  <!-- ===== WEEKLY TRENDS ===== -->
-  <div id="view-trend" style="display:none">
-    <div class="page-title">Weekly Trends</div>
-    <div class="page-sub">每週各狀態異動量（依 Update_date 統計，最近 8 週）</div>
-    <div class="filter-bar">
-      <div class="filter-group">
-        <div class="filter-group-label">單位</div>
-        <div class="filter-btns" id="trBuBar"><button class="bu-btn active" onclick="trFilter('bu','all',this)">全部單位</button></div>
-      </div>
-      <div class="filter-divider"></div>
-      <div class="filter-group">
-        <div class="filter-group-label">職缺</div>
-        <div class="filter-btns">
-          <button class="pos-btn active" onclick="trFilter('pos','all',this)">全部職缺</button>
-          <button class="pos-btn" onclick="trFilter('pos','Sales',this)">Sales</button>
-          <button class="pos-btn" onclick="trFilter('pos','FAE',this)">FAE</button>
-        </div>
-      </div>
-      <div class="filter-divider"></div>
-      <div class="filter-group">
-        <div class="filter-group-label">圖表狀態</div>
-        <div class="filter-btns" id="trStageBar"></div>
-      </div>
-    </div>
-
-    <div class="cal-outer" style="margin-bottom:16px;">
-      <div class="page-sub" style="margin-bottom:10px;font-weight:600;color:var(--text-primary);">折線圖（趨勢）</div>
-      <div id="trLineChart" style="overflow-x:auto;"></div>
-    </div>
-
-    <div class="cal-outer" style="margin-bottom:16px;">
-      <div class="page-sub" style="margin-bottom:10px;font-weight:600;color:var(--text-primary);">長條圖（每週比較）</div>
-      <div id="trBarChart" style="overflow-x:auto;"></div>
-    </div>
-
-    <div class="table-wrap">
-      <table class="pi-table" id="trTable">
-        <thead><tr id="trTableHead"></tr></thead>
-        <tbody id="trTableBody"></tbody>
-      </table>
-    </div>
-  </div>
-
   <!-- ===== HEADCOUNT OVERVIEW ===== -->
   <div id="view-hc" style="display:none">
-    <div class="page-title">Headcount Overview</div>
-    <div class="page-sub" id="hcSub">尚未載入資料</div>
+    <div style="max-width:980px;margin:0 auto;">
+    <div class="page-title" style="text-align:center;">Headcount Overview</div>
+    <div class="page-sub" id="hcSub" style="text-align:center;">尚未載入資料</div>
 
     <div id="hcEmptyState" style="text-align:center;padding:60px 20px;color:var(--text-tertiary);">
       <div style="font-size:40px;margin-bottom:12px;">📊</div>
@@ -471,6 +433,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
         </div>
       </div>
       <div class="collapse-grid" id="hcCards" style="grid-template-columns:repeat(3,1fr);gap:14px;"></div>
+    </div>
     </div>
   </div>
 </div>
@@ -622,10 +585,9 @@ function switchTab(tab,el) {
   currentTab=tab;
   document.querySelectorAll('.tab').forEach(function(t){t.classList.remove('active');});
   el.classList.add('active');
-  ['kanban','cal','overview','pi','trend','hc'].forEach(function(v){
+  ['kanban','cal','overview','pi','hc'].forEach(function(v){
     document.getElementById('view-'+v).style.display=v===tab?'':'none';
   });
-  if(tab==='trend') renderTrend();
 }
 
 // ---- filter helpers ----
@@ -739,6 +701,18 @@ function renderKanban() {
       }).join('')+'</div></div></div>';
   });
   document.getElementById('kanbanCollapse').innerHTML=collapseHtml;
+
+  // ---- 轉換率計算 ----
+  // 分母：所有狀態非「HR不邀約電訪」的人選；分子：狀態為「錄取」的人選
+  var convBase = allData.filter(function(d){
+    return (kbBU==='all'||String(d.BU||'').trim()===kbBU) &&
+           (kbPos==='all'||String(d.Position||'').includes(kbPos)) &&
+           d.Result !== 'HR不邀約電訪';
+  });
+  var convOffer = convBase.filter(function(d){return d.Result==='錄取';});
+  var convRate = convBase.length ? (convOffer.length/convBase.length*100) : 0;
+  var convEl = document.getElementById('kbConversionRate');
+  if (convEl) convEl.textContent = convBase.length ? convRate.toFixed(1)+'%' : '—';
 }
 
 // ---- Modal ----
@@ -912,169 +886,6 @@ function renderCalendar(){
   var total=firstDay+daysInMonth,rem=total%7===0?0:7-(total%7);
   for(var j=1;j<=rem;j++) html+='<div class="cal-cell other-month"><div class="cal-date" style="opacity:.3">'+j+'</div></div>';
   gridEl.innerHTML=html;
-}
-
-// ---- WEEKLY TRENDS ----
-var TREND_COLORS = ['#F59E0B','#10B981','#3B82F6','#8B5CF6','#EC4899','#14B8A6','#F97316','#6366F1','#84CC16','#06B6D4','#EF4444','#A855F7','#22C55E','#0EA5E9'];
-
-function getWeekEnd(d) {
-  // 取得該日期所在週的週日（週末）
-  var dt = new Date(d);
-  var day = dt.getDay(); // 0=Sun
-  var diff = 6 - day; // 到週六
-  dt.setDate(dt.getDate() + diff);
-  dt.setHours(0,0,0,0);
-  return dt;
-}
-
-function trFilter(type,val,el){
-  if(type==='bu') trBU=val; else trPos=val;
-  document.querySelectorAll('#trBuBar .bu-btn, #view-trend .pos-btn').forEach(function(b){
-    if((type==='bu'&&b.closest('#trBuBar'))||(type==='pos'&&!b.closest('#trBuBar'))) b.classList.remove('active');
-  });
-  el.classList.add('active');
-  renderTrend();
-}
-
-function trToggleStage(stage, el) {
-  if (trActiveStages === null) trActiveStages = {};
-  if (trActiveStages[stage]) {
-    delete trActiveStages[stage];
-  } else {
-    trActiveStages[stage] = true;
-  }
-  el.classList.toggle('active');
-  renderTrend();
-}
-
-function renderTrend() {
-  var filtered = allData.filter(function(d){
-    return (trBU==='all'||String(d.BU||'').trim()===trBU) &&
-           (trPos==='all'||String(d.Position||'').includes(trPos));
-  });
-
-  // 找出所有出現過的 Result 值
-  var allStages = [...new Set(filtered.map(function(d){return d.Result;}))].filter(Boolean);
-
-  // 建立狀態篩選按鈕（第一次載入時）
-  var stageBar = document.getElementById('trStageBar');
-  if (stageBar.children.length === 0) {
-    stageBar.innerHTML = allStages.map(function(s, i){
-      return '<button class="pos-btn active" style="border-color:'+TREND_COLORS[i%TREND_COLORS.length]+'" data-stage="'+s+'" onclick="trToggleStage(this.getAttribute(\'data-stage\'),this)">'+s+'</button>';
-    }).join('');
-  }
-
-  var activeStages = allStages; // 預設全部顯示（簡化處理，不用 trActiveStages 篩選機制以求穩定）
-
-  // 計算最近8週的週末日期
-  var today = new Date(); today.setHours(0,0,0,0);
-  var weeks = [];
-  for (var w = 7; w >= 0; w--) {
-    var wd = getWeekEnd(today);
-    wd.setDate(wd.getDate() - w*7);
-    weeks.push(wd);
-  }
-
-  // 統計：每週、每狀態的異動量（Update_date 落在該週的人數）
-  var weekData = weeks.map(function(weekEnd, idx){
-    var weekStart = new Date(weekEnd);
-    weekStart.setDate(weekStart.getDate() - 6);
-    var counts = {};
-    activeStages.forEach(function(s){counts[s]=0;});
-    filtered.forEach(function(d){
-      var ud = parseDateTime(d.Update_date || d['Update date'] || '');
-      if (!ud) return;
-      ud.setHours(0,0,0,0);
-      if (ud >= weekStart && ud <= weekEnd && activeStages.indexOf(d.Result) >= 0) {
-        counts[d.Result] = (counts[d.Result]||0) + 1;
-      }
-    });
-    return {weekEnd: weekEnd, counts: counts};
-  });
-
-  var weekLabels = weekData.map(function(w){
-    return (w.weekEnd.getMonth()+1)+'/'+w.weekEnd.getDate();
-  });
-
-  // ---- 折線圖 (SVG) ----
-  var chartW = Math.max(700, weeks.length*90), chartH = 280, padL=40, padR=20, padT=20, padB=40;
-  var maxVal = 1;
-  weekData.forEach(function(w){activeStages.forEach(function(s){if(w.counts[s]>maxVal) maxVal=w.counts[s];});});
-  maxVal = Math.ceil(maxVal*1.2);
-  var plotW = chartW-padL-padR, plotH = chartH-padT-padB;
-  var xStep = plotW/(weeks.length-1||1);
-
-  function xPos(i){return padL+i*xStep;}
-  function yPos(v){return padT+plotH-(v/maxVal)*plotH;}
-
-  var lineSvg = '<svg width="'+chartW+'" height="'+chartH+'" viewBox="0 0 '+chartW+' '+chartH+'">';
-  // grid lines
-  for(var g=0;g<=4;g++){
-    var gy = padT + plotH - (g/4)*plotH;
-    lineSvg += '<line x1="'+padL+'" y1="'+gy+'" x2="'+(chartW-padR)+'" y2="'+gy+'" stroke="#E8EAED" stroke-width="1"/>';
-    lineSvg += '<text x="'+(padL-8)+'" y="'+(gy+4)+'" font-size="10" fill="#9CA3AF" text-anchor="end">'+Math.round(g/4*maxVal)+'</text>';
-  }
-  weekLabels.forEach(function(lbl,i){
-    lineSvg += '<text x="'+xPos(i)+'" y="'+(chartH-padB+18)+'" font-size="10" fill="#6B7280" text-anchor="middle">'+lbl+'</text>';
-  });
-  activeStages.forEach(function(stage, si){
-    var color = TREND_COLORS[si%TREND_COLORS.length];
-    var pts = weekData.map(function(w,i){return xPos(i)+','+yPos(w.counts[stage]||0);}).join(' ');
-    lineSvg += '<polyline points="'+pts+'" fill="none" stroke="'+color+'" stroke-width="2"/>';
-    weekData.forEach(function(w,i){
-      lineSvg += '<circle cx="'+xPos(i)+'" cy="'+yPos(w.counts[stage]||0)+'" r="3" fill="'+color+'"><title>'+stage+': '+(w.counts[stage]||0)+'</title></circle>';
-    });
-  });
-  lineSvg += '</svg>';
-
-  // legend for line chart
-  var legendHtml = '<div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:10px;">'+activeStages.map(function(s,i){
-    return '<div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-secondary);"><div style="width:10px;height:10px;border-radius:2px;background:'+TREND_COLORS[i%TREND_COLORS.length]+'"></div>'+s+'</div>';
-  }).join('')+'</div>';
-
-  document.getElementById('trLineChart').innerHTML = lineSvg + legendHtml;
-
-  // ---- 長條圖 (SVG, 分組) ----
-  var barChartW = Math.max(800, weeks.length*120), barChartH = 280;
-  var groupW = (barChartW-padL-padR)/weeks.length;
-  var barW = Math.max(4, groupW/(activeStages.length+1));
-  var barSvg = '<svg width="'+barChartW+'" height="'+barChartH+'" viewBox="0 0 '+barChartW+' '+barChartH+'">';
-  for(var g2=0;g2<=4;g2++){
-    var gy2 = padT + plotH - (g2/4)*plotH;
-    barSvg += '<line x1="'+padL+'" y1="'+gy2+'" x2="'+(barChartW-padR)+'" y2="'+gy2+'" stroke="#E8EAED" stroke-width="1"/>';
-    barSvg += '<text x="'+(padL-8)+'" y="'+(gy2+4)+'" font-size="10" fill="#9CA3AF" text-anchor="end">'+Math.round(g2/4*maxVal)+'</text>';
-  }
-  weekData.forEach(function(w,wi){
-    var groupX = padL + wi*groupW;
-    activeStages.forEach(function(stage,si){
-      var v = w.counts[stage]||0;
-      var bh = (v/maxVal)*plotH;
-      var bx = groupX + si*barW + barW*0.3;
-      var by = padT+plotH-bh;
-      barSvg += '<rect x="'+bx+'" y="'+by+'" width="'+(barW*0.8)+'" height="'+bh+'" fill="'+TREND_COLORS[si%TREND_COLORS.length]+'" rx="2"><title>'+stage+': '+v+'</title></rect>';
-    });
-    barSvg += '<text x="'+(groupX+groupW/2)+'" y="'+(barChartH-padB+18)+'" font-size="10" fill="#6B7280" text-anchor="middle">'+weekLabels[wi]+'</text>';
-  });
-  barSvg += '</svg>';
-  document.getElementById('trBarChart').innerHTML = barSvg + legendHtml;
-
-  // ---- 表格 ----
-  var theadHtml = '<th>狀態</th>'+weekLabels.map(function(l){return '<th style="text-align:center">'+l+'</th>';}).join('');
-  document.getElementById('trTableHead').innerHTML = theadHtml;
-  var tbodyHtml = activeStages.map(function(stage,si){
-    var cells = weekData.map(function(w){
-      var v = w.counts[stage]||0;
-      return '<td style="text-align:center;'+(v>0?'font-weight:600;color:'+TREND_COLORS[si%TREND_COLORS.length]+';':'color:var(--text-tertiary);')+'">'+v+'</td>';
-    }).join('');
-    return '<tr><td style="font-weight:600;white-space:nowrap"><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:'+TREND_COLORS[si%TREND_COLORS.length]+';margin-right:6px;"></span>'+stage+'</td>'+cells+'</tr>';
-  }).join('');
-  // 總計列
-  var totalCells = weekData.map(function(w){
-    var sum = activeStages.reduce(function(a,s){return a+(w.counts[s]||0);},0);
-    return '<td style="text-align:center;font-weight:700">'+sum+'</td>';
-  }).join('');
-  tbodyHtml += '<tr style="background:var(--bg)"><td style="font-weight:700">總計</td>'+totalCells+'</tr>';
-  document.getElementById('trTableBody').innerHTML = tbodyHtml;
 }
 
 // ===== HEADCOUNT OVERVIEW =====
