@@ -247,10 +247,10 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
 <div class="container">
   <div class="tab-bar">
     <div class="tab active" data-tab-role="both" onclick="switchTab('kanban',this)">🗂️ Recruitment Overview</div>
-    <div class="tab" data-tab-role="recruiter" onclick="switchTab('cal',this)">📅 Calendar</div>
     <div class="tab" data-tab-role="recruiter" onclick="switchTab('overview',this)">📋 Recruitment Status</div>
     <div class="tab" data-tab-role="both" onclick="switchTab('pi',this)">📞 Phone Interview Record</div>
     <div class="tab" data-tab-role="both" onclick="switchTab('hc',this)">👥 Headcount Overview</div>
+    <div class="tab" data-tab-role="both" onclick="switchTab('maintain',this)">🛠️ 資料維護</div>
   </div>
 
   <div class="error-banner" id="errorBanner"></div>
@@ -288,46 +288,6 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
 
     <!-- 折疊區 -->
     <div id="kanbanCollapse"></div>
-  </div>
-
-  <!-- ===== CALENDAR ===== -->
-  <div id="view-cal" style="display:none">
-    <div class="page-title">Calendar</div>
-    <div class="page-sub">電訪與面試時程總覽</div>
-    <div class="search-wrap" style="margin-bottom:10px;width:280px;">
-      <div class="search-label">搜尋</div>
-      <input class="search-input" type="text" id="calSearch" placeholder="姓名..." oninput="renderCalendar()" style="width:100%;">
-    </div>
-    <div class="filter-bar">
-      <div class="filter-group">
-        <div class="filter-group-label">單位</div>
-        <div class="filter-btns" id="calBuBar"><button class="bu-btn active" onclick="calFilter('bu','all',this)">全部單位</button></div>
-      </div>
-      <div class="filter-divider"></div>
-      <div class="filter-group">
-        <div class="filter-group-label">Job Function</div>
-        <div class="filter-btns">
-          <button class="pos-btn active" onclick="calFilter('pos','all',this)">全部 Job Function</button>
-          <button class="pos-btn" onclick="calFilter('pos','Sales',this)">Sales</button>
-          <button class="pos-btn" onclick="calFilter('pos','FAE',this)">FAE</button>
-        </div>
-      </div>
-    </div>
-    <div class="cal-legend">
-      <div class="cal-legend-item"><div class="cal-legend-dot" style="background:#10B981"></div>待電訪</div>
-      <div class="cal-legend-item"><div class="cal-legend-dot" style="background:#8B5CF6"></div>待面試</div>
-      <div class="cal-legend-item"><div class="cal-legend-dot" style="background:#BBF7D0;opacity:.8"></div>已電訪</div>
-      <div class="cal-legend-item"><div class="cal-legend-dot" style="background:#D1D5DB;opacity:.8"></div>已面試</div>
-    </div>
-    <div class="cal-outer">
-      <div class="cal-nav">
-        <button class="cal-nav-btn" onclick="changeMonth(-1)">&#8249;</button>
-        <div class="cal-nav-title" id="calTitle">—</div>
-        <button class="cal-nav-btn" onclick="changeMonth(1)">&#8250;</button>
-      </div>
-      <div class="cal-head" id="calHead"></div>
-      <div class="cal-grid" id="calGrid"></div>
-    </div>
   </div>
 
   <!-- ===== RECRUITMENT OVERVIEW ===== -->
@@ -456,7 +416,31 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
           <div class="filter-btns" id="hcJobBar"><button class="pos-btn active" onclick="hcFilter('job','all',this)">全部</button></div>
         </div>
       </div>
-      <div class="collapse-grid" id="hcCards" style="grid-template-columns:repeat(3,1fr);gap:14px;"></div>
+      <div class="collapse-grid" id="hcCards" style="grid-template-columns:repeat(2,1fr);gap:14px;"></div>
+    </div>
+  </div>
+
+  <!-- ===== DATA MAINTENANCE ===== -->
+  <div id="view-maintain" style="display:none">
+    <div class="page-title">資料維護</div>
+    <div class="page-sub">直接點擊表格內容即可編輯，修改後自動儲存至 Google 試算表</div>
+
+    <div class="tab-bar" style="margin-bottom:16px;padding-top:0;">
+      <div class="tab active" onclick="switchMaintainSheet('Candidate Records',this)">Candidate Records</div>
+      <div class="tab" onclick="switchMaintainSheet('Phone Interview',this)">Phone Interview</div>
+      <div class="tab" onclick="switchMaintainSheet('Headcount Record',this)">Headcount Record</div>
+    </div>
+
+    <div style="margin-bottom:14px;display:flex;align-items:center;gap:10px;">
+      <button class="refresh-btn" style="margin-left:0;" onclick="addMaintainRow()">＋ 新增一列</button>
+      <span id="maintainStatus" style="font-size:12px;color:var(--text-tertiary);"></span>
+    </div>
+
+    <div class="table-wrap" style="max-height:640px;overflow-y:auto;">
+      <table class="pi-table" id="maintainTable">
+        <thead id="maintainTableHead"></thead>
+        <tbody id="maintainTableBody"></tbody>
+      </table>
     </div>
   </div>
 </div>
@@ -493,13 +477,9 @@ var userRole = null;
 var allData=[], piData=[];
 var currentTab='kanban';
 var ovBU='all', ovPos='all';
-var calBU='all', calPos='all';
 var piBU='all', piPos='all';
 var kbBU='all', kbPos='all';
-var trBU='all', trPos='all';
-var trActiveStages=null; // null = 全部顯示
 var activeFilter=null;
-var calYear=new Date().getFullYear(), calMonth=new Date().getMonth();
 var selectedCard=null;
 
 // Stage definitions
@@ -578,10 +558,11 @@ async function fetchData() {
     allData=(json.candidates||[]).filter(function(d){return d.Name&&d.Result;});
     piData=(json.piRecords||[]).filter(function(d){return d.Name;});
     loadHeadcountData(json.headcount||[]);
+    maintainHeaders = json.sheetHeaders || {};
     var bus=[...new Set(allData.map(function(d){return String(d.BU||'').trim();}))].filter(Boolean).sort();
-    ['kbBuBar','calBuBar','ovBuBar'].forEach(function(barId){
-      var filterFn=barId==='kbBuBar'?'kbFilter':barId==='calBuBar'?'calFilter':'ovFilter';
-      var cur=barId==='kbBuBar'?kbBU:barId==='calBuBar'?calBU:ovBU;
+    ['kbBuBar','ovBuBar'].forEach(function(barId){
+      var filterFn=barId==='kbBuBar'?'kbFilter':'ovFilter';
+      var cur=barId==='kbBuBar'?kbBU:ovBU;
       document.getElementById(barId).innerHTML=
         '<button class="bu-btn '+(cur==='all'?'active':'')+'" onclick="'+filterFn+'(\'bu\',\'all\',this)">全部單位</button>'+
         bus.map(function(b){return '<button class="bu-btn '+(cur===b?'active':'')+'" onclick="'+filterFn+'(\'bu\',\''+b+'\',this)">'+b+'</button>';}).join('');
@@ -602,7 +583,12 @@ async function fetchData() {
   }
 }
 
-function renderAll(){renderKanban();renderCalendar();renderOverview();renderPi();}
+function renderAll(){
+  renderKanban();
+  renderOverview();
+  renderPi();
+  if (currentTab === 'maintain') renderMaintain();
+}
 
 // ---- role selection ----
 function selectRole(role) {
@@ -625,7 +611,7 @@ function selectRole(role) {
     var match = onclickAttr.match(/switchTab\('(\w+)'/);
     if (match) {
       currentTab = match[1];
-      ['kanban','cal','overview','pi','hc'].forEach(function(v){
+      ['kanban','overview','pi','hc','maintain'].forEach(function(v){
         document.getElementById('view-'+v).style.display = v===currentTab ? '' : 'none';
       });
     }
@@ -643,11 +629,12 @@ function switchRole() {
 // ---- tabs ----
 function switchTab(tab,el) {
   currentTab=tab;
-  document.querySelectorAll('.tab').forEach(function(t){t.classList.remove('active');});
+  document.querySelectorAll('.tab-bar:first-of-type > .tab').forEach(function(t){t.classList.remove('active');});
   el.classList.add('active');
-  ['kanban','cal','overview','pi','hc'].forEach(function(v){
+  ['kanban','overview','pi','hc','maintain'].forEach(function(v){
     document.getElementById('view-'+v).style.display=v===tab?'':'none';
   });
+  if (tab === 'maintain') renderMaintain();
 }
 
 // ---- filter helpers ----
@@ -657,13 +644,6 @@ function kbFilter(type,val,el){
     if((type==='bu'&&b.closest('#kbBuBar'))||(type==='pos'&&!b.closest('#kbBuBar'))) b.classList.remove('active');
   });
   el.classList.add('active'); renderKanban();
-}
-function calFilter(type,val,el){
-  if(type==='bu') calBU=val; else calPos=val;
-  document.querySelectorAll('#calBuBar .bu-btn, #view-cal .pos-btn').forEach(function(b){
-    if((type==='bu'&&b.closest('#calBuBar'))||(type==='pos'&&!b.closest('#calBuBar'))) b.classList.remove('active');
-  });
-  el.classList.add('active'); renderCalendar();
 }
 function ovFilter(type,val,el){
   if(type==='bu') ovBU=val; else ovPos=val;
@@ -899,54 +879,6 @@ function renderPi() {
   }).join('');
 }
 
-// ---- CALENDAR ----
-function changeMonth(dir){calMonth+=dir;if(calMonth>11){calMonth=0;calYear++;}if(calMonth<0){calMonth=11;calYear--;}renderCalendar();}
-function renderCalendar(){
-  var headEl=document.getElementById('calHead'),gridEl=document.getElementById('calGrid'),titleEl=document.getElementById('calTitle');
-  if(!headEl||!gridEl||!titleEl) return;
-  var mNames=['January','February','March','April','May','June','July','August','September','October','November','December'];
-  titleEl.textContent=mNames[calMonth]+' '+calYear;
-  var search=(document.getElementById('calSearch')?document.getElementById('calSearch').value:'').toLowerCase();
-  var events={};
-  function addEv(dateStr,name,pos,bu,type){
-    if(!dateStr) return;
-    var raw=String(dateStr).trim(), d=parseDateTime(raw);
-    if(!d) return;
-    if(d.getFullYear()!==calYear||d.getMonth()!==calMonth) return;
-    if(calBU!=='all'&&bu!==calBU) return;
-    if(calPos!=='all'&&!pos.includes(calPos)) return;
-    if(search&&!name.toLowerCase().includes(search)) return;
-    var key=d.getDate();
-    if(!events[key]) events[key]=[];
-    var tl=raw.includes('上午')?'上午':raw.includes('中午')?'中午':raw.includes('下午')?'下午':String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
-    events[key].push({name:name,pos:pos,bu:bu,type:type,time:tl,ts:d.getTime()});
-  }
-  allData.forEach(function(d){
-    var pt=d.Interview_date||d.PI_date||'',it=d.Interview_date||'';
-    if(d.Result==='待電訪') addEv(pt,d.Name,d.Position,d.BU,isDonePhone(d)?'done-phone':'phone');
-    if(d.Result==='待排電訪') addEv(pt,d.Name,d.Position,d.BU,'phone');
-    if(d.Result==='待面試') addEv(it,d.Name,d.Position,d.BU,isDoneInterview(d)?'done-interview':'interview');
-    if(d.Result==='待排面試') addEv(it,d.Name,d.Position,d.BU,'interview');
-  });
-  var dows=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-  headEl.innerHTML=dows.map(function(d){return '<div class="cal-dow">'+d+'</div>';}).join('');
-  var firstDay=new Date(calYear,calMonth,1).getDay(),daysInMonth=new Date(calYear,calMonth+1,0).getDate(),daysInPrev=new Date(calYear,calMonth,0).getDate(),today=new Date(),html='';
-  for(var i=0;i<firstDay;i++) html+='<div class="cal-cell other-month"><div class="cal-date" style="opacity:.3">'+(daysInPrev-firstDay+i+1)+'</div></div>';
-  for(var day=1;day<=daysInMonth;day++){
-    var isToday=(today.getFullYear()===calYear&&today.getMonth()===calMonth&&today.getDate()===day);
-    var evs=(events[day]||[]).sort(function(a,b){return a.ts-b.ts;});
-    var evHtml=evs.map(function(e){
-      var cls=e.type==='phone'?'ev-phone':e.type==='interview'?'ev-interview':e.type==='done-phone'?'ev-done-phone':'ev-done-interview';
-      var icon=e.type==='phone'||e.type==='done-phone'?'📞':'🗣️';
-      return '<div class="cal-event '+cls+'"><div class="ev-name">'+icon+' '+e.time+' '+e.name+'</div><div class="ev-detail">'+e.bu+' · '+e.pos+'</div></div>';
-    }).join('');
-    html+='<div class="cal-cell'+(isToday?' today':'')+'"><div class="cal-date">'+day+'</div>'+evHtml+'</div>';
-  }
-  var total=firstDay+daysInMonth,rem=total%7===0?0:7-(total%7);
-  for(var j=1;j<=rem;j++) html+='<div class="cal-cell other-month"><div class="cal-date" style="opacity:.3">'+j+'</div></div>';
-  gridEl.innerHTML=html;
-}
-
 // ===== HEADCOUNT OVERVIEW =====
 // 資料來源：自動從 Apps Script 回傳的 headcount 陣列載入（doGet 已包含 Headcount Record 分頁）
 var hcRawData = [];
@@ -1126,6 +1058,113 @@ async function saveMemo() {
     renderHeadcount();
   } catch(e) {
     showToast('❌ 儲存失敗：'+e.message);
+  }
+}
+
+// ===== 資料維護 =====
+var maintainSheet = 'Candidate Records';
+var maintainHeaders = {};
+var maintainData = {};
+
+function switchMaintainSheet(sheetName, el) {
+  maintainSheet = sheetName;
+  document.querySelectorAll('#view-maintain .tab-bar .tab').forEach(function(t){t.classList.remove('active');});
+  el.classList.add('active');
+  renderMaintain();
+}
+
+function getMaintainRecords(sheetName) {
+  if (sheetName === 'Candidate Records') return allData;
+  if (sheetName === 'Phone Interview') return piData;
+  if (sheetName === 'Headcount Record') return hcRawData;
+  return [];
+}
+
+function renderMaintain() {
+  var records = getMaintainRecords(maintainSheet);
+  var headers = maintainHeaders[maintainSheet] || (records.length ? Object.keys(records[0]).filter(function(k){return k!=='_row';}) : []);
+
+  if (!headers.length) {
+    document.getElementById('maintainTableHead').innerHTML = '';
+    document.getElementById('maintainTableBody').innerHTML = '<tr><td style="padding:20px;color:var(--text-tertiary);">尚無資料或欄位資訊</td></tr>';
+    return;
+  }
+
+  document.getElementById('maintainTableHead').innerHTML =
+    '<tr>' + headers.map(function(h){ return '<th style="white-space:nowrap;">'+h+'</th>'; }).join('') + '<th style="width:40px;"></th></tr>';
+
+  document.getElementById('maintainTableBody').innerHTML = records.map(function(rec, idx){
+    var cells = headers.map(function(h){
+      var val = rec[h] !== undefined ? rec[h] : '';
+      return '<td contenteditable="true" data-sheet="'+maintainSheet+'" data-row="'+rec._row+'" data-col="'+(headers.indexOf(h)+1)+'" data-field="'+h+'" data-idx="'+idx+'" '+
+        'onfocus="this.dataset.original=this.textContent" onblur="commitMaintainCell(this)" '+
+        'style="min-width:90px;max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:text;">'+
+        (val||'').toString().replace(/</g,'&lt;').replace(/>/g,'&gt;')+
+        '</td>';
+    }).join('');
+    return '<tr>'+cells+'<td><button onclick="deleteMaintainRow('+rec._row+',this)" style="font-size:12px;color:#EF4444;background:none;border:none;cursor:pointer;padding:4px 8px;">✕</button></td></tr>';
+  }).join('');
+}
+
+async function commitMaintainCell(el) {
+  var newVal = el.textContent.trim();
+  var original = el.dataset.original || '';
+  if (newVal === original) return; // 沒有變動不送出
+  var sheet = el.getAttribute('data-sheet');
+  var row = el.getAttribute('data-row');
+  var col = el.getAttribute('data-col');
+  var field = el.getAttribute('data-field');
+  var idx = parseInt(el.getAttribute('data-idx'));
+
+  document.getElementById('maintainStatus').textContent = '儲存中...';
+  try {
+    var url = APPS_SCRIPT_URL + '?action=editCell&sheet=' + encodeURIComponent(sheet) +
+      '&row=' + encodeURIComponent(row) + '&col=' + encodeURIComponent(col) + '&value=' + encodeURIComponent(newVal);
+    await fetch(url, {mode:'no-cors'});
+    // 本地同步更新
+    var records = getMaintainRecords(sheet);
+    var rec = records[idx];
+    if (rec) rec[field] = newVal;
+    document.getElementById('maintainStatus').textContent = '✓ 已儲存';
+    setTimeout(function(){document.getElementById('maintainStatus').textContent='';}, 2000);
+  } catch(e) {
+    document.getElementById('maintainStatus').textContent = '❌ 儲存失敗';
+  }
+}
+
+async function addMaintainRow() {
+  var records = getMaintainRecords(maintainSheet);
+  var headers = maintainHeaders[maintainSheet] || (records.length ? Object.keys(records[0]).filter(function(k){return k!=='_row';}) : []);
+  if (!headers.length) { showToast('找不到欄位資訊，無法新增'); return; }
+
+  var emptyValues = headers.map(function(){return '';});
+  document.getElementById('maintainStatus').textContent = '新增中...';
+  try {
+    var url = APPS_SCRIPT_URL + '?action=addRow&sheet=' + encodeURIComponent(maintainSheet) +
+      '&values=' + encodeURIComponent(JSON.stringify(emptyValues));
+    var res = await fetch(url, {mode:'no-cors'});
+    // 樂觀更新：本地先加一筆空列，下次 fetchData 會校正正確 row 號
+    var newRec = { _row: null };
+    headers.forEach(function(h){ newRec[h] = ''; });
+    records.push(newRec);
+    document.getElementById('maintainStatus').textContent = '✓ 已新增（重新整理可看到正確序號）';
+    renderMaintain();
+    setTimeout(function(){ fetchData(); }, 800);
+  } catch(e) {
+    document.getElementById('maintainStatus').textContent = '❌ 新增失敗';
+  }
+}
+
+async function deleteMaintainRow(row, btnEl) {
+  if (!confirm('確定要刪除這一列嗎？此動作無法復原。')) return;
+  document.getElementById('maintainStatus').textContent = '刪除中...';
+  try {
+    var url = APPS_SCRIPT_URL + '?action=deleteRow&sheet=' + encodeURIComponent(maintainSheet) + '&row=' + encodeURIComponent(row);
+    await fetch(url, {mode:'no-cors'});
+    document.getElementById('maintainStatus').textContent = '✓ 已刪除';
+    setTimeout(function(){ fetchData(); }, 800);
+  } catch(e) {
+    document.getElementById('maintainStatus').textContent = '❌ 刪除失敗';
   }
 }
 
