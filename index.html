@@ -427,7 +427,6 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
 
     <div class="tab-bar" style="margin-bottom:16px;padding-top:0;">
       <div class="tab active" onclick="switchMaintainSheet('Candidate Records',this)">Candidate Records</div>
-      <div class="tab" onclick="switchMaintainSheet('Phone Interview',this)">Phone Interview</div>
       <div class="tab" onclick="switchMaintainSheet('Headcount Record',this)">Headcount Record</div>
     </div>
 
@@ -466,6 +465,19 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
     <div id="modalStages"></div>
     <div class="modal-actions">
       <button class="btn-cancel" onclick="closeModal()">取消</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADD ROW MODAL -->
+<div id="addRowModal" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeAddRowModal()">
+  <div class="modal">
+    <div class="modal-title">新增一列</div>
+    <div class="modal-sub" id="addRowModalSub">請填寫必要欄位</div>
+    <div id="addRowModalFields" style="display:flex;flex-direction:column;gap:12px;margin-bottom:14px;"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeAddRowModal()">取消</button>
+      <button class="lock-btn" style="width:auto;margin-top:0;padding:8px 18px;" onclick="submitAddRow()">新增</button>
     </div>
   </div>
 </div>
@@ -683,7 +695,7 @@ function renderKanban() {
   var now=new Date(); now.setHours(0,0,0,0);
   var filtered=allData.filter(function(d){
     if((kbBU!=='all'&&String(d.BU||'').trim()!==kbBU)) return false;
-    if((kbPos!=='all'&&!String(d.Position||'').includes(kbPos))) return false;
+    if((kbPos!=='all'&&!String(d['Job Function']||'').includes(kbPos))) return false;
     if(search&&!String(d.Name||'').toLowerCase().includes(search)) return false;
     // 超過7天未回覆不顯示
     if(d.Result==='未回覆') {
@@ -716,7 +728,7 @@ function renderKanban() {
           return '<div class="kanban-card" data-idx="'+idx+'" data-stage="'+stage+'" onclick="handleCardClick(this)">'
             +'<div class="kanban-card-row1">'
               +'<div class="kanban-card-name">'+d.Name+'</div>'
-              +'<div class="kanban-card-right"><span class="kanban-card-pos">'+(d.Position||'')+'</span><span class="kanban-card-bu">'+d.BU+'</span></div>'
+              +'<div class="kanban-card-right"><span class="kanban-card-pos">'+(d['Job Function']||'')+'</span><span class="kanban-card-bu">'+d.BU+'</span></div>'
             +'</div>'
             +(timeStr?'<div class="kanban-card-time">🕐 '+timeStr+'</div>':'')
             +'</div>';
@@ -747,7 +759,7 @@ function renderKanban() {
         var cidx=allData.indexOf(d);
         return '<div class="mini-card" style="cursor:pointer" data-idx="'+cidx+'" data-stage="'+stage+'" onclick="handleCardClick(this)">'
           +'<div class="mini-card-top"><div class="mini-card-name">'+d.Name+'</div><div class="mini-card-bu">'+d.BU+'</div></div>'
-          +'<div class="mini-card-pos">'+(d.Position||'')+'</div>'
+          +'<div class="mini-card-pos">'+(d['Job Function']||'')+'</div>'
           +'<div style="font-size:10px;color:var(--text-tertiary);margin-top:4px">點擊更改狀態</div>'
           +'</div>';
       }).join('')+'</div></div></div>';
@@ -758,7 +770,7 @@ function renderKanban() {
   // 分母：所有狀態非「HR不邀約電訪」的人選；分子：狀態為「錄取」的人選
   var convBase = allData.filter(function(d){
     return (kbBU==='all'||String(d.BU||'').trim()===kbBU) &&
-           (kbPos==='all'||String(d.Position||'').includes(kbPos)) &&
+           (kbPos==='all'||String(d['Job Function']||'').includes(kbPos)) &&
            d.Result !== 'HR不邀約電訪';
   });
   var convOffer = convBase.filter(function(d){return d.Result==='錄取';});
@@ -773,7 +785,7 @@ function handleCardClick(el) {
   var stage = el.getAttribute('data-stage');
   var d = allData[idx];
   if (!d) return;
-  openModal(d._row, d.Name, d.Position, d.BU, stage);
+  openModal(d._row, d.Name, d['Job Function'], d.BU, stage);
 }
 
 function openModal(row, name, pos, bu, currentStage) {
@@ -831,7 +843,7 @@ function renderOverview() {
   var search=(document.getElementById('ovSearch')?document.getElementById('ovSearch').value:'').toLowerCase();
   var filtered=allData.filter(function(d){
     return (ovBU==='all'||String(d.BU||'').trim()===ovBU) &&
-           (ovPos==='all'||String(d.Position||'').includes(ovPos)) &&
+           (ovPos==='all'||String(d['Job Function']||'').includes(ovPos)) &&
            (!search||String(d.Name||'').toLowerCase().includes(search));
   });
   var activeStages=['待排電訪','待電訪','待排面試','待面試'];
@@ -844,7 +856,7 @@ function renderOverview() {
     var rawT=(stage==='待電訪'||stage==='待排電訪')?(d.Interview_date||d.PI_date||''):(d.Interview_date||'');
     var t=fmtDate(rawT);
     var th=t?'<div class="card-time '+(cls||'t-gray')+'"><span style="font-size:13px">'+(icon||'🕐')+'</span><div><div class="card-time-label">'+(label||'時間')+'</div><div style="font-size:11px;opacity:.85;margin-top:1px">'+t+'</div></div></div>':'<div class="card-time t-gray"><span style="font-size:13px">🕐</span><div><div class="card-time-label">尚未排定時間</div></div></div>';
-    return '<div class="card"><div class="card-top"><div class="card-name">'+d.Name+'</div><div class="card-bu">'+d.BU+'</div></div><div class="card-pos">'+(d.Position||'')+(d.Source?' · '+d.Source:'')+'</div>'+th+'</div>';
+    return '<div class="card"><div class="card-top"><div class="card-name">'+d.Name+'</div><div class="card-bu">'+d.BU+'</div></div><div class="card-pos">'+(d['Job Function']||'')+(d.Source?' · '+d.Source:'')+'</div>'+th+'</div>';
   }
 
   activeStages.forEach(function(stage){
@@ -871,8 +883,8 @@ function renderPi() {
   var search=(document.getElementById('piSearch')?document.getElementById('piSearch').value:'').toLowerCase();
   var filtered=piData.filter(function(d){
     return (piBU==='all'||String(d.BU||'').trim()===piBU) &&
-           (piPos==='all'||String(d.Position||'').includes(piPos)) &&
-           (!search||String(d.Name||'').toLowerCase().includes(search)||String(d.Position||'').toLowerCase().includes(search));
+           (piPos==='all'||String(d['Job Function']||'').includes(piPos)) &&
+           (!search||String(d.Name||'').toLowerCase().includes(search)||String(d['Job Function']||'').toLowerCase().includes(search));
   });
   filtered.sort(function(a,b){
     var ta=parseDateTime(a.PI_date||''), tb=parseDateTime(b.PI_date||'');
@@ -887,7 +899,7 @@ function renderPi() {
     var provKey=Object.keys(d).find(function(k){return k.includes('提供');})||'';
     var resKey=Object.keys(d).find(function(k){return k==='Result';})||'';
     var memo=memoKey?d[memoKey]:'',prov=provKey?d[provKey]:'',res=resKey?d[resKey]:'';
-    return '<tr><td style="font-weight:600;white-space:nowrap">'+d.Name+'</td><td style="white-space:nowrap">'+(d.Position||'')+'</td><td style="white-space:nowrap">'+fmtDate(d.PI_date||'')+'</td><td class="memo-cell">'+(memo||'<span style="color:var(--text-tertiary)">—</span>')+'</td><td>'+yesNo(prov)+'</td><td><span class="result-badge">'+( d.Result||'—')+'</span></td></tr>';
+    return '<tr><td style="font-weight:600;white-space:nowrap">'+d.Name+'</td><td style="white-space:nowrap">'+(d['Job Function']||'')+'</td><td style="white-space:nowrap">'+fmtDate(d.PI_date||'')+'</td><td class="memo-cell">'+(memo||'<span style="color:var(--text-tertiary)">—</span>')+'</td><td>'+yesNo(prov)+'</td><td><span class="result-badge">'+( d.Result||'—')+'</span></td></tr>';
   }).join('');
 }
 
@@ -1082,7 +1094,7 @@ var maintainBU = 'all';
 var MAINTAIN_DROPDOWNS = {
   'Candidate Records': {
     'BU': function(){ return [...new Set(allData.map(function(d){return String(d.BU||'').trim();}))].filter(Boolean).sort(); },
-    'Position': function(){ return [...new Set(allData.map(function(d){return String(d.Position||'').trim();}))].filter(Boolean).sort(); },
+    'Job Function': function(){ return [...new Set(allData.map(function(d){return String(d['Job Function']||'').trim();}))].filter(Boolean).sort(); },
     'Source': function(){ return [...new Set(allData.map(function(d){return String(d.Source||'').trim();}))].filter(Boolean).sort(); },
     'Inviter': function(){ return [...new Set(allData.map(function(d){return String(d.Inviter||'').trim();}))].filter(Boolean).sort(); },
     'Result': function(){ return PHONE_STAGES.concat(INTERVIEW_STAGES).concat(OFFER_STAGES).concat(COLLAPSE_STAGES); }
@@ -1091,6 +1103,22 @@ var MAINTAIN_DROPDOWNS = {
 
 // 時間類欄位（顯示用 fmtDate 格式化，編輯時用原始值）
 var MAINTAIN_DATE_FIELDS = ['invite_date','invite date','PI_date','Interview_date','Update_date','Update date'];
+var MAINTAIN_DATEONLY_FIELDS = ['invite_date','invite date'];
+
+function fmtDateOnly(s) {
+  if (!s) return '';
+  var raw = String(s).trim();
+  var dm = raw.match(/(\d{4})?[\/\-]?(\d{1,2})[\/\-](\d{1,2})/);
+  if (dm) {
+    var yr = dm[1] ? dm[1] : new Date().getFullYear();
+    return yr+'/'+String(parseInt(dm[2])).padStart(2,'0')+'/'+String(parseInt(dm[3])).padStart(2,'0');
+  }
+  var d = new Date(raw);
+  if (!isNaN(d.getTime()) && d.getFullYear() > 2000) {
+    return d.getFullYear()+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+String(d.getDate()).padStart(2,'0');
+  }
+  return raw;
+}
 
 function switchMaintainSheet(sheetName, el) {
   maintainSheet = sheetName;
@@ -1158,13 +1186,14 @@ function renderMaintain() {
         var optHtml = '<option value=""></option>' + options.map(function(o){
           return '<option value="'+o.replace(/"/g,'&quot;')+'"'+(String(rawVal).trim()===o?' selected':'')+'>'+o+'</option>';
         }).join('');
-        return '<td style="padding:2px 4px;"><select data-sheet="'+maintainSheet+'" data-row="'+rec._row+'" data-col="'+col+'" data-field="'+h+'" data-idx="'+idx+'" '+
-          'onchange="commitMaintainSelect(this)" style="width:100%;font-size:12px;padding:4px 6px;border:1px solid var(--border);border-radius:6px;background:var(--surface);">'+optHtml+'</select></td>';
+        return '<td style="padding:2px 4px;min-width:140px;"><select data-sheet="'+maintainSheet+'" data-row="'+rec._row+'" data-col="'+col+'" data-field="'+h+'" data-idx="'+idx+'" '+
+          'onchange="commitMaintainSelect(this)" style="width:100%;min-width:140px;font-size:12px;padding:5px 24px 5px 8px;border:1px solid var(--border);border-radius:6px;background:var(--surface);">'+optHtml+'</select></td>';
       }
 
       // 時間欄位：顯示格式化文字，但編輯用原始值（用 data-raw 保存原始值）
       var isDateField = MAINTAIN_DATE_FIELDS.indexOf(h) >= 0;
-      var displayVal = isDateField ? fmtDate(rawVal) : rawVal;
+      var isDateOnlyField = MAINTAIN_DATEONLY_FIELDS.indexOf(h) >= 0;
+      var displayVal = isDateOnlyField ? fmtDateOnly(rawVal) : isDateField ? fmtDate(rawVal) : rawVal;
       var rawSafe = String(rawVal||'').replace(/"/g,'&quot;');
 
       return '<td contenteditable="true" data-sheet="'+maintainSheet+'" data-row="'+rec._row+'" data-col="'+col+'" data-field="'+h+'" data-idx="'+idx+'" data-raw="'+rawSafe+'" '+
@@ -1197,10 +1226,12 @@ async function commitMaintainCell(el) {
   var newVal = el.textContent.trim();
   var original = el.dataset.original || '';
   var isDateField = MAINTAIN_DATE_FIELDS.indexOf(el.getAttribute('data-field')) >= 0;
+  var isDateOnlyField = MAINTAIN_DATEONLY_FIELDS.indexOf(el.getAttribute('data-field')) >= 0;
 
   if (newVal === original) {
     // 沒變動，還原顯示格式
-    if (isDateField) el.textContent = fmtDate(newVal);
+    if (isDateOnlyField) el.textContent = fmtDateOnly(newVal);
+    else if (isDateField) el.textContent = fmtDate(newVal);
     return;
   }
 
@@ -1219,7 +1250,7 @@ async function commitMaintainCell(el) {
     var rec = records[idx];
     if (rec) rec[field] = newVal;
     el.setAttribute('data-raw', newVal.replace(/"/g,'&quot;'));
-    el.textContent = isDateField ? fmtDate(newVal) : newVal;
+    el.textContent = isDateOnlyField ? fmtDateOnly(newVal) : isDateField ? fmtDate(newVal) : newVal;
     document.getElementById('maintainStatus').textContent = '✓ 已儲存';
     setTimeout(function(){document.getElementById('maintainStatus').textContent='';}, 2000);
   } catch(e) {
@@ -1250,19 +1281,60 @@ async function commitMaintainSelect(selectEl) {
   }
 }
 
-async function addMaintainRow() {
+function addMaintainRow() {
   var records = getMaintainRecords(maintainSheet);
   var headers = maintainHeaders[maintainSheet] || (records.length ? Object.keys(records[0]).filter(function(k){return k!=='_row';}) : []);
   if (!headers.length) { showToast('找不到欄位資訊，無法新增'); return; }
 
+  document.getElementById('addRowModalSub').textContent = '新增至「'+maintainSheet+'」，填寫後會直接寫入試算表';
+
+  var requiredFields = maintainSheet === 'Headcount Record' ? ['Division'] : ['Name','Result'];
+  var dropdowns = MAINTAIN_DROPDOWNS[maintainSheet] || {};
+
+  document.getElementById('addRowModalFields').innerHTML = headers.map(function(h){
+    var isRequired = requiredFields.indexOf(h) >= 0;
+    var label = h + (isRequired ? ' <span style="color:#EF4444;">*</span>' : '');
+    if (dropdowns[h]) {
+      var options = dropdowns[h]();
+      var optHtml = '<option value="">請選擇...</option>' + options.map(function(o){return '<option value="'+o.replace(/"/g,'&quot;')+'">'+o+'</option>';}).join('');
+      return '<div><div class="modal-label" style="margin-bottom:4px;">'+label+'</div><select data-field="'+h+'" class="add-row-input" style="width:100%;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;">'+optHtml+'</select></div>';
+    }
+    return '<div><div class="modal-label" style="margin-bottom:4px;">'+label+'</div><input type="text" data-field="'+h+'" class="add-row-input" style="width:100%;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;box-sizing:border-box;"></div>';
+  }).join('');
+
+  document.getElementById('addRowModal').style.display = 'flex';
+}
+
+function closeAddRowModal() {
+  document.getElementById('addRowModal').style.display = 'none';
+}
+
+async function submitAddRow() {
+  var headers = maintainHeaders[maintainSheet] || [];
+  var requiredFields = maintainSheet === 'Headcount Record' ? ['Division'] : ['Name','Result'];
+
+  var values = {};
+  var missing = [];
+  document.querySelectorAll('#addRowModalFields .add-row-input').forEach(function(inp){
+    var field = inp.getAttribute('data-field');
+    var val = inp.value.trim();
+    values[field] = val;
+    if (requiredFields.indexOf(field) >= 0 && !val) missing.push(field);
+  });
+
+  if (missing.length) {
+    showToast('請填寫必填欄位：'+missing.join('、'));
+    return;
+  }
+
+  var orderedValues = headers.map(function(h){ return values[h] || ''; });
+  closeAddRowModal();
   document.getElementById('maintainStatus').textContent = '新增中...';
   try {
-    var emptyValues = headers.map(function(){return '';});
     var url = APPS_SCRIPT_URL + '?action=addRow&sheet=' + encodeURIComponent(maintainSheet) +
-      '&values=' + encodeURIComponent(JSON.stringify(emptyValues));
+      '&values=' + encodeURIComponent(JSON.stringify(orderedValues));
     await fetch(url, {mode:'no-cors'});
-    document.getElementById('maintainStatus').textContent = '✓ 已新增，正在同步...';
-    // 實際新增是否成功，以重新抓取資料為準（避免本地樂觀更新跟試算表不同步而消失）
+    document.getElementById('maintainStatus').textContent = '正在同步...';
     await fetchData();
     if (currentTab === 'maintain') renderMaintain();
     document.getElementById('maintainStatus').textContent = '✓ 已新增一列';
