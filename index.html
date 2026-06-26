@@ -248,6 +248,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
   <div class="tab-bar">
     <div class="tab active" data-tab-role="both" onclick="switchTab('kanban',this)">🗂️ Recruitment Overview</div>
     <div class="tab" data-tab-role="recruiter" onclick="switchTab('overview',this)">📋 Recruitment Status</div>
+    <div class="tab" data-tab-role="recruiter" onclick="switchTab('trends',this)">📈 Trends</div>
     <div class="tab" data-tab-role="both" onclick="switchTab('pi',this)">📞 Phone Interview Record</div>
     <div class="tab" data-tab-role="both" onclick="switchTab('hc',this)">👥 Headcount Overview</div>
     <div class="tab" data-tab-role="both" onclick="switchTab('maintain',this)">🛠️ 資料維護</div>
@@ -361,6 +362,44 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
     </div>
   </div>
 
+  <!-- ===== TRENDS ===== -->
+  <div id="view-trends" style="display:none">
+    <div class="page-title">Trends</div>
+    <div class="page-sub">每日邀約／電訪、每週面試邀約與招募狀態統計</div>
+
+    <div class="cal-outer" style="margin-bottom:20px;">
+      <div style="font-size:14px;font-weight:600;margin-bottom:4px;">📨 每日邀約人數（invite_date，最近 7 天）</div>
+      <div style="font-size:12px;color:var(--text-secondary);margin-bottom:14px;">每天發出邀約電訪的人數</div>
+      <div id="trendInviteLine" style="overflow-x:auto;margin-bottom:16px;"></div>
+      <div id="trendInviteBar" style="overflow-x:auto;margin-bottom:16px;"></div>
+      <div class="table-wrap"><table class="pi-table"><thead><tr id="trendInviteTableHead"></tr></thead><tbody id="trendInviteTableBody"></tbody></table></div>
+    </div>
+
+    <div class="cal-outer" style="margin-bottom:20px;">
+      <div style="font-size:14px;font-weight:600;margin-bottom:4px;">📞 每日電訪人數（PI_date，最近 7 天）</div>
+      <div style="font-size:12px;color:var(--text-secondary);margin-bottom:14px;">每天實際完成電訪的人數</div>
+      <div id="trendPiLine" style="overflow-x:auto;margin-bottom:16px;"></div>
+      <div id="trendPiBar" style="overflow-x:auto;margin-bottom:16px;"></div>
+      <div class="table-wrap"><table class="pi-table"><thead><tr id="trendPiTableHead"></tr></thead><tbody id="trendPiTableBody"></tbody></table></div>
+    </div>
+
+    <div class="cal-outer" style="margin-bottom:20px;">
+      <div style="font-size:14px;font-weight:600;margin-bottom:4px;">🗣️ 每週邀約面試人數（Interview_date，最近 8 週）</div>
+      <div style="font-size:12px;color:var(--text-secondary);margin-bottom:14px;">每週安排面試的人數（依面試週次統計）</div>
+      <div id="trendInterviewLine" style="overflow-x:auto;margin-bottom:16px;"></div>
+      <div id="trendInterviewBar" style="overflow-x:auto;margin-bottom:16px;"></div>
+      <div class="table-wrap"><table class="pi-table"><thead><tr id="trendInterviewTableHead"></tr></thead><tbody id="trendInterviewTableBody"></tbody></table></div>
+    </div>
+
+    <div class="cal-outer">
+      <div style="font-size:14px;font-weight:600;margin-bottom:4px;">📊 每週招募狀態統計（依 Update_date，最近 8 週）</div>
+      <div style="font-size:12px;color:var(--text-secondary);margin-bottom:14px;">每週各狀態異動量</div>
+      <div id="trendResultLine" style="overflow-x:auto;margin-bottom:16px;"></div>
+      <div id="trendResultBar" style="overflow-x:auto;margin-bottom:16px;"></div>
+      <div class="table-wrap"><table class="pi-table"><thead><tr id="trendResultTableHead"></tr></thead><tbody id="trendResultTableBody"></tbody></table></div>
+    </div>
+  </div>
+
   <!-- ===== PHONE INTERVIEW ===== -->
   <div id="view-pi" style="display:none">
     <div class="page-title">Phone Interview Record</div>
@@ -423,7 +462,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
   <!-- ===== DATA MAINTENANCE ===== -->
   <div id="view-maintain" style="display:none">
     <div class="page-title">資料維護</div>
-    <div class="page-sub" id="maintainPageSub">直接編輯資料，修改後自動儲存至 Google 試算表</div>
+    <div class="page-sub" id="maintainPageSub">可直接編輯資料</div>
 
     <div class="tab-bar" style="margin-bottom:16px;padding-top:0;">
       <div class="tab active" onclick="switchMaintainSheet('Candidate Records',this)">Candidate Records</div>
@@ -648,7 +687,7 @@ function selectRole(role) {
     var match = onclickAttr.match(/switchTab\('(\w+)'/);
     if (match) {
       currentTab = match[1];
-      ['kanban','overview','pi','hc','maintain'].forEach(function(v){
+      ['kanban','overview','pi','hc','maintain','trends'].forEach(function(v){
         document.getElementById('view-'+v).style.display = v===currentTab ? '' : 'none';
       });
     }
@@ -668,13 +707,14 @@ function switchTab(tab,el) {
   currentTab=tab;
   document.querySelectorAll('.tab-bar:first-of-type > .tab').forEach(function(t){t.classList.remove('active');});
   el.classList.add('active');
-  ['kanban','overview','pi','hc','maintain'].forEach(function(v){
+  ['kanban','overview','pi','hc','maintain','trends'].forEach(function(v){
     document.getElementById('view-'+v).style.display=v===tab?'':'none';
   });
   if (tab === 'maintain') {
     if (maintainSheet === 'Candidate Records') renderCandQuery();
     else renderMaintain();
   }
+  if (tab === 'trends') renderTrends();
 }
 
 // ---- filter helpers ----
@@ -1101,6 +1141,171 @@ async function saveMemo() {
   }
 }
 
+// ===== TRENDS =====
+var TREND_COLORS = ['#F59E0B','#10B981','#3B82F6','#8B5CF6','#EC4899','#14B8A6','#F97316','#6366F1','#84CC16','#06B6D4','#EF4444','#A855F7','#22C55E','#0EA5E9'];
+
+function getDayKey(d) {
+  return d.getFullYear()+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+String(d.getDate()).padStart(2,'0');
+}
+function getWeekEnd(d) {
+  var dt = new Date(d);
+  var day = dt.getDay();
+  dt.setDate(dt.getDate() + (6 - day));
+  dt.setHours(0,0,0,0);
+  return dt;
+}
+
+function drawLineChart(containerId, labels, series, maxVal) {
+  var chartW = Math.max(680, labels.length*90), chartH = 240, padL=40, padR=20, padT=20, padB=36;
+  var plotW = chartW-padL-padR, plotH = chartH-padT-padB;
+  var xStep = plotW/(labels.length-1||1);
+  function xPos(i){return padL+i*xStep;}
+  function yPos(v){return padT+plotH-(v/maxVal)*plotH;}
+
+  var svg = '<svg width="'+chartW+'" height="'+chartH+'" viewBox="0 0 '+chartW+' '+chartH+'">';
+  for(var g=0;g<=4;g++){
+    var gy = padT + plotH - (g/4)*plotH;
+    svg += '<line x1="'+padL+'" y1="'+gy+'" x2="'+(chartW-padR)+'" y2="'+gy+'" stroke="#E8EAED" stroke-width="1"/>';
+    svg += '<text x="'+(padL-8)+'" y="'+(gy+4)+'" font-size="10" fill="#9CA3AF" text-anchor="end">'+Math.round(g/4*maxVal)+'</text>';
+  }
+  labels.forEach(function(lbl,i){
+    svg += '<text x="'+xPos(i)+'" y="'+(chartH-padB+18)+'" font-size="10" fill="#6B7280" text-anchor="middle">'+lbl+'</text>';
+  });
+  series.forEach(function(s, si){
+    var color = TREND_COLORS[si%TREND_COLORS.length];
+    var pts = s.data.map(function(v,i){return xPos(i)+','+yPos(v);}).join(' ');
+    svg += '<polyline points="'+pts+'" fill="none" stroke="'+color+'" stroke-width="2"/>';
+    s.data.forEach(function(v,i){
+      svg += '<circle cx="'+xPos(i)+'" cy="'+yPos(v)+'" r="3" fill="'+color+'"><title>'+s.name+': '+v+'</title></circle>';
+    });
+  });
+  svg += '</svg>';
+  var legend = series.length>1 ? '<div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:8px;">'+series.map(function(s,i){
+    return '<div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-secondary);"><div style="width:10px;height:10px;border-radius:2px;background:'+TREND_COLORS[i%TREND_COLORS.length]+'"></div>'+s.name+'</div>';
+  }).join('')+'</div>' : '';
+  document.getElementById(containerId).innerHTML = svg + legend;
+}
+
+function drawBarChart(containerId, labels, series, maxVal) {
+  var chartW = Math.max(680, labels.length*100), chartH = 240, padL=40, padR=20, padT=20, padB=36;
+  var plotW = chartW-padL-padR, plotH = chartH-padT-padB;
+  var groupW = plotW/labels.length;
+  var barW = Math.max(6, groupW/(series.length+1));
+
+  var svg = '<svg width="'+chartW+'" height="'+chartH+'" viewBox="0 0 '+chartW+' '+chartH+'">';
+  for(var g=0;g<=4;g++){
+    var gy = padT + plotH - (g/4)*plotH;
+    svg += '<line x1="'+padL+'" y1="'+gy+'" x2="'+(chartW-padR)+'" y2="'+gy+'" stroke="#E8EAED" stroke-width="1"/>';
+    svg += '<text x="'+(padL-8)+'" y="'+(gy+4)+'" font-size="10" fill="#9CA3AF" text-anchor="end">'+Math.round(g/4*maxVal)+'</text>';
+  }
+  labels.forEach(function(lbl, li){
+    var groupX = padL + li*groupW;
+    series.forEach(function(s, si){
+      var v = s.data[li]||0;
+      var bh = (v/maxVal)*plotH;
+      var bx = groupX + si*barW + barW*0.3;
+      var by = padT+plotH-bh;
+      svg += '<rect x="'+bx+'" y="'+by+'" width="'+(barW*0.8)+'" height="'+bh+'" fill="'+TREND_COLORS[si%TREND_COLORS.length]+'" rx="2"><title>'+s.name+': '+v+'</title></rect>';
+    });
+    svg += '<text x="'+(groupX+groupW/2)+'" y="'+(chartH-padB+18)+'" font-size="10" fill="#6B7280" text-anchor="middle">'+lbl+'</text>';
+  });
+  svg += '</svg>';
+  var legend = series.length>1 ? '<div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:8px;">'+series.map(function(s,i){
+    return '<div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-secondary);"><div style="width:10px;height:10px;border-radius:2px;background:'+TREND_COLORS[i%TREND_COLORS.length]+'"></div>'+s.name+'</div>';
+  }).join('')+'</div>' : '';
+  document.getElementById(containerId).innerHTML = svg + legend;
+}
+
+function drawTrendTable(headId, bodyId, labels, series) {
+  document.getElementById(headId).innerHTML = '<th>項目</th>' + labels.map(function(l){return '<th style="text-align:center">'+l+'</th>';}).join('');
+  var rows = series.map(function(s, si){
+    var cells = s.data.map(function(v){
+      return '<td style="text-align:center;'+(v>0?'font-weight:600;color:'+TREND_COLORS[si%TREND_COLORS.length]+';':'color:var(--text-tertiary);')+'">'+v+'</td>';
+    }).join('');
+    return '<tr><td style="font-weight:600;white-space:nowrap"><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:'+TREND_COLORS[si%TREND_COLORS.length]+';margin-right:6px;"></span>'+s.name+'</td>'+cells+'</tr>';
+  }).join('');
+  var totalCells = labels.map(function(l,li){
+    var sum = series.reduce(function(a,s){return a+(s.data[li]||0);},0);
+    return '<td style="text-align:center;font-weight:700">'+sum+'</td>';
+  }).join('');
+  rows += '<tr style="background:var(--bg)"><td style="font-weight:700">總計</td>'+totalCells+'</tr>';
+  document.getElementById(bodyId).innerHTML = rows;
+}
+
+function renderTrends() {
+  var today = new Date(); today.setHours(0,0,0,0);
+
+  // ---- 每日邀約（invite_date，最近7天）----
+  var inviteDays = [];
+  for (var i=6;i>=0;i--) { var d=new Date(today); d.setDate(d.getDate()-i); inviteDays.push(d); }
+  var inviteLabels = inviteDays.map(function(d){return (d.getMonth()+1)+'/'+d.getDate();});
+  var inviteCounts = inviteDays.map(function(d){
+    var key = getDayKey(d);
+    return allData.filter(function(rec){
+      var iv = parseDateTime(rec.invite_date || rec['invite date'] || '');
+      return iv && getDayKey(iv) === key;
+    }).length;
+  });
+  var inviteMax = Math.max(1, Math.ceil(Math.max.apply(null, inviteCounts)*1.2));
+  drawLineChart('trendInviteLine', inviteLabels, [{name:'邀約人數', data:inviteCounts}], inviteMax);
+  drawBarChart('trendInviteBar', inviteLabels, [{name:'邀約人數', data:inviteCounts}], inviteMax);
+  drawTrendTable('trendInviteTableHead','trendInviteTableBody', inviteLabels, [{name:'邀約人數', data:inviteCounts}]);
+
+  // ---- 每日電訪（PI_date，最近7天）----
+  var piDays = inviteDays; // 同樣最近7天
+  var piCounts = piDays.map(function(d){
+    var key = getDayKey(d);
+    return allData.filter(function(rec){
+      var pd = parseDateTime(rec.PI_date || '');
+      return pd && getDayKey(pd) === key;
+    }).length;
+  });
+  var piMax = Math.max(1, Math.ceil(Math.max.apply(null, piCounts)*1.2));
+  drawLineChart('trendPiLine', inviteLabels, [{name:'電訪人數', data:piCounts}], piMax);
+  drawBarChart('trendPiBar', inviteLabels, [{name:'電訪人數', data:piCounts}], piMax);
+  drawTrendTable('trendPiTableHead','trendPiTableBody', inviteLabels, [{name:'電訪人數', data:piCounts}]);
+
+  // ---- 每週面試邀約（Interview_date，最近8週）----
+  var weeks = [];
+  for (var w=7;w>=0;w--) { var we=getWeekEnd(today); we.setDate(we.getDate()-w*7); weeks.push(we); }
+  var weekLabels = weeks.map(function(we){return (we.getMonth()+1)+'/'+we.getDate();});
+  var interviewCounts = weeks.map(function(we){
+    var ws = new Date(we); ws.setDate(ws.getDate()-6);
+    return allData.filter(function(rec){
+      var id = parseDateTime(rec.Interview_date || '');
+      if (!id) return false;
+      id.setHours(0,0,0,0);
+      return id >= ws && id <= we;
+    }).length;
+  });
+  var intMax = Math.max(1, Math.ceil(Math.max.apply(null, interviewCounts)*1.2));
+  drawLineChart('trendInterviewLine', weekLabels, [{name:'面試邀約人數', data:interviewCounts}], intMax);
+  drawBarChart('trendInterviewBar', weekLabels, [{name:'面試邀約人數', data:interviewCounts}], intMax);
+  drawTrendTable('trendInterviewTableHead','trendInterviewTableBody', weekLabels, [{name:'面試邀約人數', data:interviewCounts}]);
+
+  // ---- 每週 Result 狀態統計（依 Update_date，最近8週）----
+  var allStages = [...new Set(allData.map(function(d){return d.Result;}))].filter(Boolean);
+  var resultSeries = allStages.map(function(stage, si){
+    var data = weeks.map(function(we){
+      var ws = new Date(we); ws.setDate(ws.getDate()-6);
+      return allData.filter(function(rec){
+        if (rec.Result !== stage) return false;
+        var ud = parseDateTime(rec.Update_date || rec['Update date'] || '');
+        if (!ud) return false;
+        ud.setHours(0,0,0,0);
+        return ud >= ws && ud <= we;
+      }).length;
+    });
+    return {name: stage, data: data};
+  });
+  var resultMax = 1;
+  resultSeries.forEach(function(s){ s.data.forEach(function(v){ if(v>resultMax) resultMax=v; }); });
+  resultMax = Math.ceil(resultMax*1.2);
+  drawLineChart('trendResultLine', weekLabels, resultSeries, resultMax);
+  drawBarChart('trendResultBar', weekLabels, resultSeries, resultMax);
+  drawTrendTable('trendResultTableHead','trendResultTableBody', weekLabels, resultSeries);
+}
+
 // ===== 資料維護 =====
 var maintainSheet = 'Candidate Records';
 var maintainHeaders = {};
@@ -1200,7 +1405,12 @@ function renderCandQuery() {
         '</div>'+
       '</div>';
     } else {
-      piFieldsHtml = '<div style="margin-top:14px;font-size:12px;color:var(--text-tertiary);">此人選尚無 Phone Interview 記錄</div>';
+      var resumeCodeSafe = String(resumeCode||'').replace(/"/g,'&quot;');
+      var nameSafe = String(cand.Name||'').replace(/"/g,'&quot;');
+      piFieldsHtml = '<div style="margin-top:14px;">'+
+        '<div style="font-size:12px;color:var(--text-tertiary);margin-bottom:8px;">此人選尚無 Phone Interview 記錄</div>'+
+        '<button class="refresh-btn" style="margin-left:0;" data-resume="'+resumeCodeSafe+'" data-name="'+nameSafe+'" onclick="createInterviewRecord(this.getAttribute(\'data-resume\'),this.getAttribute(\'data-name\'))">＋ 建立電訪記錄</button>'+
+      '</div>';
     }
 
     return '<div class="mini-card" style="padding:20px 22px;margin-bottom:16px;">'+
@@ -1261,6 +1471,7 @@ function maintainFilter(type, val, el) {
 function renderMaintain() {
   var allRecords = getMaintainRecords(maintainSheet);
   var headers = maintainHeaders[maintainSheet] || (allRecords.length ? Object.keys(allRecords[0]).filter(function(k){return k!=='_row';}) : []);
+  headers = headers.filter(function(h){ return !h.includes('PS'); });
 
   var buKey = headers.find(function(h){return h==='BU'||h==='Division';});
   if (buKey) {
@@ -1426,6 +1637,34 @@ async function submitAddRow() {
     setTimeout(function(){document.getElementById('maintainStatus').textContent='';}, 2000);
   } catch(e) {
     document.getElementById('maintainStatus').textContent = '❌ 新增失敗：'+e.message;
+  }
+}
+
+async function createInterviewRecord(resumeCode, name) {
+  if (!resumeCode) { showToast('此人選沒有履歷代碼，無法建立電訪記錄'); return; }
+  var piHeaders = maintainHeaders['Phone Interview'] || [];
+  if (!piHeaders.length) { showToast('找不到 Phone Interview 欄位資訊'); return; }
+
+  // BU、Job Function、Name、Source、PI_date 是 XLOOKUP 公式欄位，留空避免覆蓋公式；履歷代碼填入，其他欄位留空
+  var resumeCodeKey = piHeaders.find(function(h){return h.includes('履歷代碼');}) || '履歷代碼';
+  var lookupFields = ['BU','Job Function','Name','Source','PI_date'];
+  var orderedValues = piHeaders.map(function(h){
+    if (h === resumeCodeKey) return resumeCode;
+    if (lookupFields.indexOf(h) >= 0) return '';
+    return '';
+  });
+
+  showToast('建立中...');
+  try {
+    var url = APPS_SCRIPT_URL + '?action=addRow&sheet=' + encodeURIComponent('Phone Interview') +
+      '&values=' + encodeURIComponent(JSON.stringify(orderedValues));
+    await fetch(url, {mode:'no-cors'});
+    showToast('正在同步...');
+    await fetchData();
+    renderCandQuery();
+    showToast('✓ 已建立 '+name+' 的電訪記錄');
+  } catch(e) {
+    showToast('❌ 建立失敗：'+e.message);
   }
 }
 
