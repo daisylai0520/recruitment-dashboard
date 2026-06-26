@@ -423,35 +423,45 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
   <!-- ===== DATA MAINTENANCE ===== -->
   <div id="view-maintain" style="display:none">
     <div class="page-title">資料維護</div>
-    <div class="page-sub">直接點擊表格內容即可編輯，修改後自動儲存至 Google 試算表</div>
+    <div class="page-sub" id="maintainPageSub">直接編輯資料，修改後自動儲存至 Google 試算表</div>
 
     <div class="tab-bar" style="margin-bottom:16px;padding-top:0;">
       <div class="tab active" onclick="switchMaintainSheet('Candidate Records',this)">Candidate Records</div>
-      <div class="tab" onclick="switchMaintainSheet('Headcount Record',this)">Headcount Record</div>
+      <div class="tab" onclick="switchMaintainSheet('Headcount Records',this)">Headcount Records</div>
     </div>
 
-    <div class="filter-bar">
-      <div class="filter-group">
-        <div class="filter-group-label">單位</div>
-        <div class="filter-btns" id="maintainBuBar"><button class="bu-btn active" onclick="maintainFilter('bu','all',this)">全部單位</button></div>
+    <!-- ===== Candidate Records：查詢卡模式 ===== -->
+    <div id="maintainCandidateView">
+      <div class="search-wrap" style="width:320px;margin-bottom:20px;">
+        <div class="search-label">搜尋姓名或履歷代碼</div>
+        <input class="search-input" type="text" id="candQuerySearch" placeholder="輸入姓名或履歷代碼..." oninput="renderCandQuery()" style="width:100%;">
       </div>
-      <div class="filter-divider"></div>
-      <div class="search-wrap">
-        <div class="search-label">搜尋</div>
-        <input class="search-input" type="text" id="maintainSearch" placeholder="搜尋全部欄位..." oninput="renderMaintain()" style="width:240px;">
+      <div id="candQueryResults"></div>
+    </div>
+
+    <!-- ===== Headcount Records：表格模式 ===== -->
+    <div id="maintainHcView" style="display:none">
+      <div class="filter-bar">
+        <div class="filter-group">
+          <div class="filter-group-label">單位</div>
+          <div class="filter-btns" id="maintainBuBar"><button class="bu-btn active" onclick="maintainFilter('bu','all',this)">全部單位</button></div>
+        </div>
+        <div class="filter-divider"></div>
+        <div class="search-wrap">
+          <div class="search-label">搜尋</div>
+          <input class="search-input" type="text" id="maintainSearch" placeholder="搜尋全部欄位..." oninput="renderMaintain()" style="width:240px;">
+        </div>
       </div>
-    </div>
-
-    <div style="margin-bottom:14px;display:flex;align-items:center;gap:10px;">
-      <button class="refresh-btn" style="margin-left:0;" onclick="addMaintainRow()">＋ 新增一列</button>
-      <span id="maintainStatus" style="font-size:12px;color:var(--text-tertiary);"></span>
-    </div>
-
-    <div class="table-wrap" style="max-height:640px;overflow-y:auto;position:relative;">
-      <table class="pi-table" id="maintainTable">
-        <thead id="maintainTableHead" style="position:sticky;top:0;z-index:5;"></thead>
-        <tbody id="maintainTableBody"></tbody>
-      </table>
+      <div style="margin-bottom:14px;display:flex;align-items:center;gap:10px;">
+        <button class="refresh-btn" style="margin-left:0;" onclick="addMaintainRow()">＋ 新增一列</button>
+        <span id="maintainStatus" style="font-size:12px;color:var(--text-tertiary);"></span>
+      </div>
+      <div class="table-wrap" style="max-height:640px;overflow-y:auto;position:relative;">
+        <table class="pi-table" id="maintainTable">
+          <thead id="maintainTableHead" style="position:sticky;top:0;z-index:5;"></thead>
+          <tbody id="maintainTableBody"></tbody>
+        </table>
+      </div>
     </div>
   </div>
 </div>
@@ -486,7 +496,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
 <div id="memoModal" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeMemoModal()">
   <div class="modal">
     <div class="modal-title">編輯備註</div>
-    <div class="modal-sub">內容會同步寫入 Headcount Record 試算表的 Memo 欄位</div>
+    <div class="modal-sub">內容會同步寫入 Headcount Records 試算表的 Memo 欄位</div>
     <textarea id="memoTextarea" style="width:100%;min-height:100px;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px;resize:vertical;outline:none;" placeholder="輸入備註..."></textarea>
     <div class="modal-actions" style="margin-top:14px;">
       <button class="btn-cancel" onclick="closeMemoModal()">取消</button>
@@ -611,7 +621,10 @@ function renderAll(){
   renderKanban();
   renderOverview();
   renderPi();
-  if (currentTab === 'maintain') renderMaintain();
+  if (currentTab === 'maintain') {
+    if (maintainSheet === 'Candidate Records') renderCandQuery();
+    else renderMaintain();
+  }
 }
 
 // ---- role selection ----
@@ -658,7 +671,10 @@ function switchTab(tab,el) {
   ['kanban','overview','pi','hc','maintain'].forEach(function(v){
     document.getElementById('view-'+v).style.display=v===tab?'':'none';
   });
-  if (tab === 'maintain') renderMaintain();
+  if (tab === 'maintain') {
+    if (maintainSheet === 'Candidate Records') renderCandQuery();
+    else renderMaintain();
+  }
 }
 
 // ---- filter helpers ----
@@ -904,7 +920,7 @@ function renderPi() {
 }
 
 // ===== HEADCOUNT OVERVIEW =====
-// 資料來源：自動從 Apps Script 回傳的 headcount 陣列載入（doGet 已包含 Headcount Record 分頁）
+// 資料來源：自動從 Apps Script 回傳的 headcount 陣列載入（doGet 已包含 Headcount Records 分頁）
 var hcRawData = [];
 var hcBU = 'all';
 var hcJob = 'all';
@@ -1090,7 +1106,7 @@ var maintainSheet = 'Candidate Records';
 var maintainHeaders = {};
 var maintainBU = 'all';
 
-// 哪些欄位是下拉選單（依分頁區分）
+// 哪些欄位是下拉選單
 var MAINTAIN_DROPDOWNS = {
   'Candidate Records': {
     'BU': function(){ return [...new Set(allData.map(function(d){return String(d.BU||'').trim();}))].filter(Boolean).sort(); },
@@ -1101,7 +1117,6 @@ var MAINTAIN_DROPDOWNS = {
   }
 };
 
-// 時間類欄位（顯示用 fmtDate 格式化，編輯時用原始值）
 var MAINTAIN_DATE_FIELDS = ['invite_date','invite date','PI_date','Interview_date','Update_date','Update date'];
 var MAINTAIN_DATEONLY_FIELDS = ['invite_date','invite date'];
 
@@ -1124,16 +1139,118 @@ function switchMaintainSheet(sheetName, el) {
   maintainSheet = sheetName;
   document.querySelectorAll('#view-maintain .tab-bar .tab').forEach(function(t){t.classList.remove('active');});
   el.classList.add('active');
-  renderMaintain();
+  document.getElementById('maintainCandidateView').style.display = sheetName==='Candidate Records' ? '' : 'none';
+  document.getElementById('maintainHcView').style.display = sheetName==='Headcount Records' ? '' : 'none';
+  if (sheetName === 'Candidate Records') renderCandQuery();
+  else renderMaintain();
 }
 
 function getMaintainRecords(sheetName) {
   if (sheetName === 'Candidate Records') return allData;
-  if (sheetName === 'Phone Interview') return piData;
-  if (sheetName === 'Headcount Record') return hcRawData;
+  if (sheetName === 'Headcount Records') return hcRawData;
   return [];
 }
 
+// ---- Candidate Records 查詢卡 ----
+function findResumeCodeKey(rec) {
+  return Object.keys(rec).find(function(k){return k.includes('履歷代碼');}) || '履歷代碼';
+}
+
+function renderCandQuery() {
+  var search = (document.getElementById('candQuerySearch').value || '').trim().toLowerCase();
+  var container = document.getElementById('candQueryResults');
+  if (!search) {
+    container.innerHTML = '<div class="empty" style="padding:30px 0;text-align:center;">請輸入姓名或履歷代碼以查詢人選資料</div>';
+    return;
+  }
+
+  var matched = allData.filter(function(d){
+    var resumeKey = findResumeCodeKey(d);
+    return String(d.Name||'').toLowerCase().includes(search) || String(d[resumeKey]||'').toLowerCase().includes(search);
+  });
+
+  if (!matched.length) {
+    container.innerHTML = '<div class="empty" style="padding:30px 0;text-align:center;">找不到符合的人選</div>';
+    return;
+  }
+
+  container.innerHTML = matched.map(function(cand){
+    var idx = allData.indexOf(cand);
+    var resumeKey = findResumeCodeKey(cand);
+    var resumeCode = cand[resumeKey];
+    var candHeaders = maintainHeaders['Candidate Records'] || Object.keys(cand).filter(function(k){return k!=='_row';});
+
+    // 找對應的 Phone Interview 記錄（依履歷代碼配對）
+    var piRec = piData.find(function(p){ return resumeCode && String(p[findResumeCodeKey(p)]||'')===String(resumeCode); });
+    var piIdx = piRec ? piData.indexOf(piRec) : -1;
+    var memoKey = piRec ? (Object.keys(piRec).find(function(k){return k.includes('Memo')||k.includes('文案');}) || 'Memo') : 'Memo';
+    var hrCommentKey = piRec ? (Object.keys(piRec).find(function(k){return k.includes('HR Comment')||k.includes('HR comment');}) || 'HR Comment') : 'HR Comment';
+
+    var fieldsHtml = candHeaders.map(function(h){
+      return renderQueryField('Candidate Records', cand, h, idx);
+    }).join('');
+
+    var piFieldsHtml = '';
+    if (piRec) {
+      piFieldsHtml = '<div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--border);">'+
+        '<div style="font-size:12px;font-weight:600;color:var(--text-tertiary);letter-spacing:.06em;text-transform:uppercase;margin-bottom:10px;">📞 Phone Interview</div>'+
+        '<div style="display:grid;grid-template-columns:1fr;gap:10px;">'+
+          renderQueryField('Phone Interview', piRec, memoKey, piIdx, true) +
+          renderQueryField('Phone Interview', piRec, hrCommentKey, piIdx, true) +
+        '</div>'+
+      '</div>';
+    } else {
+      piFieldsHtml = '<div style="margin-top:14px;font-size:12px;color:var(--text-tertiary);">此人選尚無 Phone Interview 記錄</div>';
+    }
+
+    return '<div class="mini-card" style="padding:20px 22px;margin-bottom:16px;">'+
+      '<div style="font-size:16px;font-weight:700;margin-bottom:14px;">'+cand.Name+'</div>'+
+      '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;">'+fieldsHtml+'</div>'+
+      piFieldsHtml+
+    '</div>';
+  }).join('');
+}
+
+function renderQueryField(sheetName, rec, field, idx, fullWidth) {
+  var rawVal = rec[field] !== undefined ? rec[field] : '';
+  var col = (maintainHeaders[sheetName] || Object.keys(rec)).indexOf(field) + 1;
+  var dropdowns = MAINTAIN_DROPDOWNS[sheetName] || {};
+  var isDateField = MAINTAIN_DATE_FIELDS.indexOf(field) >= 0;
+  var isDateOnlyField = MAINTAIN_DATEONLY_FIELDS.indexOf(field) >= 0;
+  var displayVal = isDateOnlyField ? fmtDateOnly(rawVal) : isDateField ? fmtDate(rawVal) : rawVal;
+  var rawSafe = String(rawVal||'').replace(/"/g,'&quot;');
+  var wrapStyle = fullWidth ? 'grid-column:1/-1;' : '';
+
+  var inputHtml;
+  if (dropdowns[field]) {
+    var options = dropdowns[field]();
+    var optHtml = '<option value=""></option>' + options.map(function(o){
+      return '<option value="'+o.replace(/"/g,'&quot;')+'"'+(String(rawVal).trim()===o?' selected':'')+'>'+o+'</option>';
+    }).join('');
+    inputHtml = '<select data-sheet="'+sheetName+'" data-row="'+rec._row+'" data-col="'+col+'" data-field="'+field+'" data-idx="'+idx+'" '+
+      'onchange="commitMaintainSelect(this)" style="width:100%;font-size:13px;padding:6px 24px 6px 8px;border:1.5px solid var(--border);border-radius:8px;background:var(--surface);">'+optHtml+'</select>';
+  } else if (fullWidth) {
+    inputHtml = '<textarea data-sheet="'+sheetName+'" data-row="'+rec._row+'" data-col="'+col+'" data-field="'+field+'" data-idx="'+idx+'" data-raw="'+rawSafe+'" '+
+      'onfocus="this.dataset.original=this.value" onblur="commitMaintainTextarea(this)" rows="2" '+
+      'style="width:100%;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;box-sizing:border-box;resize:vertical;font-family:inherit;">'+(rawVal||'')+'</textarea>';
+  } else {
+    inputHtml = '<div contenteditable="true" data-sheet="'+sheetName+'" data-row="'+rec._row+'" data-col="'+col+'" data-field="'+field+'" data-idx="'+idx+'" data-raw="'+rawSafe+'" '+
+      'onfocus="enterMaintainEdit(this)" onblur="commitMaintainCell(this)" '+
+      'style="font-size:13px;padding:6px 10px;border:1.5px solid var(--border);border-radius:8px;background:var(--surface);min-height:18px;cursor:text;">'+
+      (displayVal||'').toString().replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</div>';
+  }
+
+  return '<div style="'+wrapStyle+'"><div style="font-size:10px;font-weight:600;color:var(--text-tertiary);margin-bottom:4px;">'+field+'</div>'+inputHtml+'</div>';
+}
+
+async function commitMaintainTextarea(el) {
+  var newVal = el.value.trim();
+  var original = el.dataset.original || '';
+  if (newVal === original) return;
+  await saveMaintainField(el.getAttribute('data-sheet'), el.getAttribute('data-row'), el.getAttribute('data-col'), el.getAttribute('data-field'), parseInt(el.getAttribute('data-idx')), newVal);
+}
+
+// ---- Headcount Records 表格模式 ----
 function maintainFilter(type, val, el) {
   if (type === 'bu') maintainBU = val;
   document.querySelectorAll('#maintainBuBar .bu-btn').forEach(function(b){b.classList.remove('active');});
@@ -1145,15 +1262,12 @@ function renderMaintain() {
   var allRecords = getMaintainRecords(maintainSheet);
   var headers = maintainHeaders[maintainSheet] || (allRecords.length ? Object.keys(allRecords[0]).filter(function(k){return k!=='_row';}) : []);
 
-  // BU 篩選按鈕（只在有 BU 欄位的分頁顯示有意義，但統一顯示，沒有 BU 欄位時只有「全部單位」）
   var buKey = headers.find(function(h){return h==='BU'||h==='Division';});
   if (buKey) {
     var bus = [...new Set(allRecords.map(function(r){return String(r[buKey]||'').trim();}))].filter(Boolean).sort();
     document.getElementById('maintainBuBar').innerHTML =
       '<button class="bu-btn '+(maintainBU==='all'?'active':'')+'" data-bu="all" onclick="maintainFilter(\'bu\',this.getAttribute(\'data-bu\'),this)">全部單位</button>'+
       bus.map(function(b){return '<button class="bu-btn '+(maintainBU===b?'active':'')+'" data-bu="'+b+'" onclick="maintainFilter(\'bu\',this.getAttribute(\'data-bu\'),this)">'+b+'</button>';}).join('');
-  } else {
-    document.getElementById('maintainBuBar').innerHTML = '<button class="bu-btn active">全部</button>';
   }
 
   var search = (document.getElementById('maintainSearch')?document.getElementById('maintainSearch').value:'').toLowerCase();
@@ -1172,25 +1286,11 @@ function renderMaintain() {
   document.getElementById('maintainTableHead').innerHTML =
     '<tr>' + headers.map(function(h){ return '<th style="white-space:nowrap;">'+h+'</th>'; }).join('') + '<th style="width:40px;"></th></tr>';
 
-  var dropdowns = MAINTAIN_DROPDOWNS[maintainSheet] || {};
-
   document.getElementById('maintainTableBody').innerHTML = records.map(function(rec){
     var idx = allRecords.indexOf(rec);
     var cells = headers.map(function(h){
       var rawVal = rec[h] !== undefined ? rec[h] : '';
       var col = headers.indexOf(h) + 1;
-
-      // 下拉選單欄位
-      if (dropdowns[h]) {
-        var options = dropdowns[h]();
-        var optHtml = '<option value=""></option>' + options.map(function(o){
-          return '<option value="'+o.replace(/"/g,'&quot;')+'"'+(String(rawVal).trim()===o?' selected':'')+'>'+o+'</option>';
-        }).join('');
-        return '<td style="padding:2px 4px;min-width:140px;"><select data-sheet="'+maintainSheet+'" data-row="'+rec._row+'" data-col="'+col+'" data-field="'+h+'" data-idx="'+idx+'" '+
-          'onchange="commitMaintainSelect(this)" style="width:100%;min-width:140px;font-size:12px;padding:5px 24px 5px 8px;border:1px solid var(--border);border-radius:6px;background:var(--surface);">'+optHtml+'</select></td>';
-      }
-
-      // 時間欄位：顯示格式化文字，但編輯用原始值（用 data-raw 保存原始值）
       var isDateField = MAINTAIN_DATE_FIELDS.indexOf(h) >= 0;
       var isDateOnlyField = MAINTAIN_DATEONLY_FIELDS.indexOf(h) >= 0;
       var displayVal = isDateOnlyField ? fmtDateOnly(rawVal) : isDateField ? fmtDate(rawVal) : rawVal;
@@ -1204,22 +1304,36 @@ function renderMaintain() {
     }).join('');
     return '<tr>'+cells+'<td><button onclick="deleteMaintainRow('+rec._row+')" style="font-size:12px;color:#EF4444;background:none;border:none;cursor:pointer;padding:4px 8px;">✕</button></td></tr>';
   }).join('');
-
-  document.getElementById('maintainStatus2') && (document.getElementById('maintainStatus2').textContent = '共 '+records.length+' 筆');
 }
 
-// 進入編輯時換回原始值，方便直接修改
+// ---- 共用：編輯/儲存 ----
 function enterMaintainEdit(el) {
   var raw = el.getAttribute('data-raw') || '';
   el.dataset.original = raw;
   el.textContent = raw;
-  // 將游標移到文字最後
   var range = document.createRange();
   range.selectNodeContents(el);
   range.collapse(false);
   var sel = window.getSelection();
   sel.removeAllRanges();
   sel.addRange(range);
+}
+
+async function saveMaintainField(sheet, row, col, field, idx, newVal) {
+  document.getElementById('maintainStatus') && (document.getElementById('maintainStatus').textContent = '儲存中...');
+  try {
+    var url = APPS_SCRIPT_URL + '?action=editCell&sheet=' + encodeURIComponent(sheet) +
+      '&row=' + encodeURIComponent(row) + '&col=' + encodeURIComponent(col) + '&value=' + encodeURIComponent(newVal);
+    await fetch(url, {mode:'no-cors'});
+    var records = getMaintainRecords(sheet) === allData || sheet === 'Phone Interview' ? (sheet==='Phone Interview'?piData:allData) : getMaintainRecords(sheet);
+    var rec = records[idx];
+    if (rec) rec[field] = newVal;
+    showToast('✓ 已儲存');
+    return true;
+  } catch(e) {
+    showToast('❌ 儲存失敗：'+e.message);
+    return false;
+  }
 }
 
 async function commitMaintainCell(el) {
@@ -1229,7 +1343,6 @@ async function commitMaintainCell(el) {
   var isDateOnlyField = MAINTAIN_DATEONLY_FIELDS.indexOf(el.getAttribute('data-field')) >= 0;
 
   if (newVal === original) {
-    // 沒變動，還原顯示格式
     if (isDateOnlyField) el.textContent = fmtDateOnly(newVal);
     else if (isDateField) el.textContent = fmtDate(newVal);
     return;
@@ -1241,54 +1354,26 @@ async function commitMaintainCell(el) {
   var field = el.getAttribute('data-field');
   var idx = parseInt(el.getAttribute('data-idx'));
 
-  document.getElementById('maintainStatus').textContent = '儲存中...';
-  try {
-    var url = APPS_SCRIPT_URL + '?action=editCell&sheet=' + encodeURIComponent(sheet) +
-      '&row=' + encodeURIComponent(row) + '&col=' + encodeURIComponent(col) + '&value=' + encodeURIComponent(newVal);
-    await fetch(url, {mode:'no-cors'});
-    var records = getMaintainRecords(sheet);
-    var rec = records[idx];
-    if (rec) rec[field] = newVal;
+  var ok = await saveMaintainField(sheet, row, col, field, idx, newVal);
+  if (ok) {
     el.setAttribute('data-raw', newVal.replace(/"/g,'&quot;'));
     el.textContent = isDateOnlyField ? fmtDateOnly(newVal) : isDateField ? fmtDate(newVal) : newVal;
-    document.getElementById('maintainStatus').textContent = '✓ 已儲存';
-    setTimeout(function(){document.getElementById('maintainStatus').textContent='';}, 2000);
-  } catch(e) {
-    document.getElementById('maintainStatus').textContent = '❌ 儲存失敗';
   }
 }
 
 async function commitMaintainSelect(selectEl) {
   var newVal = selectEl.value;
-  var sheet = selectEl.getAttribute('data-sheet');
-  var row = selectEl.getAttribute('data-row');
-  var col = selectEl.getAttribute('data-col');
-  var field = selectEl.getAttribute('data-field');
-  var idx = parseInt(selectEl.getAttribute('data-idx'));
-
-  document.getElementById('maintainStatus').textContent = '儲存中...';
-  try {
-    var url = APPS_SCRIPT_URL + '?action=editCell&sheet=' + encodeURIComponent(sheet) +
-      '&row=' + encodeURIComponent(row) + '&col=' + encodeURIComponent(col) + '&value=' + encodeURIComponent(newVal);
-    await fetch(url, {mode:'no-cors'});
-    var records = getMaintainRecords(sheet);
-    var rec = records[idx];
-    if (rec) rec[field] = newVal;
-    document.getElementById('maintainStatus').textContent = '✓ 已儲存';
-    setTimeout(function(){document.getElementById('maintainStatus').textContent='';}, 2000);
-  } catch(e) {
-    document.getElementById('maintainStatus').textContent = '❌ 儲存失敗';
-  }
+  await saveMaintainField(selectEl.getAttribute('data-sheet'), selectEl.getAttribute('data-row'), selectEl.getAttribute('data-col'), selectEl.getAttribute('data-field'), parseInt(selectEl.getAttribute('data-idx')), newVal);
 }
 
+// ---- 新增一列（Modal）----
 function addMaintainRow() {
   var records = getMaintainRecords(maintainSheet);
   var headers = maintainHeaders[maintainSheet] || (records.length ? Object.keys(records[0]).filter(function(k){return k!=='_row';}) : []);
   if (!headers.length) { showToast('找不到欄位資訊，無法新增'); return; }
 
   document.getElementById('addRowModalSub').textContent = '新增至「'+maintainSheet+'」，填寫後會直接寫入試算表';
-
-  var requiredFields = maintainSheet === 'Headcount Record' ? ['Division'] : ['Name','Result'];
+  var requiredFields = maintainSheet === 'Headcount Records' ? ['Division'] : ['Name','Result'];
   var dropdowns = MAINTAIN_DROPDOWNS[maintainSheet] || {};
 
   document.getElementById('addRowModalFields').innerHTML = headers.map(function(h){
@@ -1311,7 +1396,7 @@ function closeAddRowModal() {
 
 async function submitAddRow() {
   var headers = maintainHeaders[maintainSheet] || [];
-  var requiredFields = maintainSheet === 'Headcount Record' ? ['Division'] : ['Name','Result'];
+  var requiredFields = maintainSheet === 'Headcount Records' ? ['Division'] : ['Name','Result'];
 
   var values = {};
   var missing = [];
@@ -1336,7 +1421,7 @@ async function submitAddRow() {
     await fetch(url, {mode:'no-cors'});
     document.getElementById('maintainStatus').textContent = '正在同步...';
     await fetchData();
-    if (currentTab === 'maintain') renderMaintain();
+    if (currentTab === 'maintain') { if (maintainSheet==='Candidate Records') renderCandQuery(); else renderMaintain(); }
     document.getElementById('maintainStatus').textContent = '✓ 已新增一列';
     setTimeout(function(){document.getElementById('maintainStatus').textContent='';}, 2000);
   } catch(e) {
@@ -1351,7 +1436,7 @@ async function deleteMaintainRow(row) {
     var url = APPS_SCRIPT_URL + '?action=deleteRow&sheet=' + encodeURIComponent(maintainSheet) + '&row=' + encodeURIComponent(row);
     await fetch(url, {mode:'no-cors'});
     await fetchData();
-    if (currentTab === 'maintain') renderMaintain();
+    if (currentTab === 'maintain') { if (maintainSheet==='Candidate Records') renderCandQuery(); else renderMaintain(); }
     document.getElementById('maintainStatus').textContent = '✓ 已刪除';
     setTimeout(function(){document.getElementById('maintainStatus').textContent='';}, 2000);
   } catch(e) {
