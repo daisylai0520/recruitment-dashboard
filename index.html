@@ -1318,7 +1318,7 @@ var MAINTAIN_DROPDOWNS = {
     'Job Function': function(){ return [...new Set(allData.map(function(d){return String(d['Job Function']||'').trim();}))].filter(Boolean).sort(); },
     'Source': function(){ return [...new Set(allData.map(function(d){return String(d.Source||'').trim();}))].filter(Boolean).sort(); },
     'Inviter': function(){ return [...new Set(allData.map(function(d){return String(d.Inviter||'').trim();}))].filter(Boolean).sort(); },
-    'Result': function(){ return PHONE_STAGES.concat(INTERVIEW_STAGES).concat(OFFER_STAGES).concat(COLLAPSE_STAGES); }
+    'Result': function(){ return ['未回覆','待排電訪','待電訪','待確認主管邀約電訪意願','待確認主管面試意願','待排面試','待面試','待確認主管錄取意願','待確認人選錄取意願','婉拒電訪','HR不邀約電訪','HR不邀約面試','主管不邀約面試','婉拒面試','錄取','未錄取','婉拒錄取','已面試，排複試','已關閉履歷','思考一下','???']; }
   }
 };
 
