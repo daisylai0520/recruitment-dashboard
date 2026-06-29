@@ -71,6 +71,8 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
 .kanban-card-name{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .kanban-card-right{display:flex;align-items:center;gap:5px;flex-shrink:0;}
 .kanban-card-pos{font-size:10px;color:var(--text-secondary);white-space:nowrap;}
+.kanban-card-pos.jf-sales{color:#D97706;font-weight:600;}
+.kanban-card-pos.jf-fae{color:#2563EB;font-weight:600;}
 .kanban-card-bu{display:inline-block;font-size:10px;padding:1px 6px;border-radius:6px;background:var(--bg);color:var(--text-secondary);white-space:nowrap;}
 .kanban-card-time{font-size:10px;color:var(--text-tertiary);display:flex;align-items:center;gap:4px;margin-top:3px;}
 .kanban-phase-label{font-size:11px;font-weight:700;color:var(--text-tertiary);letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px;padding:0 2px;}
@@ -251,6 +253,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
     <div class="tab" data-tab-role="recruiter" onclick="switchTab('trends',this)">📈 Trends</div>
     <div class="tab" data-tab-role="both" onclick="switchTab('pi',this)">📞 Phone Interview Record</div>
     <div class="tab" data-tab-role="both" onclick="switchTab('hc',this)">👥 Headcount Overview</div>
+    <div class="tab" data-tab-role="both" onclick="switchTab('offers',this)">🏆 錄取名單</div>
     <div class="tab" data-tab-role="both" onclick="switchTab('maintain',this)">🛠️ 資料維護</div>
   </div>
 
@@ -426,7 +429,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
     <div class="table-wrap">
       <table class="pi-table">
         <thead>
-          <tr><th>姓名</th><th>職缺</th><th>電訪時間</th><th style="min-width:200px">Memo</th><th>已提供給主管</th><th>目前狀態</th></tr>
+          <tr><th>姓名</th><th>職缺</th><th>電訪時間</th><th style="min-width:200px">Memo</th><th>是否邀約</th><th>目前狀態</th></tr>
         </thead>
         <tbody id="piBody"></tbody>
       </table>
@@ -456,6 +459,34 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
         </div>
       </div>
       <div class="collapse-grid" id="hcCards" style="grid-template-columns:repeat(2,1fr);gap:14px;"></div>
+
+      <div style="margin-top:24px;">
+        <div style="font-size:13px;font-weight:600;color:var(--text-secondary);margin-bottom:10px;">各 Job Function 缺額總人數</div>
+        <div class="collapse-grid" id="hcJobTotalCards" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== OFFER LIST ===== -->
+  <div id="view-offers" style="display:none">
+    <div class="page-title">錄取名單</div>
+    <div class="page-sub" id="offersSub">載入中...</div>
+    <div class="filter-bar">
+      <div class="filter-group">
+        <div class="filter-group-label">單位</div>
+        <div class="filter-btns" id="offersBuBar"><button class="bu-btn active" onclick="offersFilter('bu','all',this)">全部單位</button></div>
+      </div>
+      <div class="filter-divider"></div>
+      <div class="search-wrap">
+        <div class="search-label">搜尋</div>
+        <input class="search-input" type="text" id="offersSearch" placeholder="姓名..." oninput="renderOffers()" style="width:200px;">
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table class="pi-table">
+        <thead><tr><th>姓名</th><th>單位</th><th>職缺</th><th>履歷代碼</th><th>獲錄取日期</th></tr></thead>
+        <tbody id="offersTableBody"></tbody>
+      </table>
     </div>
   </div>
 
@@ -467,13 +498,17 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
     <div class="tab-bar" style="margin-bottom:16px;padding-top:0;">
       <div class="tab active" onclick="switchMaintainSheet('Candidate Records',this)">Candidate Records</div>
       <div class="tab" onclick="switchMaintainSheet('Headcount Records',this)">Headcount Records</div>
+      <div class="tab" onclick="switchMaintainSheet('Candidate Salary Records',this)">Candidate Salary Records</div>
     </div>
 
     <!-- ===== Candidate Records：查詢卡模式 ===== -->
     <div id="maintainCandidateView">
-      <div class="search-wrap" style="width:320px;margin-bottom:20px;">
-        <div class="search-label">搜尋姓名或履歷代碼</div>
-        <input class="search-input" type="text" id="candQuerySearch" placeholder="輸入姓名或履歷代碼..." oninput="renderCandQuery()" style="width:100%;">
+      <div style="display:flex;align-items:flex-end;gap:14px;margin-bottom:20px;">
+        <div class="search-wrap" style="width:320px;margin-bottom:0;">
+          <div class="search-label">搜尋姓名或履歷代碼</div>
+          <input class="search-input" type="text" id="candQuerySearch" placeholder="輸入姓名或履歷代碼..." oninput="renderCandQuery()" style="width:100%;">
+        </div>
+        <button class="refresh-btn" style="margin-left:0;" onclick="openNewCandidateModal()">＋ 新增人選資料</button>
       </div>
       <div id="candQueryResults"></div>
     </div>
@@ -482,7 +517,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
     <div id="maintainHcView" style="display:none">
       <div class="filter-bar">
         <div class="filter-group">
-          <div class="filter-group-label">單位</div>
+          <div class="filter-group-label" id="maintainBuLabel">單位</div>
           <div class="filter-btns" id="maintainBuBar"><button class="bu-btn active" onclick="maintainFilter('bu','all',this)">全部單位</button></div>
         </div>
         <div class="filter-divider"></div>
@@ -547,7 +582,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
 <script>
 var APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby0h1OkoC_xNWeAAbuh4cBicbTl4B8g1KDtL-s2YK9f80TYjIyxQtdeu9RkWFQVtY3pnw/exec';
 var userRole = null;
-var allData=[], piData=[];
+var allData=[], piData=[], salaryData=[];
 var currentTab='kanban';
 var ovBU='all', ovPos='all';
 var piBU='all', piPos='all';
@@ -614,6 +649,13 @@ function isPast(s) {
 function isDonePhone(d){return isPast(d.Interview_date||d.PI_date||'');}
 function isDoneInterview(d){return isPast(d.Interview_date||'');}
 
+function jfClass(jf) {
+  var s = String(jf||'');
+  if (s.includes('Sales')) return 'jf-sales';
+  if (s.includes('FAE')) return 'jf-fae';
+  return '';
+}
+
 function showToast(msg) {
   var t=document.getElementById('toast');
   t.textContent=msg; t.classList.add('show');
@@ -630,6 +672,7 @@ async function fetchData() {
     var json=await res.json();
     allData=(json.candidates||[]).filter(function(d){return d.Name&&d.Result;});
     piData=(json.piRecords||[]).filter(function(d){return d.Name;});
+    salaryData=(json.salaryRecords||[]).filter(function(d){return d.Company;});
     loadHeadcountData(json.headcount||[]);
     maintainHeaders = json.sheetHeaders || {};
     var bus=[...new Set(allData.map(function(d){return String(d.BU||'').trim();}))].filter(Boolean).sort();
@@ -687,7 +730,7 @@ function selectRole(role) {
     var match = onclickAttr.match(/switchTab\('(\w+)'/);
     if (match) {
       currentTab = match[1];
-      ['kanban','overview','pi','hc','maintain','trends'].forEach(function(v){
+      ['kanban','overview','pi','hc','maintain','trends','offers'].forEach(function(v){
         document.getElementById('view-'+v).style.display = v===currentTab ? '' : 'none';
       });
     }
@@ -707,7 +750,7 @@ function switchTab(tab,el) {
   currentTab=tab;
   document.querySelectorAll('.tab-bar:first-of-type > .tab').forEach(function(t){t.classList.remove('active');});
   el.classList.add('active');
-  ['kanban','overview','pi','hc','maintain','trends'].forEach(function(v){
+  ['kanban','overview','pi','hc','maintain','trends','offers'].forEach(function(v){
     document.getElementById('view-'+v).style.display=v===tab?'':'none';
   });
   if (tab === 'maintain') {
@@ -715,6 +758,7 @@ function switchTab(tab,el) {
     else renderMaintain();
   }
   if (tab === 'trends') renderTrends();
+  if (tab === 'offers') renderOffers();
 }
 
 // ---- filter helpers ----
@@ -784,7 +828,7 @@ function renderKanban() {
           return '<div class="kanban-card" data-idx="'+idx+'" data-stage="'+stage+'" onclick="handleCardClick(this)">'
             +'<div class="kanban-card-row1">'
               +'<div class="kanban-card-name">'+d.Name+'</div>'
-              +'<div class="kanban-card-right"><span class="kanban-card-pos">'+(d['Job Function']||'')+'</span><span class="kanban-card-bu">'+d.BU+'</span></div>'
+              +'<div class="kanban-card-right"><span class="kanban-card-pos '+jfClass(d['Job Function'])+'">'+(d['Job Function']||'')+'</span><span class="kanban-card-bu">'+d.BU+'</span></div>'
             +'</div>'
             +(timeStr?'<div class="kanban-card-time">🕐 '+timeStr+'</div>':'')
             +'</div>';
@@ -952,7 +996,7 @@ function renderPi() {
   if (!filtered.length){document.getElementById('piBody').innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--text-tertiary);padding:24px">目前無電訪記錄</td></tr>';return;}
   document.getElementById('piBody').innerHTML=filtered.map(function(d){
     var memoKey=Object.keys(d).find(function(k){return k.includes('Memo')||k.includes('文案');})||'';
-    var provKey=Object.keys(d).find(function(k){return k.includes('提供');})||'';
+    var provKey=Object.keys(d).find(function(k){return k.includes('是否邀約')||k.includes('提供');})||'';
     var resKey=Object.keys(d).find(function(k){return k==='Result';})||'';
     var memo=memoKey?d[memoKey]:'',prov=provKey?d[provKey]:'',res=resKey?d[resKey]:'';
     return '<tr><td style="font-weight:600;white-space:nowrap">'+d.Name+'</td><td style="white-space:nowrap">'+(d['Job Function']||'')+'</td><td style="white-space:nowrap">'+fmtDate(d.PI_date||'')+'</td><td class="memo-cell">'+(memo||'<span style="color:var(--text-tertiary)">—</span>')+'</td><td>'+yesNo(prov)+'</td><td><span class="result-badge">'+( d.Result||'—')+'</span></td></tr>';
@@ -1101,6 +1145,24 @@ function renderHeadcount() {
       (jobsHtml || '<div style="font-size:12px;color:var(--text-tertiary);text-align:center;padding:12px 0;">目前無缺額</div>')+
     '</div>';
   }).join('');
+
+  // 各 Job Function 缺額總人數（跨 Division 統計）
+  var jobTotals = {};
+  filtered.forEach(function(r){
+    var job = String(r[jobKey]||'').trim();
+    if (!job) return;
+    if (!jobTotals[job]) jobTotals[job] = 0;
+    var succ = String(r[succKey]||'').trim();
+    if (!succ) jobTotals[job]++;
+  });
+  var jobTotalArr = Object.keys(jobTotals).map(function(j){return {job:j, count:jobTotals[j]};}).sort(function(a,b){return b.count-a.count;});
+  document.getElementById('hcJobTotalCards').innerHTML = jobTotalArr.length===0 ? '<div class="empty">無資料</div>' :
+    jobTotalArr.map(function(jt){
+      return '<div class="mini-card" style="padding:14px 16px;text-align:center;">'+
+        '<div style="font-size:12px;color:var(--text-secondary);margin-bottom:6px;">'+jt.job+'</div>'+
+        '<div style="font-size:24px;font-weight:700;color:#4F46E5;">'+jt.count+'</div>'+
+      '</div>';
+    }).join('');
 }
 
 // ===== HEADCOUNT MEMO =====
@@ -1139,6 +1201,72 @@ async function saveMemo() {
   } catch(e) {
     showToast('❌ 儲存失敗：'+e.message);
   }
+}
+
+// ===== OFFER LIST =====
+var offersBU = 'all';
+var offersShowAll = false;
+
+function offersFilter(type, val, el) {
+  if (type === 'bu') offersBU = val;
+  document.querySelectorAll('#offersBuBar .bu-btn').forEach(function(b){b.classList.remove('active');});
+  el.classList.add('active');
+  renderOffers();
+}
+
+function offersToggleAll() {
+  offersShowAll = !offersShowAll;
+  renderOffers();
+}
+
+function renderOffers() {
+  var search = (document.getElementById('offersSearch')?document.getElementById('offersSearch').value:'').toLowerCase();
+  var offers = allData.filter(function(d){ return d.Result === '錄取'; });
+
+  var now = new Date();
+  if (!offersShowAll) {
+    offers = offers.filter(function(d){
+      var ud = parseDateTime(d.Update_date||d['Update date']||'');
+      return ud && ud.getFullYear()===now.getFullYear() && ud.getMonth()===now.getMonth();
+    });
+  }
+
+  var bus = [...new Set(offers.map(function(d){return String(d.BU||'').trim();}))].filter(Boolean).sort();
+  document.getElementById('offersBuBar').innerHTML =
+    '<button class="bu-btn '+(offersBU==='all'?'active':'')+'" data-bu="all" onclick="offersFilter(\'bu\',this.getAttribute(\'data-bu\'),this)">全部單位</button>'+
+    bus.map(function(b){return '<button class="bu-btn '+(offersBU===b?'active':'')+'" data-bu="'+b+'" onclick="offersFilter(\'bu\',this.getAttribute(\'data-bu\'),this)">'+b+'</button>';}).join('');
+
+  var filtered = offers.filter(function(d){
+    return (offersBU==='all'||String(d.BU||'').trim()===offersBU) &&
+           (!search||String(d.Name||'').toLowerCase().includes(search));
+  });
+  filtered.sort(function(a,b){
+    var ta = parseDateTime(a.Update_date||a['Update date']||'');
+    var tb = parseDateTime(b.Update_date||b['Update date']||'');
+    var tsa = ta?ta.getTime():0, tsb = tb?tb.getTime():0;
+    return tsb-tsa;
+  });
+
+  var monthLabel = (now.getMonth()+1)+'月';
+  document.getElementById('offersSub').innerHTML = '共 '+filtered.length+' 位錄取人選'+
+    (offersShowAll ? ' · 顯示全部月份 <span style="color:var(--accent);cursor:pointer;text-decoration:underline;margin-left:8px;" onclick="offersToggleAll()">只看本月</span>'
+                   : ' · 預設只顯示 '+monthLabel+' <span style="color:var(--accent);cursor:pointer;text-decoration:underline;margin-left:8px;" onclick="offersToggleAll()">顯示全部月份</span>');
+
+  if (!filtered.length) {
+    document.getElementById('offersTableBody').innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-tertiary);padding:24px">目前無錄取人選</td></tr>';
+    return;
+  }
+
+  var resumeKey = filtered.length ? findResumeCodeKey(filtered[0]) : '履歷代碼';
+  document.getElementById('offersTableBody').innerHTML = filtered.map(function(d){
+    return '<tr>'+
+      '<td style="font-weight:600;white-space:nowrap">'+d.Name+'</td>'+
+      '<td style="white-space:nowrap">'+d.BU+'</td>'+
+      '<td style="white-space:nowrap">'+(d['Job Function']||'')+'</td>'+
+      '<td style="white-space:nowrap">'+(d[resumeKey]||'—')+'</td>'+
+      '<td style="white-space:nowrap">'+fmtDateOnly(d.Update_date||d['Update date']||'')+'</td>'+
+    '</tr>';
+  }).join('');
 }
 
 // ===== TRENDS =====
@@ -1323,16 +1451,21 @@ var MAINTAIN_DROPDOWNS = {
 };
 
 var MAINTAIN_DATE_FIELDS = ['invite_date','invite date','PI_date','Interview_date','Update_date','Update date'];
-var MAINTAIN_DATEONLY_FIELDS = ['invite_date','invite date'];
+var MAINTAIN_DATEONLY_FIELDS = ['invite_date','invite date','Update_date','Update date'];
 
 function fmtDateOnly(s) {
   if (!s) return '';
   var raw = String(s).trim();
-  var dm = raw.match(/(\d{4})?[\/\-]?(\d{1,2})[\/\-](\d{1,2})/);
-  if (dm) {
-    var yr = dm[1] ? dm[1] : new Date().getFullYear();
-    return yr+'/'+String(parseInt(dm[2])).padStart(2,'0')+'/'+String(parseInt(dm[3])).padStart(2,'0');
-  }
+  var now = new Date();
+  // 完整年/月/日
+  var full = raw.match(/(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+  if (full) return full[1]+'/'+String(parseInt(full[2])).padStart(2,'0')+'/'+String(parseInt(full[3])).padStart(2,'0');
+  // 只有月/日，自動帶入今年
+  var md = raw.match(/^(\d{1,2})[\/\-](\d{1,2})$/);
+  if (md) return now.getFullYear()+'/'+String(parseInt(md[1])).padStart(2,'0')+'/'+String(parseInt(md[2])).padStart(2,'0');
+  // 只有日，自動帶入今年今月
+  var dOnly = raw.match(/^(\d{1,2})$/);
+  if (dOnly) return now.getFullYear()+'/'+String(now.getMonth()+1).padStart(2,'0')+'/'+String(parseInt(dOnly[1])).padStart(2,'0');
   var d = new Date(raw);
   if (!isNaN(d.getTime()) && d.getFullYear() > 2000) {
     return d.getFullYear()+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+String(d.getDate()).padStart(2,'0');
@@ -1342,10 +1475,11 @@ function fmtDateOnly(s) {
 
 function switchMaintainSheet(sheetName, el) {
   maintainSheet = sheetName;
+  maintainBU = 'all';
   document.querySelectorAll('#view-maintain .tab-bar .tab').forEach(function(t){t.classList.remove('active');});
   el.classList.add('active');
   document.getElementById('maintainCandidateView').style.display = sheetName==='Candidate Records' ? '' : 'none';
-  document.getElementById('maintainHcView').style.display = sheetName==='Headcount Records' ? '' : 'none';
+  document.getElementById('maintainHcView').style.display = sheetName!=='Candidate Records' ? '' : 'none';
   if (sheetName === 'Candidate Records') renderCandQuery();
   else renderMaintain();
 }
@@ -1353,6 +1487,7 @@ function switchMaintainSheet(sheetName, el) {
 function getMaintainRecords(sheetName) {
   if (sheetName === 'Candidate Records') return allData;
   if (sheetName === 'Headcount Records') return hcRawData;
+  if (sheetName === 'Candidate Salary Records') return salaryData;
   return [];
 }
 
@@ -1473,12 +1608,16 @@ function renderMaintain() {
   var headers = maintainHeaders[maintainSheet] || (allRecords.length ? Object.keys(allRecords[0]).filter(function(k){return k!=='_row';}) : []);
   headers = headers.filter(function(h){ return !h.includes('PS'); });
 
-  var buKey = headers.find(function(h){return h==='BU'||h==='Division';});
+  var buKey = headers.find(function(h){return h==='BU'||h==='Division'||h==='Company';});
+  var buLabel = buKey === 'Company' ? '公司' : '單位';
+  document.getElementById('maintainBuLabel').textContent = buLabel;
   if (buKey) {
     var bus = [...new Set(allRecords.map(function(r){return String(r[buKey]||'').trim();}))].filter(Boolean).sort();
     document.getElementById('maintainBuBar').innerHTML =
-      '<button class="bu-btn '+(maintainBU==='all'?'active':'')+'" data-bu="all" onclick="maintainFilter(\'bu\',this.getAttribute(\'data-bu\'),this)">全部單位</button>'+
+      '<button class="bu-btn '+(maintainBU==='all'?'active':'')+'" data-bu="all" onclick="maintainFilter(\'bu\',this.getAttribute(\'data-bu\'),this)">全部'+buLabel+'</button>'+
       bus.map(function(b){return '<button class="bu-btn '+(maintainBU===b?'active':'')+'" data-bu="'+b+'" onclick="maintainFilter(\'bu\',this.getAttribute(\'data-bu\'),this)">'+b+'</button>';}).join('');
+  } else {
+    document.getElementById('maintainBuBar').innerHTML = '<button class="bu-btn active">全部</button>';
   }
 
   var search = (document.getElementById('maintainSearch')?document.getElementById('maintainSearch').value:'').toLowerCase();
@@ -1578,13 +1717,37 @@ async function commitMaintainSelect(selectEl) {
 }
 
 // ---- 新增一列（Modal）----
+function openNewCandidateModal() {
+  var headers = maintainHeaders['Candidate Records'] || ['invite_date','BU','Job Function','104_Position','Name','履歷代碼','Source','Inviter','PI_date','Interview_date','Result','Update_date','Memo'];
+  var prevSheet = maintainSheet;
+  maintainSheet = 'Candidate Records'; // 暫時切換情境以重用 addRowModal 邏輯
+  document.getElementById('addRowModalSub').textContent = '新增全新人選至 Candidate Records';
+  var requiredFields = ['Name','Result'];
+  var dropdowns = MAINTAIN_DROPDOWNS['Candidate Records'] || {};
+
+  document.getElementById('addRowModalFields').innerHTML = headers.map(function(h){
+    var isRequired = requiredFields.indexOf(h) >= 0;
+    var label = h + (isRequired ? ' <span style="color:#EF4444;">*</span>' : '');
+    if (dropdowns[h]) {
+      var options = dropdowns[h]();
+      var optHtml = '<option value="">請選擇...</option>' + options.map(function(o){return '<option value="'+o.replace(/"/g,'&quot;')+'">'+o+'</option>';}).join('');
+      return '<div><div class="modal-label" style="margin-bottom:4px;">'+label+'</div><select data-field="'+h+'" class="add-row-input" style="width:100%;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;">'+optHtml+'</select></div>';
+    }
+    return '<div><div class="modal-label" style="margin-bottom:4px;">'+label+'</div><input type="text" data-field="'+h+'" class="add-row-input" style="width:100%;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;box-sizing:border-box;"></div>';
+  }).join('');
+
+  document.getElementById('addRowModal').style.display = 'flex';
+  maintainSheet = prevSheet; // 還原，避免影響其他畫面狀態（submitAddRow 會再次明確指定 sheet）
+  window._newCandidateMode = true;
+}
+
 function addMaintainRow() {
   var records = getMaintainRecords(maintainSheet);
   var headers = maintainHeaders[maintainSheet] || (records.length ? Object.keys(records[0]).filter(function(k){return k!=='_row';}) : []);
   if (!headers.length) { showToast('找不到欄位資訊，無法新增'); return; }
 
   document.getElementById('addRowModalSub').textContent = '新增至「'+maintainSheet+'」，填寫後會直接寫入試算表';
-  var requiredFields = maintainSheet === 'Headcount Records' ? ['Division'] : ['Name','Result'];
+  var requiredFields = maintainSheet === 'Headcount Records' ? ['Division'] : maintainSheet === 'Candidate Salary Records' ? ['Company'] : ['Name','Result'];
   var dropdowns = MAINTAIN_DROPDOWNS[maintainSheet] || {};
 
   document.getElementById('addRowModalFields').innerHTML = headers.map(function(h){
@@ -1606,8 +1769,9 @@ function closeAddRowModal() {
 }
 
 async function submitAddRow() {
-  var headers = maintainHeaders[maintainSheet] || [];
-  var requiredFields = maintainSheet === 'Headcount Records' ? ['Division'] : ['Name','Result'];
+  var targetSheet = window._newCandidateMode ? 'Candidate Records' : maintainSheet;
+  var headers = maintainHeaders[targetSheet] || [];
+  var requiredFields = targetSheet === 'Headcount Records' ? ['Division'] : targetSheet === 'Candidate Salary Records' ? ['Company'] : ['Name','Result'];
 
   var values = {};
   var missing = [];
@@ -1624,19 +1788,26 @@ async function submitAddRow() {
   }
 
   var orderedValues = headers.map(function(h){ return values[h] || ''; });
+  var isNewCandidate = window._newCandidateMode;
+  window._newCandidateMode = false;
   closeAddRowModal();
-  document.getElementById('maintainStatus').textContent = '新增中...';
+  var statusEl = document.getElementById('maintainStatus');
+  if (statusEl) statusEl.textContent = '新增中...';
   try {
-    var url = APPS_SCRIPT_URL + '?action=addRow&sheet=' + encodeURIComponent(maintainSheet) +
+    var url = APPS_SCRIPT_URL + '?action=addRow&sheet=' + encodeURIComponent(targetSheet) +
       '&values=' + encodeURIComponent(JSON.stringify(orderedValues));
     await fetch(url, {mode:'no-cors'});
-    document.getElementById('maintainStatus').textContent = '正在同步...';
+    if (statusEl) statusEl.textContent = '正在同步...';
     await fetchData();
-    if (currentTab === 'maintain') { if (maintainSheet==='Candidate Records') renderCandQuery(); else renderMaintain(); }
-    document.getElementById('maintainStatus').textContent = '✓ 已新增一列';
-    setTimeout(function(){document.getElementById('maintainStatus').textContent='';}, 2000);
+    if (currentTab === 'maintain') {
+      if (isNewCandidate || targetSheet==='Candidate Records') renderCandQuery();
+      else renderMaintain();
+    }
+    if (isNewCandidate) showToast('✓ 已新增人選資料');
+    if (statusEl) { statusEl.textContent = '✓ 已新增一列'; setTimeout(function(){statusEl.textContent='';}, 2000); }
   } catch(e) {
-    document.getElementById('maintainStatus').textContent = '❌ 新增失敗：'+e.message;
+    if (statusEl) statusEl.textContent = '❌ 新增失敗：'+e.message;
+    showToast('❌ 新增失敗：'+e.message);
   }
 }
 
