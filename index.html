@@ -654,8 +654,20 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
         </select>
       </div>
       <div>
+        <div class="modal-label" style="margin-bottom:4px;">你的姓名（建立這筆邀約的人）</div>
+        <input type="text" id="schedCreatorName" list="schedCreatorNameList" oninput="autofillCreatorEmail()" onchange="autofillCreatorEmail()" placeholder="填過一次後會自動記住" style="width:100%;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;box-sizing:border-box;">
+        <datalist id="schedCreatorNameList"></datalist>
+      </div>
+      <div>
+        <div class="modal-label" style="margin-bottom:4px;">你的 Email <span style="color:#EF4444;">*</span></div>
+        <input type="email" id="schedCreatorEmail" placeholder="your@company.com" style="width:100%;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;box-sizing:border-box;">
+        <div style="font-size:11px;color:var(--text-tertiary);margin-top:4px;">主管回覆這封信時會直接寄到這個信箱，不會寄到別的 HR</div>
+      </div>
+      <div style="border-top:1px solid var(--border);margin:2px 0;"></div>
+      <div>
         <div class="modal-label" style="margin-bottom:4px;">主管姓名</div>
-        <input type="text" id="schedManagerName" style="width:100%;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;box-sizing:border-box;">
+        <input type="text" id="schedManagerName" list="schedManagerNameList" oninput="autofillManagerEmail()" onchange="autofillManagerEmail()" placeholder="輸入過的主管姓名會自動帶出 Email" style="width:100%;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;box-sizing:border-box;">
+        <datalist id="schedManagerNameList"></datalist>
       </div>
       <div>
         <div class="modal-label" style="margin-bottom:4px;">主管 Email <span style="color:#EF4444;">*</span></div>
@@ -2223,6 +2235,12 @@ function openScheduleModal() {
   document.getElementById('schedManagerName').value = '';
   document.getElementById('schedManagerEmail').value = '';
   document.getElementById('schedRound').value = '電訪';
+  populateManagerDatalist();
+  populateCreatorDatalist();
+  // 帶入上一次建立邀約的人，避免同一人連續建立多筆時要重複輸入；如果這次是別人建立，直接改掉即可
+  var lastCreator = getLastCreator();
+  document.getElementById('schedCreatorName').value = lastCreator ? lastCreator.name : '';
+  document.getElementById('schedCreatorEmail').value = lastCreator ? lastCreator.email : '';
   document.getElementById('scheduleModal').style.display = 'flex';
 }
 
@@ -2230,10 +2248,72 @@ function closeScheduleModal() {
   document.getElementById('scheduleModal').style.display = 'none';
 }
 
+// 用歷史上建立過的邀約，記住「姓名 → Email」的對應（越晚建立的資料優先覆蓋）
+function buildNameEmailDirectory_(nameKey, emailKey) {
+  var map = {};
+  scheduleData.forEach(function(r){
+    var nm = String(r[nameKey]||'').trim();
+    var em = String(r[emailKey]||'').trim();
+    if (!nm || !em) return;
+    map[nm] = em;
+  });
+  return map;
+}
+
+function getManagerDirectory() { return buildNameEmailDirectory_('ManagerName','ManagerEmail'); }
+function getCreatorDirectory() { return buildNameEmailDirectory_('CreatedByName','CreatedByEmail'); }
+
+function getLastCreator() {
+  for (var i = scheduleData.length - 1; i >= 0; i--) {
+    var r = scheduleData[i];
+    if (r.CreatedByName && r.CreatedByEmail) return {name: r.CreatedByName, email: r.CreatedByEmail};
+  }
+  return null;
+}
+
+function populateManagerDatalist() {
+  var list = document.getElementById('schedManagerNameList');
+  if (!list) return;
+  var names = Object.keys(getManagerDirectory()).sort();
+  list.innerHTML = names.map(function(n){ return '<option value="'+n.replace(/"/g,'&quot;')+'">'; }).join('');
+}
+
+function populateCreatorDatalist() {
+  var list = document.getElementById('schedCreatorNameList');
+  if (!list) return;
+  var names = Object.keys(getCreatorDirectory()).sort();
+  list.innerHTML = names.map(function(n){ return '<option value="'+n.replace(/"/g,'&quot;')+'">'; }).join('');
+}
+
+function autofillManagerEmail() {
+  var nameEl = document.getElementById('schedManagerName');
+  var emailEl = document.getElementById('schedManagerEmail');
+  if (!nameEl || !emailEl) return;
+  var name = (nameEl.value||'').trim();
+  var dir = getManagerDirectory();
+  if (name && dir[name]) {
+    emailEl.value = dir[name];
+  }
+}
+
+function autofillCreatorEmail() {
+  var nameEl = document.getElementById('schedCreatorName');
+  var emailEl = document.getElementById('schedCreatorEmail');
+  if (!nameEl || !emailEl) return;
+  var name = (nameEl.value||'').trim();
+  var dir = getCreatorDirectory();
+  if (name && dir[name]) {
+    emailEl.value = dir[name];
+  }
+}
+
 async function submitCreateSchedule() {
   var search = (document.getElementById('schedCandSearch').value||'').trim().toLowerCase();
   var managerEmail = (document.getElementById('schedManagerEmail').value||'').trim();
+  var creatorEmail = (document.getElementById('schedCreatorEmail').value||'').trim();
+  var creatorName = (document.getElementById('schedCreatorName').value||'').trim();
   if (!search) { showToast('請輸入人選姓名或履歷代碼'); return; }
+  if (!creatorEmail) { showToast('請輸入你的 Email，主管回信時才會寄到你的信箱'); return; }
   if (!managerEmail) { showToast('請輸入主管 Email'); return; }
   var matched = allData.filter(function(d){
     var resumeKey = findResumeCodeKey(d);
@@ -2254,6 +2334,8 @@ async function submitCreateSchedule() {
       + '&round=' + encodeURIComponent(document.getElementById('schedRound').value||'')
       + '&managerName=' + encodeURIComponent(document.getElementById('schedManagerName').value||'')
       + '&managerEmail=' + encodeURIComponent(managerEmail)
+      + '&createdByName=' + encodeURIComponent(creatorName)
+      + '&createdByEmail=' + encodeURIComponent(creatorEmail)
       + '&createdBy=' + encodeURIComponent(userRole||'');
     await fetch(url, {mode:'no-cors'});
     await fetchData();
@@ -2359,6 +2441,7 @@ function renderSchedule() {
         '<div>'+
           '<div style="font-size:15px;font-weight:700;">'+(r.Name||'')+' <span style="font-weight:400;font-size:12px;color:var(--text-secondary);">'+(r.JobFunction||'')+(r.Round?' · '+r.Round:'')+'</span></div>'+
           '<div style="font-size:12px;color:var(--text-tertiary);margin-top:2px;">主管：'+(r.ManagerName||'—')+'（'+(r.ManagerEmail||'')+'）</div>'+
+          '<div style="font-size:11px;color:var(--text-tertiary);margin-top:2px;">建立人：'+(r.CreatedByName||'—')+(r.CreatedByEmail?'（'+r.CreatedByEmail+'）':'')+'</div>'+
         '</div>'+
         '<span style="font-size:11px;font-weight:600;padding:3px 10px;border-radius:10px;background:'+st.bg+';color:'+st.text+';white-space:nowrap;">'+(r.Status||'')+'</span>'+
       '</div>'+
