@@ -90,6 +90,8 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
 /* MODAL */
 .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:200;display:flex;align-items:center;justify-content:center;}
 .modal{background:var(--surface);border-radius:14px;padding:28px;width:420px;max-width:95vw;box-shadow:0 20px 60px rgba(0,0,0,.15);}
+#modal .modal{width:560px;}
+.modal.modal-wide{width:640px;}
 .modal-title{font-size:16px;font-weight:600;margin-bottom:4px;}
 .modal-sub{font-size:13px;color:var(--text-secondary);margin-bottom:20px;}
 .modal-label{font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:8px;}
@@ -265,9 +267,15 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
 
   <!-- ===== KANBAN ===== -->
   <div id="view-kanban" style="position:relative;">
-    <div style="position:absolute;top:0;right:0;background:var(--surface);border:1.5px solid var(--border);border-radius:14px;padding:18px 36px;text-align:center;">
-      <div style="font-size:12px;font-weight:600;color:var(--text-tertiary);letter-spacing:.06em;text-transform:uppercase;">轉換率</div>
-      <div style="font-size:42px;font-weight:700;color:var(--accent);line-height:1.3;" id="kbConversionRate">—</div>
+    <div style="position:absolute;top:0;right:0;display:flex;flex-direction:column;gap:10px;align-items:stretch;">
+      <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:14px;padding:18px 36px;text-align:center;">
+        <div style="font-size:12px;font-weight:600;color:var(--text-tertiary);letter-spacing:.06em;text-transform:uppercase;">轉換率</div>
+        <div style="font-size:42px;font-weight:700;color:var(--accent);line-height:1.3;" id="kbConversionRate">—</div>
+      </div>
+      <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:14px;padding:14px 18px;min-width:180px;">
+        <div style="font-size:11px;font-weight:600;color:var(--text-tertiary);letter-spacing:.06em;text-transform:uppercase;text-align:center;margin-bottom:8px;">各 Job Function 人數</div>
+        <div id="kbJobFunctionCounts" style="display:flex;flex-direction:column;gap:5px;"></div>
+      </div>
     </div>
     <div class="page-title">Recruitment Overview</div>
     <div class="page-sub">點擊人選卡片可變更招募階段</div>
@@ -376,49 +384,21 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
   <!-- ===== TRENDS ===== -->
   <div id="view-trends" style="display:none">
     <div class="page-title">Trends</div>
-    <div class="page-sub">每日邀約／電訪、每週面試邀約與招募狀態統計（點圖表可切換樣式、看明細）</div>
+    <div class="page-sub">每週邀約／電訪／面試人數與招募狀態統計（點圖表可切換樣式、看明細）</div>
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
-      <div class="cal-outer" id="trendCard-invite">
+      <div class="cal-outer" id="trendCard-funnel">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
-          <div style="font-size:14px;font-weight:600;">📨 每日邀約人數</div>
-          <div class="trend-toggle-group" data-card="invite">
-            <button class="pos-btn active" onclick="setTrendChartType('invite','line',this)" style="font-size:11px;padding:3px 10px;">折線</button>
-            <button class="pos-btn" onclick="setTrendChartType('invite','bar',this)" style="font-size:11px;padding:3px 10px;">長條</button>
+          <div style="font-size:14px;font-weight:600;">📨 每週邀約／電訪／面試人數</div>
+          <div class="trend-toggle-group" data-card="funnel">
+            <button class="pos-btn active" onclick="setTrendChartType('funnel','line',this)" style="font-size:11px;padding:3px 10px;">折線</button>
+            <button class="pos-btn" onclick="setTrendChartType('funnel','bar',this)" style="font-size:11px;padding:3px 10px;">長條</button>
           </div>
         </div>
-        <div style="font-size:11px;color:var(--text-secondary);margin-bottom:10px;">invite_date · 最近 7 天</div>
-        <div id="trendInviteChart" style="overflow-x:auto;"></div>
-        <div style="margin-top:8px;"><span style="font-size:11px;color:var(--accent);cursor:pointer;text-decoration:underline;" onclick="toggleTrendDetail('invite')">查看明細表格</span></div>
-        <div class="table-wrap" id="trendInviteDetail" style="display:none;margin-top:10px;"><table class="pi-table"><thead><tr id="trendInviteTableHead"></tr></thead><tbody id="trendInviteTableBody"></tbody></table></div>
-      </div>
-
-      <div class="cal-outer" id="trendCard-pi">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
-          <div style="font-size:14px;font-weight:600;">📞 每日電訪人數</div>
-          <div class="trend-toggle-group" data-card="pi">
-            <button class="pos-btn active" onclick="setTrendChartType('pi','line',this)" style="font-size:11px;padding:3px 10px;">折線</button>
-            <button class="pos-btn" onclick="setTrendChartType('pi','bar',this)" style="font-size:11px;padding:3px 10px;">長條</button>
-          </div>
-        </div>
-        <div style="font-size:11px;color:var(--text-secondary);margin-bottom:10px;">PI_date · 最近 7 天</div>
-        <div id="trendPiChart" style="overflow-x:auto;"></div>
-        <div style="margin-top:8px;"><span style="font-size:11px;color:var(--accent);cursor:pointer;text-decoration:underline;" onclick="toggleTrendDetail('pi')">查看明細表格</span></div>
-        <div class="table-wrap" id="trendPiDetail" style="display:none;margin-top:10px;"><table class="pi-table"><thead><tr id="trendPiTableHead"></tr></thead><tbody id="trendPiTableBody"></tbody></table></div>
-      </div>
-
-      <div class="cal-outer" id="trendCard-interview">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
-          <div style="font-size:14px;font-weight:600;">🗣️ 每週面試邀約人數</div>
-          <div class="trend-toggle-group" data-card="interview">
-            <button class="pos-btn active" onclick="setTrendChartType('interview','line',this)" style="font-size:11px;padding:3px 10px;">折線</button>
-            <button class="pos-btn" onclick="setTrendChartType('interview','bar',this)" style="font-size:11px;padding:3px 10px;">長條</button>
-          </div>
-        </div>
-        <div style="font-size:11px;color:var(--text-secondary);margin-bottom:10px;">Interview_date · 最近 8 週</div>
-        <div id="trendInterviewChart" style="overflow-x:auto;"></div>
-        <div style="margin-top:8px;"><span style="font-size:11px;color:var(--accent);cursor:pointer;text-decoration:underline;" onclick="toggleTrendDetail('interview')">查看明細表格</span></div>
-        <div class="table-wrap" id="trendInterviewDetail" style="display:none;margin-top:10px;"><table class="pi-table"><thead><tr id="trendInterviewTableHead"></tr></thead><tbody id="trendInterviewTableBody"></tbody></table></div>
+        <div style="font-size:11px;color:var(--text-secondary);margin-bottom:10px;">invite_date／PI_date／Interview_date · 最近 8 週</div>
+        <div id="trendFunnelChart" style="overflow-x:auto;"></div>
+        <div style="margin-top:8px;"><span style="font-size:11px;color:var(--accent);cursor:pointer;text-decoration:underline;" onclick="toggleTrendDetail('funnel')">查看明細表格</span></div>
+        <div class="table-wrap" id="trendFunnelDetail" style="display:none;margin-top:10px;"><table class="pi-table"><thead><tr id="trendFunnelTableHead"></tr></thead><tbody id="trendFunnelTableBody"></tbody></table></div>
       </div>
 
       <div class="cal-outer" id="trendCard-result">
@@ -515,6 +495,14 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
         <div class="filter-btns" id="offersBuBar"><button class="bu-btn active" onclick="offersFilter('bu','all',this)">全部單位</button></div>
       </div>
       <div class="filter-divider"></div>
+      <div class="filter-group">
+        <div class="filter-group-label">年月</div>
+        <div style="display:flex;gap:6px;">
+          <select id="offersYearSelect" onchange="offersFilterYearMonth()" style="font-size:12px;padding:5px 8px;border:1.5px solid var(--border);border-radius:8px;background:var(--surface);font-family:inherit;"></select>
+          <select id="offersMonthSelect" onchange="offersFilterYearMonth()" style="font-size:12px;padding:5px 8px;border:1.5px solid var(--border);border-radius:8px;background:var(--surface);font-family:inherit;"></select>
+        </div>
+      </div>
+      <div class="filter-divider"></div>
       <div class="search-wrap">
         <div class="search-label">搜尋</div>
         <input class="search-input" type="text" id="offersSearch" placeholder="姓名..." oninput="renderOffers()" style="width:200px;">
@@ -524,7 +512,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
     </div>
     <div class="table-wrap">
       <table class="pi-table">
-        <thead><tr><th>姓名</th><th>單位</th><th>職缺</th><th>履歷代碼</th><th>獲錄取日期</th></tr></thead>
+        <thead><tr><th>姓名</th><th>單位</th><th>職缺</th><th>履歷代碼</th><th>Onboard date</th></tr></thead>
         <tbody id="offersTableBody"></tbody>
       </table>
     </div>
@@ -761,7 +749,7 @@ function initDateFilterSlots() {
     'ovDateFilterSlot': {key:'overview', fields:candFields},
     'piDateFilterSlot': {key:'pi', fields:[{value:'PI_date',label:'PI_date'}]},
     'hcDateFilterSlot': {key:'hc', fields:[{value:'Update_date',label:'Update_date（缺額更新時間，依異動記錄推算暫不支援）'}], disabled:true},
-    'offersDateFilterSlot': {key:'offers', fields:[{value:'Update_date',label:'Update_date（獲錄取日期）'}]}
+    'offersDateFilterSlot': {key:'offers', fields:[{value:'Onboard date',label:'Onboard date'}]}
   };
   Object.keys(slots).forEach(function(slotId){
     var el = document.getElementById(slotId);
@@ -1004,6 +992,25 @@ function renderKanban() {
   var convRate = convBase.length ? (convOffer.length/convBase.length*100) : 0;
   var convEl = document.getElementById('kbConversionRate');
   if (convEl) convEl.textContent = convBase.length ? convRate.toFixed(1)+'%' : '—';
+
+  // ---- 各 Job Function 人數 ----
+  var jfCounts = {};
+  filtered.forEach(function(d){
+    var jf = String(d['Job Function']||'').trim();
+    if (!jf) return;
+    jfCounts[jf] = (jfCounts[jf]||0) + 1;
+  });
+  var jfArr = Object.keys(jfCounts).map(function(j){return {job:j, count:jfCounts[j]};}).sort(function(a,b){return b.count-a.count;});
+  var jfCountsEl = document.getElementById('kbJobFunctionCounts');
+  if (jfCountsEl) {
+    jfCountsEl.innerHTML = jfArr.length===0 ? '<div style="font-size:12px;color:var(--text-tertiary);text-align:center;">無資料</div>' :
+      jfArr.map(function(jt){
+        return '<div style="display:flex;align-items:center;justify-content:space-between;gap:16px;font-size:12px;">'+
+          '<span class="kanban-card-pos '+jfClass(jt.job)+'">'+jt.job+'</span>'+
+          '<span style="font-weight:700;color:var(--accent);">'+jt.count+'</span>'+
+        '</div>';
+      }).join('');
+  }
 }
 
 // ---- Modal ----
@@ -1232,8 +1239,8 @@ function renderHeadcount() {
       var rowsHtml = vacantRows.map(function(r){
         return '<tr>'+
           '<td style="font-size:11px;color:var(--text-secondary);padding:5px 6px;">'+r.unit+'</td>'+
-          '<td style="font-size:11px;color:var(--text-secondary);padding:5px 6px;">'+r.reason+'</td>'+
           '<td style="font-size:11px;color:var(--text-primary);padding:5px 6px;font-weight:500;">'+r.duties+'</td>'+
+          '<td style="font-size:11px;color:var(--text-secondary);padding:5px 6px;">'+r.reason+'</td>'+
           '<td style="font-size:11px;color:var(--text-secondary);padding:5px 6px;">'+r.grade+'</td>'+
           '<td style="font-size:11px;color:var(--text-secondary);padding:5px 6px;">'+r.pred+'</td>'+
           '<td style="padding:5px 6px;">'+
@@ -1251,8 +1258,8 @@ function renderHeadcount() {
           '<table style="width:100%;border-collapse:collapse;min-width:340px;">'+
             '<thead><tr style="background:var(--bg);">'+
               '<th style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-align:left;padding:5px 6px;">單位</th>'+
-              '<th style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-align:left;padding:5px 6px;">原因</th>'+
               '<th style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-align:left;padding:5px 6px;">Duties</th>'+
+              '<th style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-align:left;padding:5px 6px;">原因</th>'+
               '<th style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-align:left;padding:5px 6px;">職等</th>'+
               '<th style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-align:left;padding:5px 6px;">原任</th>'+
               '<th style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-align:left;padding:5px 6px;">備註</th>'+
@@ -1334,7 +1341,9 @@ async function saveMemo() {
 
 // ===== OFFER LIST =====
 var offersBU = 'all';
-var offersShowAll = false;
+var _offersNow = new Date();
+var offersYear = String(_offersNow.getFullYear());
+var offersMonth = String(_offersNow.getMonth()+1);
 
 function offersFilter(type, val, el) {
   if (type === 'bu') offersBU = val;
@@ -1343,8 +1352,9 @@ function offersFilter(type, val, el) {
   renderOffers();
 }
 
-function offersToggleAll() {
-  offersShowAll = !offersShowAll;
+function offersFilterYearMonth() {
+  offersYear = document.getElementById('offersYearSelect').value;
+  offersMonth = document.getElementById('offersMonthSelect').value;
   renderOffers();
 }
 
@@ -1352,13 +1362,33 @@ function renderOffers() {
   var search = (document.getElementById('offersSearch')?document.getElementById('offersSearch').value:'').toLowerCase();
   var offers = allData.filter(function(d){ return d.Result === '錄取'; });
 
-  var now = new Date();
-  if (!offersShowAll) {
-    offers = offers.filter(function(d){
-      var ud = parseDateTime(d.Update_date||d['Update date']||'');
-      return ud && ud.getFullYear()===now.getFullYear() && ud.getMonth()===now.getMonth();
-    });
+  // Onboard date 來源為 Candidate Records 的 Onboard date 欄位
+  var yearsSet = [...new Set(offers.map(function(d){
+    var t = parseDateTime(d['Onboard date']||'');
+    return t ? String(t.getFullYear()) : null;
+  }).filter(Boolean))].sort().reverse();
+  if (yearsSet.indexOf(offersYear) < 0 && offersYear !== 'all') { if(!yearsSet.length){offersYear='all';} }
+  var yearSel = document.getElementById('offersYearSelect');
+  if (yearSel) {
+    yearSel.innerHTML = '<option value="all">全部年份</option>' +
+      yearsSet.map(function(y){return '<option value="'+y+'"'+(offersYear===y?' selected':'')+'>'+y+'年</option>';}).join('');
+    yearSel.value = offersYear;
   }
+  var monthSel = document.getElementById('offersMonthSelect');
+  if (monthSel) {
+    var monthOpts = '<option value="all">全部月份</option>';
+    for (var mi=1; mi<=12; mi++) monthOpts += '<option value="'+mi+'"'+(offersMonth===String(mi)?' selected':'')+'>'+mi+'月</option>';
+    monthSel.innerHTML = monthOpts;
+    monthSel.value = offersMonth;
+  }
+
+  offers = offers.filter(function(d){
+    var t = parseDateTime(d['Onboard date']||'');
+    if (!t) return false;
+    if (offersYear !== 'all' && String(t.getFullYear()) !== offersYear) return false;
+    if (offersMonth !== 'all' && String(t.getMonth()+1) !== offersMonth) return false;
+    return true;
+  });
 
   var bus = [...new Set(offers.map(function(d){return String(d.BU||'').trim();}))].filter(Boolean).sort();
   document.getElementById('offersBuBar').innerHTML =
@@ -1371,16 +1401,14 @@ function renderOffers() {
            dateFilterPass('offers', d);
   });
   filtered.sort(function(a,b){
-    var ta = parseDateTime(a.Update_date||a['Update date']||'');
-    var tb = parseDateTime(b.Update_date||b['Update date']||'');
+    var ta = parseDateTime(a['Onboard date']||'');
+    var tb = parseDateTime(b['Onboard date']||'');
     var tsa = ta?ta.getTime():0, tsb = tb?tb.getTime():0;
     return tsb-tsa;
   });
 
-  var monthLabel = (now.getMonth()+1)+'月';
-  document.getElementById('offersSub').innerHTML = '共 '+filtered.length+' 位錄取人選'+
-    (offersShowAll ? ' · 顯示全部月份 <span style="color:var(--accent);cursor:pointer;text-decoration:underline;margin-left:8px;" onclick="offersToggleAll()">只看本月</span>'
-                   : ' · 預設只顯示 '+monthLabel+' <span style="color:var(--accent);cursor:pointer;text-decoration:underline;margin-left:8px;" onclick="offersToggleAll()">顯示全部月份</span>');
+  var periodLabel = (offersYear==='all'?'全部年份':offersYear+'年') + '・' + (offersMonth==='all'?'全部月份':offersMonth+'月');
+  document.getElementById('offersSub').textContent = '共 '+filtered.length+' 位錄取人選 · '+periodLabel;
 
   if (!filtered.length) {
     document.getElementById('offersTableBody').innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-tertiary);padding:24px">目前無錄取人選</td></tr>';
@@ -1394,14 +1422,18 @@ function renderOffers() {
       '<td style="white-space:nowrap">'+d.BU+'</td>'+
       '<td style="white-space:nowrap">'+(d['Job Function']||'')+'</td>'+
       '<td style="white-space:nowrap">'+(d[resumeKey]||'—')+'</td>'+
-      '<td style="white-space:nowrap">'+fmtDateOnly(d.Update_date||d['Update date']||'')+'</td>'+
+      '<td style="white-space:nowrap">'+fmtDateOnly(d['Onboard date']||'')+'</td>'+
     '</tr>';
   }).join('');
 }
 
 // ===== TRENDS =====
 var TREND_COLORS = ['#F59E0B','#10B981','#3B82F6','#8B5CF6','#EC4899','#14B8A6','#F97316','#6366F1','#84CC16','#06B6D4','#EF4444','#A855F7','#22C55E','#0EA5E9'];
-var trendChartType = { invite:'line', pi:'line', interview:'line', result:'line' };
+var trendChartType = { funnel:'line', result:'line' };
+var WEEKDAY_CN = ['日','一','二','三','四','五','六'];
+function fmtTrendWeekLabel(d) {
+  return (d.getMonth()+1)+'/'+d.getDate()+'('+WEEKDAY_CN[d.getDay()]+')';
+}
 var trendCache = {};
 
 function getDayKey(d) {
@@ -1519,39 +1551,30 @@ function renderTrendCard(card) {
 function renderTrends() {
   var today = new Date(); today.setHours(0,0,0,0);
 
-  // ---- 每日邀約（invite_date，最近7天）----
-  var inviteDays = [];
-  for (var i=6;i>=0;i--) { var d=new Date(today); d.setDate(d.getDate()-i); inviteDays.push(d); }
-  var inviteLabels = inviteDays.map(function(d){return (d.getMonth()+1)+'/'+d.getDate();});
-  var inviteCounts = inviteDays.map(function(d){
-    var key = getDayKey(d);
-    return allData.filter(function(rec){
-      var iv = parseDateTime(rec.invite_date || rec['invite date'] || '');
-      return iv && getDayKey(iv) === key;
-    }).length;
-  });
-  var inviteMax = Math.max(1, Math.ceil(Math.max.apply(null, inviteCounts)*1.2));
-  trendCache.invite = { labels: inviteLabels, series: [{name:'邀約人數', data:inviteCounts}], maxVal: inviteMax };
-  renderTrendCard('invite');
-  drawTrendTable('trendInviteTableHead','trendInviteTableBody', inviteLabels, trendCache.invite.series);
-
-  // ---- 每日電訪（PI_date，最近7天）----
-  var piCounts = inviteDays.map(function(d){
-    var key = getDayKey(d);
-    return allData.filter(function(rec){
-      var pd = parseDateTime(rec.PI_date || '');
-      return pd && getDayKey(pd) === key;
-    }).length;
-  });
-  var piMax = Math.max(1, Math.ceil(Math.max.apply(null, piCounts)*1.2));
-  trendCache.pi = { labels: inviteLabels, series: [{name:'電訪人數', data:piCounts}], maxVal: piMax };
-  renderTrendCard('pi');
-  drawTrendTable('trendPiTableHead','trendPiTableBody', inviteLabels, trendCache.pi.series);
-
-  // ---- 每週面試邀約（Interview_date，最近8週）----
+  // ---- 週次（最近8週，週日期加上星期）----
   var weeks = [];
   for (var w=7;w>=0;w--) { var we=getWeekEnd(today); we.setDate(we.getDate()-w*7); weeks.push(we); }
-  var weekLabels = weeks.map(function(we){return (we.getMonth()+1)+'/'+we.getDate();});
+  var weekLabels = weeks.map(fmtTrendWeekLabel);
+
+  // ---- 每週邀約／電訪／面試人數（合併圖表＋表格）----
+  var inviteCounts = weeks.map(function(we){
+    var ws = new Date(we); ws.setDate(ws.getDate()-6);
+    return allData.filter(function(rec){
+      var iv = parseDateTime(rec.invite_date || rec['invite date'] || '');
+      if (!iv) return false;
+      iv.setHours(0,0,0,0);
+      return iv >= ws && iv <= we;
+    }).length;
+  });
+  var piCounts = weeks.map(function(we){
+    var ws = new Date(we); ws.setDate(ws.getDate()-6);
+    return allData.filter(function(rec){
+      var pd = parseDateTime(rec.PI_date || '');
+      if (!pd) return false;
+      pd.setHours(0,0,0,0);
+      return pd >= ws && pd <= we;
+    }).length;
+  });
   var interviewCounts = weeks.map(function(we){
     var ws = new Date(we); ws.setDate(ws.getDate()-6);
     return allData.filter(function(rec){
@@ -1561,10 +1584,17 @@ function renderTrends() {
       return id >= ws && id <= we;
     }).length;
   });
-  var intMax = Math.max(1, Math.ceil(Math.max.apply(null, interviewCounts)*1.2));
-  trendCache.interview = { labels: weekLabels, series: [{name:'面試邀約人數', data:interviewCounts}], maxVal: intMax };
-  renderTrendCard('interview');
-  drawTrendTable('trendInterviewTableHead','trendInterviewTableBody', weekLabels, trendCache.interview.series);
+  var funnelSeries = [
+    {name:'邀約人數', data:inviteCounts},
+    {name:'電訪人數', data:piCounts},
+    {name:'面試人數', data:interviewCounts}
+  ];
+  var funnelMax = 1;
+  funnelSeries.forEach(function(s){ s.data.forEach(function(v){ if(v>funnelMax) funnelMax=v; }); });
+  funnelMax = Math.ceil(funnelMax*1.2);
+  trendCache.funnel = { labels: weekLabels, series: funnelSeries, maxVal: funnelMax };
+  renderTrendCard('funnel');
+  drawTrendTable('trendFunnelTableHead','trendFunnelTableBody', weekLabels, funnelSeries);
 
   // ---- 每週 Result 狀態統計（依 Update_date，最近8週）----
   var allStages = [...new Set(allData.map(function(d){return d.Result;}))].filter(Boolean);
@@ -1606,8 +1636,36 @@ var MAINTAIN_DROPDOWNS = {
   }
 };
 
-var MAINTAIN_DATE_FIELDS = ['invite_date','invite date','PI_date','Interview_date','Update_date','Update date'];
-var MAINTAIN_DATEONLY_FIELDS = ['invite_date','invite date','Update_date','Update date'];
+var MAINTAIN_DATE_FIELDS = ['invite_date','invite date','PI_date','Interview_date','Update_date','Update date','Onboard date'];
+var MAINTAIN_DATEONLY_FIELDS = ['invite_date','invite date','Update_date','Update date','Onboard date'];
+
+// 將使用者輸入的日期字串正規化為儲存格式；輸入僅「6/30」時自動補上今年年份
+function normalizeDateForSave(field, raw) {
+  raw = String(raw||'').trim();
+  if (!raw) return raw;
+  var isDateOnly = MAINTAIN_DATEONLY_FIELDS.indexOf(field) >= 0;
+  var isDateTime = MAINTAIN_DATE_FIELDS.indexOf(field) >= 0 && !isDateOnly;
+  var now = new Date();
+  if (isDateOnly) return fmtDateOnly(raw);
+  if (isDateTime) {
+    var periodMatch = raw.match(/(上午|中午|下午)/);
+    var dm = raw.match(/(\d{4})?[\/\-]?(\d{1,2})[\/\-](\d{1,2})/);
+    if (periodMatch && dm) {
+      var yr = dm[1] ? dm[1] : now.getFullYear();
+      return yr+'/'+String(parseInt(dm[2])).padStart(2,'0')+'/'+String(parseInt(dm[3])).padStart(2,'0')+' '+periodMatch[1];
+    }
+    var tm = raw.match(/(\d{1,2}):(\d{2})/);
+    if (dm && tm) {
+      var yr2 = dm[1] ? dm[1] : now.getFullYear();
+      return yr2+'/'+String(parseInt(dm[2])).padStart(2,'0')+'/'+String(parseInt(dm[3])).padStart(2,'0')+' '+String(parseInt(tm[1])).padStart(2,'0')+':'+tm[2];
+    }
+    if (dm) {
+      var yr3 = dm[1] ? dm[1] : now.getFullYear();
+      return yr3+'/'+String(parseInt(dm[2])).padStart(2,'0')+'/'+String(parseInt(dm[3])).padStart(2,'0');
+    }
+  }
+  return raw;
+}
 
 function fmtDateOnly(s) {
   if (!s) return '';
@@ -1845,14 +1903,17 @@ async function saveMaintainField(sheet, row, col, field, idx, newVal) {
 async function commitMaintainCell(el) {
   var newVal = el.textContent.trim();
   var original = el.dataset.original || '';
-  var isDateField = MAINTAIN_DATE_FIELDS.indexOf(el.getAttribute('data-field')) >= 0;
-  var isDateOnlyField = MAINTAIN_DATEONLY_FIELDS.indexOf(el.getAttribute('data-field')) >= 0;
+  var field0 = el.getAttribute('data-field');
+  var isDateField = MAINTAIN_DATE_FIELDS.indexOf(field0) >= 0;
+  var isDateOnlyField = MAINTAIN_DATEONLY_FIELDS.indexOf(field0) >= 0;
 
   if (newVal === original) {
     if (isDateOnlyField) el.textContent = fmtDateOnly(newVal);
     else if (isDateField) el.textContent = fmtDate(newVal);
     return;
   }
+
+  if (newVal && (isDateField || isDateOnlyField)) newVal = normalizeDateForSave(field0, newVal);
 
   var sheet = el.getAttribute('data-sheet');
   var row = el.getAttribute('data-row');
@@ -1874,11 +1935,11 @@ async function commitMaintainSelect(selectEl) {
 
 // ---- 新增一列（Modal）----
 function openNewCandidateModal() {
-  var headers = maintainHeaders['Candidate Records'] || ['invite_date','BU','Job Function','104_Position','Name','履歷代碼','Source','Inviter','PI_date','Interview_date','Result','Update_date','Memo'];
+  var headers = maintainHeaders['Candidate Records'] || ['invite_date','BU','Job Function','104_Position','Name','履歷代碼','Source','Inviter','PI_date','Interview_date','Result','Update_date','Onboard date','Memo'];
   var prevSheet = maintainSheet;
   maintainSheet = 'Candidate Records'; // 暫時切換情境以重用 addRowModal 邏輯
   document.getElementById('addRowModalSub').textContent = '新增全新人選至 Candidate Records';
-  var requiredFields = ['Name','Result'];
+  var requiredFields = ['Name','Result','invite_date'];
   var dropdowns = MAINTAIN_DROPDOWNS['Candidate Records'] || {};
 
   document.getElementById('addRowModalFields').innerHTML = headers.map(function(h){
@@ -1892,6 +1953,7 @@ function openNewCandidateModal() {
     return '<div><div class="modal-label" style="margin-bottom:4px;">'+label+'</div><input type="text" data-field="'+h+'" class="add-row-input" style="width:100%;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;box-sizing:border-box;"></div>';
   }).join('');
 
+  document.querySelector('#addRowModal .modal').classList.add('modal-wide');
   document.getElementById('addRowModal').style.display = 'flex';
   maintainSheet = prevSheet; // 還原，避免影響其他畫面狀態（submitAddRow 會再次明確指定 sheet）
   window._newCandidateMode = true;
@@ -1917,23 +1979,29 @@ function addMaintainRow() {
     return '<div><div class="modal-label" style="margin-bottom:4px;">'+label+'</div><input type="text" data-field="'+h+'" class="add-row-input" style="width:100%;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;box-sizing:border-box;"></div>';
   }).join('');
 
+  document.querySelector('#addRowModal .modal').classList.remove('modal-wide');
   document.getElementById('addRowModal').style.display = 'flex';
 }
 
 function closeAddRowModal() {
   document.getElementById('addRowModal').style.display = 'none';
+  document.querySelector('#addRowModal .modal').classList.remove('modal-wide');
 }
 
 async function submitAddRow() {
-  var targetSheet = window._newCandidateMode ? 'Candidate Records' : maintainSheet;
+  var isNewCandidate = window._newCandidateMode;
+  var targetSheet = isNewCandidate ? 'Candidate Records' : maintainSheet;
   var headers = maintainHeaders[targetSheet] || [];
-  var requiredFields = targetSheet === 'Headcount Records' ? ['Division'] : targetSheet === 'Candidate Salary Records' ? ['Company'] : ['Name','Result'];
+  var requiredFields = targetSheet === 'Headcount Records' ? ['Division'] : targetSheet === 'Candidate Salary Records' ? ['Company'] : (isNewCandidate ? ['Name','Result','invite_date'] : ['Name','Result']);
 
   var values = {};
   var missing = [];
   document.querySelectorAll('#addRowModalFields .add-row-input').forEach(function(inp){
     var field = inp.getAttribute('data-field');
     var val = inp.value.trim();
+    if (val && (MAINTAIN_DATE_FIELDS.indexOf(field) >= 0 || MAINTAIN_DATEONLY_FIELDS.indexOf(field) >= 0)) {
+      val = normalizeDateForSave(field, val);
+    }
     values[field] = val;
     if (requiredFields.indexOf(field) >= 0 && !val) missing.push(field);
   });
@@ -1944,7 +2012,6 @@ async function submitAddRow() {
   }
 
   var orderedValues = headers.map(function(h){ return values[h] || ''; });
-  var isNewCandidate = window._newCandidateMode;
   window._newCandidateMode = false;
   closeAddRowModal();
   var statusEl = document.getElementById('maintainStatus');
