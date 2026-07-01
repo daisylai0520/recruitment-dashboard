@@ -91,7 +91,9 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
 .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:200;display:flex;align-items:center;justify-content:center;}
 .modal{background:var(--surface);border-radius:14px;padding:28px;width:420px;max-width:95vw;box-shadow:0 20px 60px rgba(0,0,0,.15);}
 #modal .modal{width:560px;}
-.modal.modal-wide{width:640px;}
+.modal.modal-wide{width:820px;}
+#addRowModalFields{display:flex;flex-direction:column;gap:12px;margin-bottom:14px;}
+.modal-wide #addRowModalFields{display:grid;grid-template-columns:1fr 1fr;gap:12px 16px;}
 .modal-title{font-size:16px;font-weight:600;margin-bottom:4px;}
 .modal-sub{font-size:13px;color:var(--text-secondary);margin-bottom:20px;}
 .modal-label{font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:8px;}
@@ -271,10 +273,6 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
       <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:14px;padding:18px 36px;text-align:center;">
         <div style="font-size:12px;font-weight:600;color:var(--text-tertiary);letter-spacing:.06em;text-transform:uppercase;">轉換率</div>
         <div style="font-size:42px;font-weight:700;color:var(--accent);line-height:1.3;" id="kbConversionRate">—</div>
-      </div>
-      <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:14px;padding:14px 18px;min-width:180px;">
-        <div style="font-size:11px;font-weight:600;color:var(--text-tertiary);letter-spacing:.06em;text-transform:uppercase;text-align:center;margin-bottom:8px;">各 Job Function 人數</div>
-        <div id="kbJobFunctionCounts" style="display:flex;flex-direction:column;gap:5px;"></div>
       </div>
     </div>
     <div class="page-title">Recruitment Overview</div>
@@ -457,6 +455,11 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
     <div class="page-title">Headcount Overview</div>
     <div class="page-sub" id="hcSub">尚未載入資料</div>
 
+    <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:14px;padding:14px 18px;margin-bottom:18px;max-width:420px;">
+      <div style="font-size:11px;font-weight:600;color:var(--text-tertiary);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px;">各 Job Function 人數（招募中人選）</div>
+      <div id="kbJobFunctionCounts" style="display:flex;flex-direction:column;gap:5px;"></div>
+    </div>
+
     <div id="hcEmptyState" style="text-align:center;padding:60px 20px;color:var(--text-tertiary);">
       <div style="font-size:40px;margin-bottom:12px;">📊</div>
       <div style="font-size:14px;">尚無 Headcount 資料</div>
@@ -531,12 +534,24 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
 
     <!-- ===== Candidate Records：查詢卡模式 ===== -->
     <div id="maintainCandidateView">
-      <div style="display:flex;align-items:flex-end;gap:14px;margin-bottom:20px;">
+      <div style="display:flex;align-items:flex-end;gap:14px;margin-bottom:16px;flex-wrap:wrap;">
         <div class="search-wrap" style="width:320px;margin-bottom:0;">
           <div class="search-label">搜尋姓名或履歷代碼</div>
           <input class="search-input" type="text" id="candQuerySearch" placeholder="輸入姓名或履歷代碼..." oninput="renderCandQuery()" style="width:100%;">
         </div>
         <button class="refresh-btn" style="margin-left:0;" onclick="openNewCandidateModal()">＋ 新增人選資料</button>
+        <button class="refresh-btn" style="margin-left:0;" onclick="openCopyCandidateModal()">📄 複製人選資料</button>
+      </div>
+      <div class="filter-bar" style="margin-bottom:20px;">
+        <div class="filter-group">
+          <div class="filter-group-label">單位</div>
+          <div class="filter-btns" id="candBuBar"><button class="bu-btn active" data-bu="all" onclick="candFilter('bu',this.getAttribute('data-bu'),this)">全部單位</button></div>
+        </div>
+        <div class="filter-divider"></div>
+        <div class="filter-group">
+          <div class="filter-group-label">Job Function</div>
+          <div class="filter-btns" id="candJobBar"><button class="pos-btn active" data-job="all" onclick="candFilter('job',this.getAttribute('data-job'),this)">全部</button></div>
+        </div>
       </div>
       <div id="candQueryResults"></div>
     </div>
@@ -586,7 +601,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
   <div class="modal">
     <div class="modal-title">新增一列</div>
     <div class="modal-sub" id="addRowModalSub">請填寫必要欄位</div>
-    <div id="addRowModalFields" style="display:flex;flex-direction:column;gap:12px;margin-bottom:14px;"></div>
+    <div id="addRowModalFields"></div>
     <div class="modal-actions">
       <button class="btn-cancel" onclick="closeAddRowModal()">取消</button>
       <button class="lock-btn" style="width:auto;margin-top:0;padding:8px 18px;" onclick="submitAddRow()">新增</button>
@@ -800,6 +815,7 @@ async function fetchData() {
     document.getElementById('piBuBar').innerHTML=
       '<button class="bu-btn '+(piBU==='all'?'active':'')+'" onclick="piFilter(\'bu\',\'all\',this)">全部單位</button>'+
       piBus.map(function(b){return '<button class="bu-btn '+(piBU===b?'active':'')+'" onclick="piFilter(\'bu\',\''+b+'\',this)">'+b+'</button>';}).join('');
+    renderCandFilterBars();
     dot.className='sync-dot';
     var now=new Date();
     txt.textContent='已同步 '+String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
@@ -992,10 +1008,12 @@ function renderKanban() {
   var convRate = convBase.length ? (convOffer.length/convBase.length*100) : 0;
   var convEl = document.getElementById('kbConversionRate');
   if (convEl) convEl.textContent = convBase.length ? convRate.toFixed(1)+'%' : '—';
+}
 
-  // ---- 各 Job Function 人數 ----
+// ---- 各 Job Function 人數（顯示於 Headcount Overview）----
+function renderJobFunctionCandidateCounts() {
   var jfCounts = {};
-  filtered.forEach(function(d){
+  allData.forEach(function(d){
     var jf = String(d['Job Function']||'').trim();
     if (!jf) return;
     jfCounts[jf] = (jfCounts[jf]||0) + 1;
@@ -1168,6 +1186,7 @@ function hcFilter(type,val,el) {
 }
 
 function renderHeadcount() {
+  renderJobFunctionCandidateCounts();
   if (!hcRawData.length) return;
   var divKey = Object.keys(hcRawData[0]).find(function(k){return k.trim()==='Division';}) || 'Division';
   var deptKey = Object.keys(hcRawData[0]).find(function(k){return k.trim()==='Department';}) || 'Department';
@@ -1624,6 +1643,8 @@ function renderTrends() {
 var maintainSheet = 'Candidate Records';
 var maintainHeaders = {};
 var maintainBU = 'all';
+var candFilterBU = 'all';
+var candFilterJob = 'all';
 
 // 哪些欄位是下拉選單
 var MAINTAIN_DROPDOWNS = {
@@ -1710,17 +1731,46 @@ function findResumeCodeKey(rec) {
   return Object.keys(rec).find(function(k){return k.includes('履歷代碼');}) || '履歷代碼';
 }
 
+function renderCandFilterBars() {
+  var buBar = document.getElementById('candBuBar');
+  var jobBar = document.getElementById('candJobBar');
+  if (!buBar || !jobBar) return;
+  var bus = [...new Set(allData.map(function(d){return String(d.BU||'').trim();}))].filter(Boolean).sort();
+  buBar.innerHTML =
+    '<button class="bu-btn '+(candFilterBU==='all'?'active':'')+'" data-bu="all" onclick="candFilter(\'bu\',this.getAttribute(\'data-bu\'),this)">全部單位</button>'+
+    bus.map(function(b){return '<button class="bu-btn '+(candFilterBU===b?'active':'')+'" data-bu="'+b+'" onclick="candFilter(\'bu\',this.getAttribute(\'data-bu\'),this)">'+b+'</button>';}).join('');
+  var jobs = [...new Set(allData.map(function(d){return String(d['Job Function']||'').trim();}))].filter(Boolean).sort();
+  jobBar.innerHTML =
+    '<button class="pos-btn '+(candFilterJob==='all'?'active':'')+'" data-job="all" onclick="candFilter(\'job\',this.getAttribute(\'data-job\'),this)">全部</button>'+
+    jobs.map(function(j){return '<button class="pos-btn '+(candFilterJob===j?'active':'')+'" data-job="'+j+'" onclick="candFilter(\'job\',this.getAttribute(\'data-job\'),this)">'+j+'</button>';}).join('');
+}
+
+function candFilter(type, val, el) {
+  if (type === 'bu') {
+    candFilterBU = val;
+    document.querySelectorAll('#candBuBar .bu-btn').forEach(function(b){b.classList.remove('active');});
+  } else if (type === 'job') {
+    candFilterJob = val;
+    document.querySelectorAll('#candJobBar .pos-btn').forEach(function(b){b.classList.remove('active');});
+  }
+  el.classList.add('active');
+  renderCandQuery();
+}
+
 function renderCandQuery() {
   var search = (document.getElementById('candQuerySearch').value || '').trim().toLowerCase();
   var container = document.getElementById('candQueryResults');
-  if (!search) {
-    container.innerHTML = '<div class="empty" style="padding:30px 0;text-align:center;">請輸入姓名或履歷代碼以查詢人選資料</div>';
+  if (!search && candFilterBU==='all' && candFilterJob==='all') {
+    container.innerHTML = '<div class="empty" style="padding:30px 0;text-align:center;">請輸入姓名或履歷代碼查詢，或使用上方篩選條件顯示人選</div>';
     return;
   }
 
   var matched = allData.filter(function(d){
     var resumeKey = findResumeCodeKey(d);
-    return String(d.Name||'').toLowerCase().includes(search) || String(d[resumeKey]||'').toLowerCase().includes(search);
+    var textMatch = !search || String(d.Name||'').toLowerCase().includes(search) || String(d[resumeKey]||'').toLowerCase().includes(search);
+    var buMatch = candFilterBU==='all' || String(d.BU||'').trim()===candFilterBU;
+    var jobMatch = candFilterJob==='all' || String(d['Job Function']||'').trim()===candFilterJob;
+    return textMatch && buMatch && jobMatch;
   });
 
   if (!matched.length) {
@@ -1934,29 +1984,65 @@ async function commitMaintainSelect(selectEl) {
 }
 
 // ---- 新增一列（Modal）----
-function openNewCandidateModal() {
+function getTodayDateStr() {
+  var d = new Date();
+  return d.getFullYear()+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+String(d.getDate()).padStart(2,'0');
+}
+
+// 複製人選資料時，這些欄位需清空（人選專屬 / 流程紀錄類欄位），其餘欄位（如 BU、Job Function、Source、Inviter）會沿用來源人選的值
+var COPY_CLEAR_FIELDS = ['Name','履歷代碼','PI_date','Interview_date','Result','Update_date','Update date','Onboard date','Memo'];
+
+function openNewCandidateModal(sourceRecord) {
   var headers = maintainHeaders['Candidate Records'] || ['invite_date','BU','Job Function','104_Position','Name','履歷代碼','Source','Inviter','PI_date','Interview_date','Result','Update_date','Onboard date','Memo'];
   var prevSheet = maintainSheet;
   maintainSheet = 'Candidate Records'; // 暫時切換情境以重用 addRowModal 邏輯
-  document.getElementById('addRowModalSub').textContent = '新增全新人選至 Candidate Records';
+  document.getElementById('addRowModalSub').textContent = sourceRecord
+    ? '複製「'+(sourceRecord.Name||'')+'」的資料建立新人選，請確認並補齊欄位'
+    : '新增全新人選至 Candidate Records';
   var requiredFields = ['Name','Result','invite_date'];
   var dropdowns = MAINTAIN_DROPDOWNS['Candidate Records'] || {};
+  var todayStr = getTodayDateStr();
 
   document.getElementById('addRowModalFields').innerHTML = headers.map(function(h){
     var isRequired = requiredFields.indexOf(h) >= 0;
     var label = h + (isRequired ? ' <span style="color:#EF4444;">*</span>' : '');
+    var isInviteDate = (h === 'invite_date' || h === 'invite date');
+    var isResumeCode = h.indexOf('履歷代碼') >= 0;
+    var isMemo = h.indexOf('Memo') >= 0;
+    var prefillVal = '';
+    if (isInviteDate) prefillVal = todayStr;
+    else if (sourceRecord && !isResumeCode && COPY_CLEAR_FIELDS.indexOf(h) < 0) prefillVal = sourceRecord[h] || '';
+    var spanStyle = isMemo ? 'grid-column:1/-1;' : '';
+
     if (dropdowns[h]) {
       var options = dropdowns[h]();
-      var optHtml = '<option value="">請選擇...</option>' + options.map(function(o){return '<option value="'+o.replace(/"/g,'&quot;')+'">'+o+'</option>';}).join('');
-      return '<div><div class="modal-label" style="margin-bottom:4px;">'+label+'</div><select data-field="'+h+'" class="add-row-input" style="width:100%;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;">'+optHtml+'</select></div>';
+      var optHtml = '<option value="">請選擇...</option>' + options.map(function(o){
+        return '<option value="'+o.replace(/"/g,'&quot;')+'"'+(prefillVal===o?' selected':'')+'>'+o+'</option>';
+      }).join('');
+      return '<div style="'+spanStyle+'"><div class="modal-label" style="margin-bottom:4px;">'+label+'</div><select data-field="'+h+'" class="add-row-input" style="width:100%;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;">'+optHtml+'</select></div>';
     }
-    return '<div><div class="modal-label" style="margin-bottom:4px;">'+label+'</div><input type="text" data-field="'+h+'" class="add-row-input" style="width:100%;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;box-sizing:border-box;"></div>';
+    var valAttr = prefillVal ? ' value="'+String(prefillVal).replace(/"/g,'&quot;')+'"' : '';
+    return '<div style="'+spanStyle+'"><div class="modal-label" style="margin-bottom:4px;">'+label+'</div><input type="text" data-field="'+h+'" class="add-row-input" style="width:100%;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;box-sizing:border-box;"'+valAttr+'></div>';
   }).join('');
 
   document.querySelector('#addRowModal .modal').classList.add('modal-wide');
   document.getElementById('addRowModal').style.display = 'flex';
   maintainSheet = prevSheet; // 還原，避免影響其他畫面狀態（submitAddRow 會再次明確指定 sheet）
   window._newCandidateMode = true;
+}
+
+// ---- 複製人選資料 ----
+function openCopyCandidateModal() {
+  var searchEl = document.getElementById('candQuerySearch');
+  var search = (searchEl && searchEl.value || '').trim().toLowerCase();
+  if (!search) { showToast('請先在搜尋框輸入姓名或履歷代碼，選擇要複製的人選'); return; }
+  var matched = allData.filter(function(d){
+    var resumeKey = findResumeCodeKey(d);
+    return String(d.Name||'').toLowerCase().includes(search) || String(d[resumeKey]||'').toLowerCase().includes(search);
+  });
+  if (!matched.length) { showToast('找不到符合的人選可複製'); return; }
+  if (matched.length > 1) { showToast('搜尋結果有 '+matched.length+' 筆，請輸入更精確的姓名或履歷代碼以指定要複製的人選'); return; }
+  openNewCandidateModal(matched[0]);
 }
 
 function addMaintainRow() {
