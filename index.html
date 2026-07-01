@@ -665,13 +665,25 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
       </div>
       <div style="border-top:1px solid var(--border);margin:2px 0;"></div>
       <div>
-        <div class="modal-label" style="margin-bottom:4px;">主管姓名</div>
-        <input type="text" id="schedManagerName" list="schedManagerNameList" oninput="autofillManagerEmail()" onchange="autofillManagerEmail()" placeholder="輸入過的主管姓名會自動帶出 Email" style="width:100%;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;box-sizing:border-box;">
-        <datalist id="schedManagerNameList"></datalist>
+        <div class="modal-label" style="margin-bottom:4px;">主管所屬 BU <span style="color:#EF4444;">*</span></div>
+        <select id="schedManagerBU" onchange="onSchedManagerBUChange()" style="width:100%;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;">
+          <option value="">請選擇單位...</option>
+        </select>
+      </div>
+      <div>
+        <div class="modal-label" style="margin-bottom:4px;">主管姓名 <span style="color:#EF4444;">*</span></div>
+        <select id="schedManagerSelect" onchange="onSchedManagerSelectChange()" style="width:100%;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;">
+          <option value="">請先選擇單位...</option>
+        </select>
+      </div>
+      <div id="schedManagerManualWrap" style="display:none;">
+        <div class="modal-label" style="margin-bottom:4px;">手動輸入主管姓名</div>
+        <input type="text" id="schedManagerNameManual" style="width:100%;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;box-sizing:border-box;">
       </div>
       <div>
         <div class="modal-label" style="margin-bottom:4px;">主管 Email <span style="color:#EF4444;">*</span></div>
-        <input type="email" id="schedManagerEmail" placeholder="manager@company.com" style="width:100%;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;box-sizing:border-box;">
+        <input type="email" id="schedManagerEmail" readonly placeholder="選擇主管後自動帶出" style="width:100%;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;background:var(--bg);box-sizing:border-box;">
+        <div style="font-size:11px;color:var(--text-tertiary);margin-top:4px;">Email 來自「Manager Email」試算表，若名冊裡沒有，請在上方選「其他」自行輸入</div>
       </div>
     </div>
     <div class="modal-actions">
@@ -684,7 +696,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
 <script>
 var APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby0h1OkoC_xNWeAAbuh4cBicbTl4B8g1KDtL-s2YK9f80TYjIyxQtdeu9RkWFQVtY3pnw/exec';
 var userRole = null;
-var allData=[], piData=[], salaryData=[], scheduleData=[];
+var allData=[], piData=[], salaryData=[], scheduleData=[], managerDirectoryData=[];
 var currentTab='kanban';
 var ovBU='all', ovPos='all';
 var piBU='all', piPos='all';
@@ -861,6 +873,7 @@ async function fetchData() {
     piData=(json.piRecords||[]).filter(function(d){return d.Name;});
     salaryData=(json.salaryRecords||[]).filter(function(d){return d.Company;});
     scheduleData=(json.scheduleRecords||[]).filter(function(d){return d.Token;});
+    managerDirectoryData=(json.managerDirectory||[]).filter(function(d){return d.Name;});
     loadHeadcountData(json.headcount||[]);
     maintainHeaders = json.sheetHeaders || {};
     var bus=[...new Set(allData.map(function(d){return String(d.BU||'').trim();}))].filter(Boolean).sort();
@@ -2232,10 +2245,9 @@ async function deleteMaintainRow(row) {
 // ===== 面試時間協調 =====
 function openScheduleModal() {
   document.getElementById('schedCandSearch').value = '';
-  document.getElementById('schedManagerName').value = '';
-  document.getElementById('schedManagerEmail').value = '';
   document.getElementById('schedRound').value = '電訪';
-  populateManagerDatalist();
+  populateManagerBUOptions();
+  resetManagerSelects();
   populateCreatorDatalist();
   // 帶入上一次建立邀約的人，避免同一人連續建立多筆時要重複輸入；如果這次是別人建立，直接改掉即可
   var lastCreator = getLastCreator();
@@ -2248,7 +2260,98 @@ function closeScheduleModal() {
   document.getElementById('scheduleModal').style.display = 'none';
 }
 
-// 用歷史上建立過的邀約，記住「姓名 → Email」的對應（越晚建立的資料優先覆蓋）
+// ---- 主管名冊：BU → 主管 → Email（資料來源：Manager Email 工作表）----
+function populateManagerBUOptions() {
+  var sel = document.getElementById('schedManagerBU');
+  if (!sel) return;
+  var bus = [...new Set(managerDirectoryData.map(function(m){return String(m.BU||'').trim();}))].filter(Boolean).sort();
+  sel.innerHTML = '<option value="">請選擇單位...</option>' +
+    bus.map(function(b){return '<option value="'+b.replace(/"/g,'&quot;')+'">'+b+'</option>';}).join('') +
+    '<option value="__other__">其他（不在名冊中，手動輸入）</option>';
+}
+
+function resetManagerSelects() {
+  document.getElementById('schedManagerBU').value = '';
+  document.getElementById('schedManagerSelect').innerHTML = '<option value="">請先選擇單位...</option>';
+  document.getElementById('schedManagerNameManual').value = '';
+  document.getElementById('schedManagerManualWrap').style.display = 'none';
+  var emailEl = document.getElementById('schedManagerEmail');
+  emailEl.value = '';
+  emailEl.readOnly = true;
+}
+
+function onSchedManagerBUChange() {
+  var bu = document.getElementById('schedManagerBU').value;
+  var sel = document.getElementById('schedManagerSelect');
+  var manualWrap = document.getElementById('schedManagerManualWrap');
+  var emailEl = document.getElementById('schedManagerEmail');
+  document.getElementById('schedManagerNameManual').value = '';
+  emailEl.value = '';
+
+  if (!bu) {
+    sel.innerHTML = '<option value="">請先選擇單位...</option>';
+    sel._managers = [];
+    manualWrap.style.display = 'none';
+    emailEl.readOnly = true;
+    return;
+  }
+  if (bu === '__other__') {
+    sel.innerHTML = '<option value="__other__">（不在名冊中，請於下方手動輸入）</option>';
+    sel.value = '__other__';
+    sel._managers = [];
+    manualWrap.style.display = '';
+    emailEl.readOnly = false;
+    return;
+  }
+  var managers = managerDirectoryData.filter(function(m){ return String(m.BU||'').trim() === bu; });
+  sel.innerHTML = '<option value="">請選擇主管...</option>' +
+    managers.map(function(m, idx){ return '<option value="'+idx+'">'+m.Name+'</option>'; }).join('') +
+    '<option value="__other__">其他（不在名冊中，手動輸入）</option>';
+  sel._managers = managers;
+  manualWrap.style.display = 'none';
+  emailEl.readOnly = true;
+}
+
+function onSchedManagerSelectChange() {
+  var sel = document.getElementById('schedManagerSelect');
+  var val = sel.value;
+  var manualWrap = document.getElementById('schedManagerManualWrap');
+  var emailEl = document.getElementById('schedManagerEmail');
+
+  if (val === '__other__') {
+    manualWrap.style.display = '';
+    emailEl.value = '';
+    emailEl.readOnly = false;
+    return;
+  }
+  manualWrap.style.display = 'none';
+  emailEl.readOnly = true;
+  var managers = sel._managers || [];
+  var idx = parseInt(val);
+  emailEl.value = (!isNaN(idx) && managers[idx]) ? (managers[idx].Email || '') : '';
+}
+
+function getSelectedManagerInfo() {
+  var buSel = document.getElementById('schedManagerBU');
+  var mgrSel = document.getElementById('schedManagerSelect');
+  var emailEl = document.getElementById('schedManagerEmail');
+  var manualNameEl = document.getElementById('schedManagerNameManual');
+  var bu = buSel.value;
+
+  if (bu === '__other__' || mgrSel.value === '__other__') {
+    return {
+      bu: bu === '__other__' ? '' : bu,
+      name: (manualNameEl.value||'').trim(),
+      email: (emailEl.value||'').trim()
+    };
+  }
+  var managers = mgrSel._managers || [];
+  var idx = parseInt(mgrSel.value);
+  var m = (!isNaN(idx) && managers[idx]) ? managers[idx] : null;
+  return { bu: bu, name: m ? m.Name : '', email: m ? m.Email : '' };
+}
+
+// ---- 建立人（你）：沿用歷史紀錄自動記住 Email ----
 function buildNameEmailDirectory_(nameKey, emailKey) {
   var map = {};
   scheduleData.forEach(function(r){
@@ -2260,7 +2363,6 @@ function buildNameEmailDirectory_(nameKey, emailKey) {
   return map;
 }
 
-function getManagerDirectory() { return buildNameEmailDirectory_('ManagerName','ManagerEmail'); }
 function getCreatorDirectory() { return buildNameEmailDirectory_('CreatedByName','CreatedByEmail'); }
 
 function getLastCreator() {
@@ -2271,29 +2373,11 @@ function getLastCreator() {
   return null;
 }
 
-function populateManagerDatalist() {
-  var list = document.getElementById('schedManagerNameList');
-  if (!list) return;
-  var names = Object.keys(getManagerDirectory()).sort();
-  list.innerHTML = names.map(function(n){ return '<option value="'+n.replace(/"/g,'&quot;')+'">'; }).join('');
-}
-
 function populateCreatorDatalist() {
   var list = document.getElementById('schedCreatorNameList');
   if (!list) return;
   var names = Object.keys(getCreatorDirectory()).sort();
   list.innerHTML = names.map(function(n){ return '<option value="'+n.replace(/"/g,'&quot;')+'">'; }).join('');
-}
-
-function autofillManagerEmail() {
-  var nameEl = document.getElementById('schedManagerName');
-  var emailEl = document.getElementById('schedManagerEmail');
-  if (!nameEl || !emailEl) return;
-  var name = (nameEl.value||'').trim();
-  var dir = getManagerDirectory();
-  if (name && dir[name]) {
-    emailEl.value = dir[name];
-  }
 }
 
 function autofillCreatorEmail() {
@@ -2309,12 +2393,13 @@ function autofillCreatorEmail() {
 
 async function submitCreateSchedule() {
   var search = (document.getElementById('schedCandSearch').value||'').trim().toLowerCase();
-  var managerEmail = (document.getElementById('schedManagerEmail').value||'').trim();
+  var mgrInfo = getSelectedManagerInfo();
   var creatorEmail = (document.getElementById('schedCreatorEmail').value||'').trim();
   var creatorName = (document.getElementById('schedCreatorName').value||'').trim();
   if (!search) { showToast('請輸入人選姓名或履歷代碼'); return; }
   if (!creatorEmail) { showToast('請輸入你的 Email，主管回信時才會寄到你的信箱'); return; }
-  if (!managerEmail) { showToast('請輸入主管 Email'); return; }
+  if (!mgrInfo.name) { showToast('請選擇或輸入主管姓名'); return; }
+  if (!mgrInfo.email) { showToast('請選擇或輸入主管 Email'); return; }
   var matched = allData.filter(function(d){
     var resumeKey = findResumeCodeKey(d);
     return String(d.Name||'').toLowerCase().includes(search) || String(d[resumeKey]||'').toLowerCase().includes(search);
@@ -2332,8 +2417,8 @@ async function submitCreateSchedule() {
       + '&bu=' + encodeURIComponent(cand.BU||'')
       + '&jobFunction=' + encodeURIComponent(cand['Job Function']||'')
       + '&round=' + encodeURIComponent(document.getElementById('schedRound').value||'')
-      + '&managerName=' + encodeURIComponent(document.getElementById('schedManagerName').value||'')
-      + '&managerEmail=' + encodeURIComponent(managerEmail)
+      + '&managerName=' + encodeURIComponent(mgrInfo.name)
+      + '&managerEmail=' + encodeURIComponent(mgrInfo.email)
       + '&createdByName=' + encodeURIComponent(creatorName)
       + '&createdByEmail=' + encodeURIComponent(creatorEmail)
       + '&createdBy=' + encodeURIComponent(userRole||'');
