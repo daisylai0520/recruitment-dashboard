@@ -256,56 +256,76 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
 
 <div class="container">
   <div class="tab-bar">
-    <div class="tab active" data-tab-role="both" onclick="switchTab('kanban',this)">🗂️ Recruitment Overview</div>
-    <div class="tab" data-tab-role="recruiter" onclick="switchTab('overview',this)">📋 Recruitment Status</div>
-    <div class="tab" data-tab-role="recruiter" onclick="switchTab('trends',this)">📈 Trends</div>
-    <div class="tab" data-tab-role="both" onclick="switchTab('pi',this)">📞 Phone Interview Record</div>
-    <div class="tab" data-tab-role="both" onclick="switchTab('hc',this)">👥 Headcount Overview</div>
-    <div class="tab" data-tab-role="both" onclick="switchTab('offers',this)">🏆 錄取名單</div>
-    <div class="tab" data-tab-role="both" onclick="switchTab('schedule',this)">📅 面試時間協調</div>
-    <div class="tab" data-tab-role="both" onclick="switchTab('salary',this)">💰 Market Salary Records</div>
-    <div class="tab" data-tab-role="both" onclick="switchTab('maintain',this)">🛠️ 資料維護</div>
+    <div class="tab active" data-tab-role="both" onclick="switchTab('kanban',this)">Recruitment Overview</div>
+    <div class="tab" data-tab-role="recruiter" onclick="switchTab('overview',this)">Recruitment Status</div>
+    <div class="tab" data-tab-role="recruiter" onclick="switchTab('trends',this)">Trends</div>
+    <div class="tab" data-tab-role="both" onclick="switchTab('pi',this)">Phone Interview Record</div>
+    <div class="tab" data-tab-role="both" onclick="switchTab('hc',this)">Headcount Overview</div>
+    <div class="tab" data-tab-role="both" onclick="switchTab('schedule',this)">面試時間協調</div>
+    <div class="tab" data-tab-role="both" onclick="switchTab('salary',this)">Market Salary Records</div>
+    <div class="tab" data-tab-role="recruiter" onclick="switchTab('maintain',this)">資料維護</div>
   </div>
 
   <div class="error-banner" id="errorBanner"></div>
 
   <!-- ===== KANBAN ===== -->
   <div id="view-kanban" style="position:relative;">
-    <div style="position:absolute;top:0;right:0;display:flex;flex-direction:column;gap:10px;align-items:stretch;">
-      <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:14px;padding:18px 36px;text-align:center;">
-        <div style="font-size:12px;font-weight:600;color:var(--text-tertiary);letter-spacing:.06em;text-transform:uppercase;">轉換率</div>
-        <div style="font-size:42px;font-weight:700;color:var(--accent);line-height:1.3;" id="kbConversionRate">—</div>
-      </div>
-    </div>
     <div class="page-title">Recruitment Overview</div>
     <div class="page-sub">點擊人選卡片可變更招募階段</div>
-    <div class="search-wrap" style="width:280px;margin-bottom:10px;">
-      <div class="search-label">搜尋</div>
-      <input class="search-input" type="text" id="kbSearch" placeholder="姓名..." oninput="renderKanban()" style="width:100%;">
-    </div>
-    <div class="filter-bar" style="margin-bottom:20px;">
-      <div class="filter-group">
-        <div class="filter-group-label">單位</div>
-        <div class="filter-btns" id="kbBuBar"><button class="bu-btn active" onclick="kbFilter('bu','all',this)">全部單位</button></div>
+    <div style="display:flex;gap:20px;align-items:flex-start;">
+      <div style="flex:1;min-width:0;">
+        <div style="display:flex;align-items:flex-end;gap:14px;margin-bottom:10px;flex-wrap:wrap;">
+          <div class="search-wrap" style="width:280px;margin-bottom:0;">
+            <div class="search-label">搜尋</div>
+            <input class="search-input" type="text" id="kbSearch" placeholder="姓名..." oninput="renderKanban()" style="width:100%;">
+          </div>
+          <button class="refresh-btn" style="margin-left:0;" onclick="openKbNewCandidateModal()">＋ 新增人選資料</button>
+        </div>
+        <div class="filter-bar" style="margin-bottom:20px;">
+          <div class="filter-group">
+            <div class="filter-group-label">單位</div>
+            <div class="filter-btns" id="kbBuBar"><button class="bu-btn active" onclick="kbFilter('bu','all',this)">全部單位</button></div>
+          </div>
+          <div class="filter-divider"></div>
+          <div class="filter-group">
+            <div class="filter-group-label">Job Function</div>
+            <div class="filter-btns">
+              <button class="pos-btn active" onclick="kbFilter('pos','all',this)">全部 Job Function</button>
+              <button class="pos-btn" onclick="kbFilter('pos','Sales',this)">Sales</button>
+              <button class="pos-btn" onclick="kbFilter('pos','FAE',this)">FAE</button>
+            </div>
+          </div>
+          <div class="filter-divider"></div>
+          <div id="kbDateFilterSlot"></div>
+        </div>
+        <div class="kanban-wrap">
+          <div class="kanban-board" id="kanbanBoard"></div>
+        </div>
+
+        <!-- 折疊區 -->
+        <div id="kanbanCollapse"></div>
       </div>
-      <div class="filter-divider"></div>
-      <div class="filter-group">
-        <div class="filter-group-label">Job Function</div>
-        <div class="filter-btns">
-          <button class="pos-btn active" onclick="kbFilter('pos','all',this)">全部 Job Function</button>
-          <button class="pos-btn" onclick="kbFilter('pos','Sales',this)">Sales</button>
-          <button class="pos-btn" onclick="kbFilter('pos','FAE',this)">FAE</button>
+
+      <div style="width:320px;flex-shrink:0;">
+        <div class="mini-card" style="padding:16px 20px;text-align:center;margin-bottom:16px;">
+          <div style="font-size:12px;font-weight:600;color:var(--text-tertiary);letter-spacing:.06em;text-transform:uppercase;">轉換率</div>
+          <div style="font-size:36px;font-weight:700;color:var(--accent);line-height:1.3;" id="kbConversionRate">—</div>
+        </div>
+        <div class="mini-card" style="padding:16px 18px;">
+          <div style="font-size:14px;font-weight:700;margin-bottom:10px;">錄取名單</div>
+          <div class="search-wrap" style="margin-bottom:8px;">
+            <input class="search-input" type="text" id="offersSearch" placeholder="搜尋姓名..." oninput="renderOffers()" style="width:100%;font-size:12px;">
+          </div>
+          <div id="offersSub" style="font-size:11px;color:var(--text-tertiary);margin-bottom:8px;"></div>
+          <div style="max-height:440px;overflow-y:auto;">
+            <table class="pi-table" style="font-size:12px;">
+              <thead><tr><th>姓名</th><th>職缺</th><th>職等</th><th>到職日</th></tr></thead>
+              <tbody id="offersTableBody"></tbody>
+            </table>
+          </div>
         </div>
       </div>
-      <div class="filter-divider"></div>
-      <div id="kbDateFilterSlot"></div>
     </div>
-    <div class="kanban-wrap">
-      <div class="kanban-board" id="kanbanBoard"></div>
-    </div>
-
-    <!-- 折疊區 -->
-    <div id="kanbanCollapse"></div>
   </div>
 
   <!-- ===== RECRUITMENT OVERVIEW ===== -->
@@ -335,7 +355,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
     </div>
     <div class="metrics-wrap">
       <div>
-        <div class="metrics-col-label">📞 電訪</div>
+        <div class="metrics-col-label">電訪</div>
         <div class="metrics-inner">
           <div class="metric" id="m-待排電訪">
             <div class="metric-top"><div class="metric-dot" style="background:#F59E0B"></div><span class="metric-label">待排電訪</span></div>
@@ -350,7 +370,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
         </div>
       </div>
       <div>
-        <div class="metrics-col-label">🗣️ 面試</div>
+        <div class="metrics-col-label">面試</div>
         <div class="metrics-inner">
           <div class="metric" id="m-待排面試">
             <div class="metric-top"><div class="metric-dot" style="background:#3B82F6"></div><span class="metric-label">待排面試</span></div>
@@ -367,14 +387,14 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
     </div>
     <div class="collapse-section">
       <div class="collapse-hdr" onclick="toggleCollapse('phone')">
-        <div class="collapse-hdr-left"><span>📞</span><span>已電訪</span><span class="collapse-count" id="cc-phone">0 人</span></div>
+        <div class="collapse-hdr-left"><span>已電訪</span><span class="collapse-count" id="cc-phone">0 人</span></div>
         <span class="collapse-arrow" id="ca-phone">▼</span>
       </div>
       <div class="collapse-body" id="cb-phone"><div class="collapse-grid" id="cg-phone"></div></div>
     </div>
     <div class="collapse-section">
       <div class="collapse-hdr" onclick="toggleCollapse('interview')">
-        <div class="collapse-hdr-left"><span>🗣️</span><span>已面試</span><span class="collapse-count" id="cc-interview">0 人</span></div>
+        <div class="collapse-hdr-left"><span>已面試</span><span class="collapse-count" id="cc-interview">0 人</span></div>
         <span class="collapse-arrow" id="ca-interview">▼</span>
       </div>
       <div class="collapse-body" id="cb-interview"><div class="collapse-grid" id="cg-interview"></div></div>
@@ -389,7 +409,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
       <div class="cal-outer" id="trendCard-funnel">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
-          <div style="font-size:14px;font-weight:600;">📨 每週邀約／電訪／面試人數</div>
+          <div style="font-size:14px;font-weight:600;">每週邀約／電訪／面試人數</div>
           <div class="trend-toggle-group" data-card="funnel">
             <button class="pos-btn active" onclick="setTrendChartType('funnel','line',this)" style="font-size:11px;padding:3px 10px;">折線</button>
             <button class="pos-btn" onclick="setTrendChartType('funnel','bar',this)" style="font-size:11px;padding:3px 10px;">長條</button>
@@ -403,7 +423,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
 
       <div class="cal-outer" id="trendCard-result">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
-          <div style="font-size:14px;font-weight:600;">📊 每週招募狀態統計</div>
+          <div style="font-size:14px;font-weight:600;">每週招募狀態統計</div>
           <div class="trend-toggle-group" data-card="result">
             <button class="pos-btn active" onclick="setTrendChartType('result','line',this)" style="font-size:11px;padding:3px 10px;">折線</button>
             <button class="pos-btn" onclick="setTrendChartType('result','bar',this)" style="font-size:11px;padding:3px 10px;">長條</button>
@@ -485,39 +505,6 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
     </div>
   </div>
 
-  <!-- ===== OFFER LIST ===== -->
-  <div id="view-offers" style="display:none">
-    <div class="page-title">錄取名單</div>
-    <div class="page-sub" id="offersSub">載入中...</div>
-    <div class="filter-bar">
-      <div class="filter-group">
-        <div class="filter-group-label">單位</div>
-        <div class="filter-btns" id="offersBuBar"><button class="bu-btn active" onclick="offersFilter('bu','all',this)">全部單位</button></div>
-      </div>
-      <div class="filter-divider"></div>
-      <div class="filter-group">
-        <div class="filter-group-label">年月</div>
-        <div style="display:flex;gap:6px;">
-          <select id="offersYearSelect" onchange="offersFilterYearMonth()" style="font-size:12px;padding:5px 8px;border:1.5px solid var(--border);border-radius:8px;background:var(--surface);font-family:inherit;"></select>
-          <select id="offersMonthSelect" onchange="offersFilterYearMonth()" style="font-size:12px;padding:5px 8px;border:1.5px solid var(--border);border-radius:8px;background:var(--surface);font-family:inherit;"></select>
-        </div>
-      </div>
-      <div class="filter-divider"></div>
-      <div class="search-wrap">
-        <div class="search-label">搜尋</div>
-        <input class="search-input" type="text" id="offersSearch" placeholder="姓名..." oninput="renderOffers()" style="width:200px;">
-      </div>
-      <div class="filter-divider"></div>
-      <div id="offersDateFilterSlot"></div>
-    </div>
-    <div class="table-wrap">
-      <table class="pi-table">
-        <thead><tr><th>姓名</th><th>單位</th><th>職缺</th><th>職等</th><th>履歷代碼</th><th>Onboard date</th></tr></thead>
-        <tbody id="offersTableBody"></tbody>
-      </table>
-    </div>
-  </div>
-
   <!-- ===== INTERVIEW SCHEDULING ===== -->
   <div id="view-schedule" style="display:none">
     <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:18px;flex-wrap:wrap;gap:12px;">
@@ -534,6 +521,13 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
   <div id="view-salary" style="display:none">
     <div class="page-title">Market Salary Records</div>
     <div class="page-sub">市場薪資行情資料，可直接編輯或新增，會同步寫入試算表</div>
+
+    <div id="newSalaryPanel" class="mini-card" style="padding:18px 20px;margin-bottom:20px;">
+      <div style="font-size:14px;font-weight:700;margin-bottom:12px;">＋ 新增一筆資料</div>
+      <div id="newSalaryFields" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin-bottom:10px;"></div>
+      <button class="lock-btn" style="width:auto;margin-top:0;padding:8px 18px;" onclick="submitNewSalaryRow()">＋ 新增一筆資料</button>
+    </div>
+
     <div style="display:flex;align-items:flex-end;gap:14px;margin-bottom:16px;flex-wrap:wrap;">
       <div class="search-wrap" style="width:280px;margin-bottom:0;">
         <div class="search-label">搜尋</div>
@@ -546,18 +540,17 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
         <div class="filter-group-label" id="salaryBuLabel">篩選</div>
         <div class="filter-btns" id="salaryBuBar"></div>
       </div>
+      <div class="filter-divider"></div>
+      <div class="filter-group">
+        <div class="filter-group-label">Job Function</div>
+        <div class="filter-btns" id="salaryJobBar"></div>
+      </div>
     </div>
     <div class="table-wrap" style="margin-bottom:20px;">
       <table class="pi-table">
         <thead id="salaryTableHead"></thead>
         <tbody id="salaryTableBody"></tbody>
       </table>
-    </div>
-
-    <div id="newSalaryPanel" class="mini-card" style="padding:18px 20px;">
-      <div style="font-size:14px;font-weight:700;margin-bottom:12px;">＋ 新增一筆資料</div>
-      <div id="newSalaryFields" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin-bottom:10px;"></div>
-      <button class="lock-btn" style="width:auto;margin-top:0;padding:8px 18px;" onclick="submitNewSalaryRow()">＋ 新增一筆資料</button>
     </div>
   </div>
 
@@ -674,7 +667,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
     <div id="addRowModalFields"></div>
     <div class="modal-actions">
       <button class="btn-cancel" onclick="closeAddRowModal()">取消</button>
-      <button class="lock-btn" style="width:auto;margin-top:0;padding:8px 18px;" onclick="submitAddRow()">新增</button>
+      <button class="lock-btn" style="width:auto;margin-top:0;padding:8px 18px;" onclick="handleAddRowModalSubmit()">新增</button>
     </div>
   </div>
 </div>
@@ -908,8 +901,7 @@ function initDateFilterSlots() {
     'kbDateFilterSlot': {key:'kanban', fields:candFields},
     'ovDateFilterSlot': {key:'overview', fields:candFields},
     'piDateFilterSlot': {key:'pi', fields:[{value:'PI_date',label:'PI_date'}]},
-    'hcDateFilterSlot': {key:'hc', fields:[{value:'Update_date',label:'Update_date（缺額更新時間，依異動記錄推算暫不支援）'}], disabled:true},
-    'offersDateFilterSlot': {key:'offers', fields:[{value:'Onboard date',label:'Onboard date'}]}
+    'hcDateFilterSlot': {key:'hc', fields:[{value:'Update_date',label:'Update_date（缺額更新時間，依異動記錄推算暫不支援）'}], disabled:true}
   };
   Object.keys(slots).forEach(function(slotId){
     var el = document.getElementById(slotId);
@@ -1012,7 +1004,7 @@ function selectRole(role) {
     var match = onclickAttr.match(/switchTab\('(\w+)'/);
     if (match) {
       currentTab = match[1];
-      ['kanban','overview','pi','hc','maintain','trends','offers','schedule','salary'].forEach(function(v){
+      ['kanban','overview','pi','hc','maintain','trends','schedule','salary'].forEach(function(v){
         document.getElementById('view-'+v).style.display = v===currentTab ? '' : 'none';
       });
     }
@@ -1032,7 +1024,7 @@ function switchTab(tab,el) {
   currentTab=tab;
   document.querySelectorAll('.tab-bar:first-of-type > .tab').forEach(function(t){t.classList.remove('active');});
   el.classList.add('active');
-  ['kanban','overview','pi','hc','maintain','trends','offers','schedule','salary'].forEach(function(v){
+  ['kanban','overview','pi','hc','maintain','trends','schedule','salary'].forEach(function(v){
     document.getElementById('view-'+v).style.display=v===tab?'':'none';
   });
   if (tab === 'maintain') {
@@ -1040,7 +1032,6 @@ function switchTab(tab,el) {
     else renderMaintain();
   }
   if (tab === 'trends') renderTrends();
-  if (tab === 'offers') renderOffers();
   if (tab === 'schedule') renderSchedule();
   if (tab === 'salary') { ensureNewSalaryFieldsRendered(); renderSalaryScreen(); }
 }
@@ -1093,9 +1084,9 @@ function renderKanban() {
   });
 
   var phases=[
-    {label:'📞 電訪階段', cls:'phase-phone', stages:PHONE_STAGES},
-    {label:'🗣️ 面試階段', cls:'phase-interview', stages:INTERVIEW_STAGES},
-    {label:'🏆 錄取階段', cls:'phase-offer', stages:OFFER_STAGES}
+    {label:'電訪階段', cls:'phase-phone', stages:PHONE_STAGES},
+    {label:'面試階段', cls:'phase-interview', stages:INTERVIEW_STAGES},
+    {label:'錄取階段', cls:'phase-offer', stages:OFFER_STAGES}
   ];
 
   var boardHtml='';
@@ -1162,6 +1153,7 @@ function renderKanban() {
   var convRate = convBase.length ? (convOffer.length/convBase.length*100) : 0;
   var convEl = document.getElementById('kbConversionRate');
   if (convEl) convEl.textContent = convBase.length ? convRate.toFixed(1)+'%' : '—';
+  renderOffers();
 }
 
 // ---- Modal ----
@@ -1178,15 +1170,15 @@ function openModal(row, name, pos, bu, currentStage) {
   document.getElementById('modalSub').textContent=bu+' · '+pos+' · 目前：'+currentStage;
 
   var phases=[
-    {label:'📞 電訪階段', stages:PHONE_STAGES},
-    {label:'🗣️ 面試階段', stages:INTERVIEW_STAGES},
-    {label:'🏆 錄取階段', stages:OFFER_STAGES},
+    {label:'電訪階段', stages:PHONE_STAGES},
+    {label:'面試階段', stages:INTERVIEW_STAGES},
+    {label:'錄取階段', stages:OFFER_STAGES},
     {label:'⬇️ 結束/不推進', stages:COLLAPSE_STAGES}
   ];
   // 試算表裡若有新增、但不在上面四個分類中的 Result 選項，歸到「其他狀態」，確保都能被選到
   var knownStages = PHONE_STAGES.concat(INTERVIEW_STAGES, OFFER_STAGES, COLLAPSE_STAGES);
   var otherStages = getResultOptions().filter(function(s){ return knownStages.indexOf(s) < 0; });
-  if (otherStages.length) phases.push({label:'🔖 其他狀態', stages:otherStages});
+  if (otherStages.length) phases.push({label:'其他狀態', stages:otherStages});
   var html='';
   phases.forEach(function(phase){
     html+='<div class="modal-stage-group"><div class="modal-stage-group-title">'+phase.label+'</div><div class="modal-stages">';
@@ -1310,6 +1302,12 @@ function renderPi() {
   // Phone Interview 工作表的實際欄位（Result 是從 Candidate Records 對應過來的虛擬欄位，不含在裡面）
   var piHeaders = (maintainHeaders['Phone Interview'] || (piData.length ? Object.keys(piData[0]).filter(function(k){return k!=='_row';}) : []))
     .filter(function(h){ return h !== 'Result'; });
+
+  // BP 角色不需要看到這些較敏感/內部使用的欄位
+  var BP_HIDDEN_PI_FIELDS = ['離職原因','工作/實習&過往經驗','求職狀態','現有待遇','期望待遇','其他資訊','是否邀約'];
+  if (userRole === 'bp') {
+    piHeaders = piHeaders.filter(function(h){ return BP_HIDDEN_PI_FIELDS.indexOf(h) < 0; });
+  }
 
   var theadEl = document.getElementById('piTableHead');
   if (theadEl) {
@@ -1593,91 +1591,35 @@ async function saveMemo() {
   }
 }
 
-// ===== OFFER LIST =====
-var offersBU = 'all';
-var _offersNow = new Date();
-var offersYear = String(_offersNow.getFullYear());
-var offersMonth = String(_offersNow.getMonth()+1);
-
-function offersFilter(type, val, el) {
-  if (type === 'bu') offersBU = val;
-  document.querySelectorAll('#offersBuBar .bu-btn').forEach(function(b){b.classList.remove('active');});
-  el.classList.add('active');
-  renderOffers();
-}
-
-function offersFilterYearMonth() {
-  offersYear = document.getElementById('offersYearSelect').value;
-  offersMonth = document.getElementById('offersMonthSelect').value;
-  renderOffers();
-}
-
+// ===== OFFER LIST（現嵌入 Recruitment Overview 右側）=====
 function renderOffers() {
   var search = (document.getElementById('offersSearch')?document.getElementById('offersSearch').value:'').toLowerCase();
   var offers = allData.filter(function(d){ return d.Result === '錄取'; });
 
-  // Onboard date 來源為 Candidate Records 的 Onboard date 欄位
-  var yearsSet = [...new Set(offers.map(function(d){
-    var t = parseDateTime(d['Onboard date']||'');
-    return t ? String(t.getFullYear()) : null;
-  }).filter(Boolean))].sort().reverse();
-  if (yearsSet.indexOf(offersYear) < 0 && offersYear !== 'all') { if(!yearsSet.length){offersYear='all';} }
-  var yearSel = document.getElementById('offersYearSelect');
-  if (yearSel) {
-    yearSel.innerHTML = '<option value="all">全部年份</option>' +
-      yearsSet.map(function(y){return '<option value="'+y+'"'+(offersYear===y?' selected':'')+'>'+y+'年</option>';}).join('');
-    yearSel.value = offersYear;
-  }
-  var monthSel = document.getElementById('offersMonthSelect');
-  if (monthSel) {
-    var monthOpts = '<option value="all">全部月份</option>';
-    for (var mi=1; mi<=12; mi++) monthOpts += '<option value="'+mi+'"'+(offersMonth===String(mi)?' selected':'')+'>'+mi+'月</option>';
-    monthSel.innerHTML = monthOpts;
-    monthSel.value = offersMonth;
-  }
-
-  offers = offers.filter(function(d){
-    var t = parseDateTime(d['Onboard date']||'');
-    if (!t) return false;
-    if (offersYear !== 'all' && String(t.getFullYear()) !== offersYear) return false;
-    if (offersMonth !== 'all' && String(t.getMonth()+1) !== offersMonth) return false;
-    return true;
-  });
-
-  var bus = [...new Set(offers.map(function(d){return String(d.BU||'').trim();}))].filter(Boolean).sort();
-  document.getElementById('offersBuBar').innerHTML =
-    '<button class="bu-btn '+(offersBU==='all'?'active':'')+'" data-bu="all" onclick="offersFilter(\'bu\',this.getAttribute(\'data-bu\'),this)">全部單位</button>'+
-    bus.map(function(b){return '<button class="bu-btn '+(offersBU===b?'active':'')+'" data-bu="'+b+'" onclick="offersFilter(\'bu\',this.getAttribute(\'data-bu\'),this)">'+b+'</button>';}).join('');
-
-  var filtered = offers.filter(function(d){
-    return (offersBU==='all'||String(d.BU||'').trim()===offersBU) &&
-           (!search||String(d.Name||'').toLowerCase().includes(search)) &&
-           dateFilterPass('offers', d);
-  });
-  filtered.sort(function(a,b){
+  offers = offers.filter(function(d){ return !search || String(d.Name||'').toLowerCase().includes(search); });
+  offers.sort(function(a,b){
     var ta = parseDateTime(a['Onboard date']||'');
     var tb = parseDateTime(b['Onboard date']||'');
     var tsa = ta?ta.getTime():0, tsb = tb?tb.getTime():0;
     return tsb-tsa;
   });
 
-  var periodLabel = (offersYear==='all'?'全部年份':offersYear+'年') + '・' + (offersMonth==='all'?'全部月份':offersMonth+'月');
-  document.getElementById('offersSub').textContent = '共 '+filtered.length+' 位錄取人選 · '+periodLabel;
+  var subEl = document.getElementById('offersSub');
+  if (subEl) subEl.textContent = '共 '+offers.length+' 位錄取人選';
 
-  if (!filtered.length) {
-    document.getElementById('offersTableBody').innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-tertiary);padding:24px">目前無錄取人選</td></tr>';
+  var bodyEl = document.getElementById('offersTableBody');
+  if (!bodyEl) return;
+  if (!offers.length) {
+    bodyEl.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text-tertiary);padding:16px;font-size:12px;">目前無錄取人選</td></tr>';
     return;
   }
 
-  var resumeKey = filtered.length ? findResumeCodeKey(filtered[0]) : '履歷代碼';
-  document.getElementById('offersTableBody').innerHTML = filtered.map(function(d){
+  bodyEl.innerHTML = offers.map(function(d){
     return '<tr>'+
-      '<td style="font-weight:600;white-space:nowrap">'+d.Name+'</td>'+
-      '<td style="white-space:nowrap">'+d.BU+'</td>'+
-      '<td style="white-space:nowrap">'+(d['Job Function']||'')+'</td>'+
-      '<td style="white-space:nowrap">'+getOfferGradeLevel(d.Name)+'</td>'+
-      '<td style="white-space:nowrap">'+(d[resumeKey]||'—')+'</td>'+
-      '<td style="white-space:nowrap">'+fmtDateOnly(d['Onboard date']||'')+'</td>'+
+      '<td style="font-weight:600;white-space:nowrap;">'+d.Name+'</td>'+
+      '<td style="white-space:nowrap;">'+(d['Job Function']||'')+'</td>'+
+      '<td style="white-space:nowrap;">'+getOfferGradeLevel(d.Name)+'</td>'+
+      '<td style="white-space:nowrap;">'+fmtDateOnly(d['Onboard date']||'')+'</td>'+
     '</tr>';
   }).join('');
 }
@@ -1890,6 +1832,7 @@ var candFilterBU = 'all';
 var candFilterJob = 'all';
 var candFilterResult = 'all';
 var salaryBU = 'all';
+var salaryJob = 'all';
 
 // 備用清單：試算表尚未設定資料驗證、或資料還沒載入完成時使用
 var FALLBACK_RESULT_OPTIONS = ['未回覆','待排電訪','待電訪','待確認主管邀約電訪意願','待確認主管面試意願','待排面試','待面試','待確認主管錄取意願','待確認人選錄取意願','婉拒電訪','HR不邀約電訪','HR不邀約面試','主管不邀約面試','婉拒面試','錄取','未錄取','婉拒錄取','已面試，排複試','已關閉履歷','思考一下','???'];
@@ -2233,11 +2176,25 @@ function renderSalaryScreen() {
     document.getElementById('salaryBuBar').innerHTML = '';
   }
 
+  var jobKey = headers.find(function(h){return h==='Job Function';});
+  var jobBarEl = document.getElementById('salaryJobBar');
+  if (jobBarEl) {
+    if (jobKey) {
+      var jobs = [...new Set(salaryData.map(function(r){return String(r[jobKey]||'').trim();}))].filter(Boolean).sort();
+      jobBarEl.innerHTML =
+        '<button class="pos-btn '+(salaryJob==='all'?'active':'')+'" data-job="all" onclick="salaryJobFilter(this.getAttribute(\'data-job\'),this)">全部</button>'+
+        jobs.map(function(j){return '<button class="pos-btn '+(salaryJob===j?'active':'')+'" data-job="'+j+'" onclick="salaryJobFilter(this.getAttribute(\'data-job\'),this)">'+j+'</button>';}).join('');
+    } else {
+      jobBarEl.innerHTML = '';
+    }
+  }
+
   var search = (document.getElementById('salarySearch')?document.getElementById('salarySearch').value:'').toLowerCase();
   var records = salaryData.filter(function(r){
     var buMatch = !buKey || salaryBU==='all' || String(r[buKey]||'').trim()===salaryBU;
+    var jobMatch = !jobKey || salaryJob==='all' || String(r[jobKey]||'').trim()===salaryJob;
     var searchMatch = !search || headers.some(function(h){return String(r[h]||'').toLowerCase().includes(search);});
-    return buMatch && searchMatch;
+    return buMatch && jobMatch && searchMatch;
   });
 
   if (!headers.length) {
@@ -2261,6 +2218,13 @@ function renderSalaryScreen() {
 function salaryFilter(val, el) {
   salaryBU = val;
   document.querySelectorAll('#salaryBuBar .bu-btn').forEach(function(b){b.classList.remove('active');});
+  el.classList.add('active');
+  renderSalaryScreen();
+}
+
+function salaryJobFilter(val, el) {
+  salaryJob = val;
+  document.querySelectorAll('#salaryJobBar .pos-btn').forEach(function(b){b.classList.remove('active');});
   el.classList.add('active');
   renderSalaryScreen();
 }
@@ -2541,6 +2505,70 @@ async function submitNewCandidateForm() {
   }
 }
 
+// Recruitment Overview 畫面的「＋ 新增人選資料」：重用共用的 addRowModal，直接寫入 Candidate Records
+function openKbNewCandidateModal() {
+  var headers = maintainHeaders['Candidate Records'] || ['invite_date','BU','Job Function','104_Position','Name','履歷代碼','Source','Inviter','PI_date','Interview_date','Result','Update_date','Onboard date','Memo'];
+  var dropdowns = MAINTAIN_DROPDOWNS['Candidate Records'] || {};
+  var requiredFields = ['Name','Result','invite_date'];
+  var todayStr = getTodayDateStr();
+
+  document.getElementById('addRowModalSub').textContent = '新增全新人選至 Candidate Records';
+  document.getElementById('addRowModalFields').innerHTML = headers.map(function(h){
+    var isRequired = requiredFields.indexOf(h) >= 0;
+    var label = h + (isRequired ? ' <span style="color:#EF4444;">*</span>' : '');
+    var isInviteDate = (h === 'invite_date' || h === 'invite date');
+    var isMemo = h.indexOf('Memo') >= 0;
+    var spanStyle = isMemo ? 'grid-column:1/-1;' : '';
+    var prefillVal = isInviteDate ? todayStr : '';
+
+    if (dropdowns[h]) {
+      var options = dropdowns[h]();
+      var optHtml = '<option value="">請選擇...</option>' + options.map(function(o){
+        return '<option value="'+o.replace(/"/g,'&quot;')+'">'+o+'</option>';
+      }).join('');
+      return '<div style="'+spanStyle+'"><div class="modal-label" style="margin-bottom:4px;">'+label+'</div><select data-field="'+h+'" class="kb-new-cand-input" style="width:100%;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;">'+optHtml+'</select></div>';
+    }
+    var valAttr = prefillVal ? ' value="'+prefillVal+'"' : '';
+    return '<div style="'+spanStyle+'"><div class="modal-label" style="margin-bottom:4px;">'+label+'</div><input type="text" data-field="'+h+'" class="kb-new-cand-input" style="width:100%;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;box-sizing:border-box;"'+valAttr+'></div>';
+  }).join('');
+
+  document.querySelector('#addRowModal .modal').classList.add('modal-wide');
+  document.getElementById('addRowModal').style.display = 'flex';
+  window._kbNewCandidateMode = true;
+}
+
+async function submitKbNewCandidate() {
+  var headers = maintainHeaders['Candidate Records'] || [];
+  var requiredFields = ['Name','Result','invite_date'];
+  var values = {};
+  var missing = [];
+  document.querySelectorAll('#addRowModalFields .kb-new-cand-input').forEach(function(inp){
+    var field = inp.getAttribute('data-field');
+    var val = inp.value.trim();
+    if (val && (MAINTAIN_DATE_FIELDS.indexOf(field) >= 0 || MAINTAIN_DATEONLY_FIELDS.indexOf(field) >= 0)) {
+      val = normalizeDateForSave(field, val);
+    }
+    values[field] = val;
+    if (requiredFields.indexOf(field) >= 0 && !val) missing.push(field);
+  });
+  if (missing.length) { showToast('請填寫必填欄位：'+missing.join('、')); return; }
+
+  var orderedValues = headers.map(function(h){ return values[h] || ''; });
+  window._kbNewCandidateMode = false;
+  closeAddRowModal();
+  showToast('新增中...');
+  try {
+    var url = APPS_SCRIPT_URL + '?action=addRow&sheet=' + encodeURIComponent('Candidate Records') +
+      '&values=' + encodeURIComponent(JSON.stringify(orderedValues));
+    await fetch(url, {mode:'no-cors'});
+    await fetchData();
+    if (currentTab === 'kanban') renderKanban();
+    showToast('✓ 已新增人選資料');
+  } catch(e) {
+    showToast('❌ 新增失敗：'+e.message);
+  }
+}
+
 function addMaintainRow() {
   var records = getMaintainRecords(maintainSheet);
   var headers = maintainHeaders[maintainSheet] || (records.length ? Object.keys(records[0]).filter(function(k){return k!=='_row';}) : []);
@@ -2568,6 +2596,12 @@ function addMaintainRow() {
 function closeAddRowModal() {
   document.getElementById('addRowModal').style.display = 'none';
   document.querySelector('#addRowModal .modal').classList.remove('modal-wide');
+  window._kbNewCandidateMode = false;
+}
+
+function handleAddRowModalSubmit() {
+  if (window._kbNewCandidateMode) submitKbNewCandidate();
+  else submitAddRow();
 }
 
 async function submitAddRow() {
