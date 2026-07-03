@@ -263,6 +263,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
     <div class="tab" data-tab-role="both" onclick="switchTab('hc',this)">👥 Headcount Overview</div>
     <div class="tab" data-tab-role="both" onclick="switchTab('offers',this)">🏆 錄取名單</div>
     <div class="tab" data-tab-role="both" onclick="switchTab('schedule',this)">📅 面試時間協調</div>
+    <div class="tab" data-tab-role="both" onclick="switchTab('salary',this)">💰 Market Salary Records</div>
     <div class="tab" data-tab-role="both" onclick="switchTab('maintain',this)">🛠️ 資料維護</div>
   </div>
 
@@ -529,6 +530,37 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
     <div id="scheduleList"></div>
   </div>
 
+  <!-- ===== MARKET SALARY RECORDS（獨立畫面）===== -->
+  <div id="view-salary" style="display:none">
+    <div class="page-title">Market Salary Records</div>
+    <div class="page-sub">市場薪資行情資料，可直接編輯或新增，會同步寫入試算表</div>
+    <div style="display:flex;align-items:flex-end;gap:14px;margin-bottom:16px;flex-wrap:wrap;">
+      <div class="search-wrap" style="width:280px;margin-bottom:0;">
+        <div class="search-label">搜尋</div>
+        <input class="search-input" type="text" id="salarySearch" placeholder="搜尋任何欄位..." oninput="renderSalaryScreen()" style="width:100%;">
+      </div>
+      <span id="salaryStatus" style="font-size:12px;color:var(--text-tertiary);"></span>
+    </div>
+    <div class="filter-bar" style="margin-bottom:16px;">
+      <div class="filter-group">
+        <div class="filter-group-label" id="salaryBuLabel">篩選</div>
+        <div class="filter-btns" id="salaryBuBar"></div>
+      </div>
+    </div>
+    <div class="table-wrap" style="margin-bottom:20px;">
+      <table class="pi-table">
+        <thead id="salaryTableHead"></thead>
+        <tbody id="salaryTableBody"></tbody>
+      </table>
+    </div>
+
+    <div id="newSalaryPanel" class="mini-card" style="padding:18px 20px;">
+      <div style="font-size:14px;font-weight:700;margin-bottom:12px;">＋ 新增一筆資料</div>
+      <div id="newSalaryFields" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin-bottom:10px;"></div>
+      <button class="lock-btn" style="width:auto;margin-top:0;padding:8px 18px;" onclick="submitNewSalaryRow()">＋ 新增一筆資料</button>
+    </div>
+  </div>
+
   <!-- ===== DATA MAINTENANCE ===== -->
   <div id="view-maintain" style="display:none">
     <div class="page-title">資料維護</div>
@@ -537,25 +569,10 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
     <div class="tab-bar" style="margin-bottom:16px;padding-top:0;">
       <div class="tab active" onclick="switchMaintainSheet('Candidate Records',this)">Candidate Records</div>
       <div class="tab" onclick="switchMaintainSheet('Headcount Records',this)">Headcount Records</div>
-      <div class="tab" onclick="switchMaintainSheet('Market Salary Records',this)">Market Salary Records</div>
     </div>
 
     <!-- ===== Candidate Records：查詢卡模式 ===== -->
     <div id="maintainCandidateView">
-      <div id="newCandidatePanel" class="mini-card" style="padding:18px 20px;margin-bottom:20px;">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
-          <div style="font-size:14px;font-weight:700;">＋ 新增人選資料</div>
-          <div id="newCandSelectedHint" style="font-size:12px;color:var(--accent);"></div>
-        </div>
-        <div id="newCandFields" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin-bottom:10px;"></div>
-        <div id="newCandDupWarning" style="display:none;font-size:12px;background:var(--amber-bg);color:var(--amber-text);padding:8px 10px;border-radius:8px;margin-bottom:10px;"></div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;">
-          <button class="lock-btn" style="width:auto;margin-top:0;padding:8px 18px;" onclick="submitNewCandidateForm()">＋ 新增人選資料</button>
-          <button class="refresh-btn" style="margin-left:0;" onclick="applyCopyToNewCandidateForm()">📄 複製人選資料（先在下方點選要複製的人選）</button>
-          <button class="btn-cancel" onclick="clearNewCandidateForm()">清空表單</button>
-        </div>
-      </div>
-
       <div style="display:flex;align-items:flex-end;gap:14px;margin-bottom:16px;flex-wrap:wrap;">
         <div class="search-wrap" style="width:320px;margin-bottom:0;">
           <div class="search-label">搜尋姓名或履歷代碼</div>
@@ -579,7 +596,22 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
         </div>
       </div>
       <div id="candQueryResults"></div>
+
+      <div id="newCandidatePanel" class="mini-card" style="padding:18px 20px;margin-top:24px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+          <div style="font-size:14px;font-weight:700;">＋ 新增人選資料</div>
+          <div id="newCandSelectedHint" style="font-size:12px;color:var(--accent);"></div>
+        </div>
+        <div id="newCandFields" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin-bottom:10px;"></div>
+        <div id="newCandDupWarning" style="display:none;font-size:12px;background:var(--amber-bg);color:var(--amber-text);padding:8px 10px;border-radius:8px;margin-bottom:10px;"></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="lock-btn" style="width:auto;margin-top:0;padding:8px 18px;" onclick="submitNewCandidateForm()">＋ 新增人選資料</button>
+          <button class="refresh-btn" style="margin-left:0;" onclick="applyCopyToNewCandidateForm()">📄 複製人選資料（先在上方點選要複製的人選）</button>
+          <button class="btn-cancel" onclick="clearNewCandidateForm()">清空表單</button>
+        </div>
+      </div>
     </div>
+
 
     <!-- ===== Headcount Records：表格模式 ===== -->
     <div id="maintainHcView" style="display:none">
@@ -759,6 +791,14 @@ function parseDateTime(s) {
 function fmtDate(s) {
   if (!s) return '';
   var raw=String(s).trim();
+  if (raw.includes('整天')) {
+    var dmAD = raw.match(/(\d{4})?[\/\-]?(\d{1,2})[\/\-](\d{1,2})/);
+    if (dmAD) {
+      var yrAD = dmAD[1] ? dmAD[1] : new Date().getFullYear();
+      return yrAD+'/'+String(parseInt(dmAD[2])).padStart(2,'0')+'/'+String(parseInt(dmAD[3])).padStart(2,'0')+'整天';
+    }
+    return raw;
+  }
   if (raw.includes('上午')||raw.includes('中午')||raw.includes('下午')) {
     var period=raw.includes('上午')?'上午':raw.includes('中午')?'中午':'下午';
     var dm=raw.match(/(\d{4})?[\/\-]?(\d{1,2})[\/\-](\d{1,2})/);
@@ -767,6 +807,16 @@ function fmtDate(s) {
       return yr+'/'+String(parseInt(dm[2])).padStart(2,'0')+'/'+String(parseInt(dm[3])).padStart(2,'0')+' '+period;
     }
     return raw;
+  }
+  var rangeMatch = raw.match(/(\d{1,2}):(\d{2})\s*[~\-–到至]\s*(\d{1,2}):(\d{2})/);
+  if (rangeMatch) {
+    var timeRangeStr = String(parseInt(rangeMatch[1])).padStart(2,'0')+':'+rangeMatch[2]+'~'+String(parseInt(rangeMatch[3])).padStart(2,'0')+':'+rangeMatch[4];
+    var dmR = raw.match(/(\d{4})?[\/\-]?(\d{1,2})[\/\-](\d{1,2})/);
+    if (dmR) {
+      var yrR = dmR[1] ? dmR[1] : new Date().getFullYear();
+      return yrR+'/'+String(parseInt(dmR[2])).padStart(2,'0')+'/'+String(parseInt(dmR[3])).padStart(2,'0')+' '+timeRangeStr;
+    }
+    return timeRangeStr;
   }
   var d=new Date(raw);
   if (!isNaN(d.getTime())&&d.getFullYear()>2000) {
@@ -899,6 +949,8 @@ async function fetchData() {
     scheduleData=(json.scheduleRecords||[]).filter(function(d){return d.Token;});
     managerDirectoryData=(json.managerDirectory||[]).filter(function(d){return d.Name;});
     resultOptions=(json.resultOptions||[]).map(function(v){return String(v).trim();}).filter(Boolean);
+    headcountDropdownData = json.headcountDropdowns || {};
+    rebuildHeadcountDropdowns();
     loadHeadcountData(json.headcount||[]);
     maintainHeaders = json.sheetHeaders || {};
     var bus=[...new Set(allData.map(function(d){return String(d.BU||'').trim();}))].filter(Boolean).sort();
@@ -936,6 +988,7 @@ function renderAll(){
     else renderMaintain();
   }
   if (currentTab === 'schedule') renderSchedule();
+  if (currentTab === 'salary') renderSalaryScreen();
 }
 
 // ---- role selection ----
@@ -959,7 +1012,7 @@ function selectRole(role) {
     var match = onclickAttr.match(/switchTab\('(\w+)'/);
     if (match) {
       currentTab = match[1];
-      ['kanban','overview','pi','hc','maintain','trends','offers','schedule'].forEach(function(v){
+      ['kanban','overview','pi','hc','maintain','trends','offers','schedule','salary'].forEach(function(v){
         document.getElementById('view-'+v).style.display = v===currentTab ? '' : 'none';
       });
     }
@@ -979,7 +1032,7 @@ function switchTab(tab,el) {
   currentTab=tab;
   document.querySelectorAll('.tab-bar:first-of-type > .tab').forEach(function(t){t.classList.remove('active');});
   el.classList.add('active');
-  ['kanban','overview','pi','hc','maintain','trends','offers','schedule'].forEach(function(v){
+  ['kanban','overview','pi','hc','maintain','trends','offers','schedule','salary'].forEach(function(v){
     document.getElementById('view-'+v).style.display=v===tab?'':'none';
   });
   if (tab === 'maintain') {
@@ -989,6 +1042,7 @@ function switchTab(tab,el) {
   if (tab === 'trends') renderTrends();
   if (tab === 'offers') renderOffers();
   if (tab === 'schedule') renderSchedule();
+  if (tab === 'salary') { ensureNewSalaryFieldsRendered(); renderSalaryScreen(); }
 }
 
 // ---- filter helpers ----
@@ -1113,10 +1167,9 @@ function renderKanban() {
 // ---- Modal ----
 function handleCardClick(el) {
   var idx = parseInt(el.getAttribute('data-idx'));
-  var stage = el.getAttribute('data-stage');
   var d = allData[idx];
   if (!d) return;
-  openModal(d._row, d.Name, d['Job Function'], d.BU, stage);
+  openEditCandidateModal(d._row);
 }
 
 function openModal(row, name, pos, bu, currentStage) {
@@ -1190,7 +1243,7 @@ async function changeStage(newStage) {
     console.log('Response status:', res.status, res.type);
     showToast('✓ 已更新：'+card.name+' → '+newStage);
     var d=allData.find(function(x){return x._row===card.row;});
-    if(d) d.Result=newStage;
+    if(d) { d.Result=newStage; d.Update_date = getTodayDateStr(); }
     renderAll();
   } catch(e) {
     showToast('❌ 更新失敗：'+e.message);
@@ -1325,7 +1378,7 @@ async function commitPiResult(el) {
     var url = APPS_SCRIPT_URL + '?action=update&row=' + encodeURIComponent(row) + '&result=' + encodeURIComponent(newVal);
     await fetch(url, {mode:'no-cors'});
     var d = allData.find(function(x){ return x._row === row; });
-    if (d) d.Result = newVal;
+    if (d) { d.Result = newVal; d.Update_date = getTodayDateStr(); }
     showToast('✓ 已更新狀態');
     await fetchData();
     if (currentTab === 'pi') renderPi();
@@ -1406,7 +1459,7 @@ function renderHeadcount() {
     var isVacant = !succ;
     if (isVacant) groups[div].vacantTotal++;
     groups[div].jobs[job].rows.push({
-      _row: r._row,
+      raw: r,
       unit: [String(r[deptKey]||'').trim(), String(r[sectionKey]||'').trim()].filter(Boolean).join(' / '),
       grade: String(r[gradeKey]||'').trim() || '—',
       duties: String(r[dutiesKey]||'').trim() || '—',
@@ -1435,16 +1488,17 @@ function renderHeadcount() {
 
       if (vacantInJob === 0) return ''; // 已補實的 Job Function 不顯示
 
-      var rowsHtml = vacantRows.map(function(r){
+      var rowsHtml = vacantRows.map(function(rr){
+        var r = rr.raw;
+        var idx = hcRawData.indexOf(r);
         return '<tr>'+
-          '<td style="font-size:11px;color:var(--text-secondary);padding:5px 6px;">'+r.unit+'</td>'+
-          '<td style="font-size:11px;color:var(--text-primary);padding:5px 6px;font-weight:500;">'+r.duties+'</td>'+
-          '<td style="font-size:11px;color:var(--text-secondary);padding:5px 6px;">'+r.reason+'</td>'+
-          '<td style="font-size:11px;color:var(--text-secondary);padding:5px 6px;">'+r.grade+'</td>'+
-          '<td style="font-size:11px;color:var(--text-secondary);padding:5px 6px;">'+r.pred+'</td>'+
-          '<td style="padding:5px 6px;">'+
-            '<button class="hc-memo-btn" data-row="'+r._row+'" data-memo="'+r.memo.replace(/"/g,'&quot;')+'" onclick="openMemoModal(this)" style="font-size:11px;padding:3px 8px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text-secondary);cursor:pointer;">備註'+(r.memo?' •':'')+'</button>'+
-          '</td>'+
+          '<td style="padding:2px;">'+renderTableCellInput('Headcount Records', r, deptKey, idx)+'</td>'+
+          '<td style="padding:2px;">'+renderTableCellInput('Headcount Records', r, sectionKey, idx)+'</td>'+
+          '<td style="padding:2px;">'+renderTableCellInput('Headcount Records', r, dutiesKey, idx)+'</td>'+
+          '<td style="padding:2px;">'+renderTableCellInput('Headcount Records', r, reasonKey, idx)+'</td>'+
+          '<td style="padding:2px;">'+renderTableCellInput('Headcount Records', r, gradeKey, idx)+'</td>'+
+          '<td style="padding:2px;">'+renderTableCellInput('Headcount Records', r, predKey, idx)+'</td>'+
+          '<td style="padding:2px;">'+renderTableCellInput('Headcount Records', r, memoKey, idx)+'</td>'+
         '</tr>';
       }).join('');
 
@@ -1454,8 +1508,9 @@ function renderHeadcount() {
           '<span style="font-size:11px;font-weight:700;color:'+jc+';background:'+jc+'18;padding:1px 8px;border-radius:10px;">'+vacantInJob+' 缺額</span>'+
         '</div>'+
         '<div style="overflow-x:auto;border:1px solid var(--border);border-radius:8px;">'+
-          '<table style="width:100%;border-collapse:collapse;min-width:340px;">'+
+          '<table style="width:100%;border-collapse:collapse;min-width:480px;">'+
             '<thead><tr style="background:var(--bg);">'+
+              '<th style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-align:left;padding:5px 6px;">部門</th>'+
               '<th style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-align:left;padding:5px 6px;">單位</th>'+
               '<th style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-align:left;padding:5px 6px;">Duties</th>'+
               '<th style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-align:left;padding:5px 6px;">原因</th>'+
@@ -1834,6 +1889,7 @@ var maintainBU = 'all';
 var candFilterBU = 'all';
 var candFilterJob = 'all';
 var candFilterResult = 'all';
+var salaryBU = 'all';
 
 // 備用清單：試算表尚未設定資料驗證、或資料還沒載入完成時使用
 var FALLBACK_RESULT_OPTIONS = ['未回覆','待排電訪','待電訪','待確認主管邀約電訪意願','待確認主管面試意願','待排面試','待面試','待確認主管錄取意願','待確認人選錄取意願','婉拒電訪','HR不邀約電訪','HR不邀約面試','主管不邀約面試','婉拒面試','錄取','未錄取','婉拒錄取','已面試，排複試','已關閉履歷','思考一下','???'];
@@ -1841,6 +1897,16 @@ var FALLBACK_RESULT_OPTIONS = ['未回覆','待排電訪','待電訪','待確認
 // Result 選項一律以 Google 試算表 Candidate Records 的「Result」欄位資料驗證規則為主，若讀不到才用備用清單
 function getResultOptions() {
   return resultOptions && resultOptions.length ? resultOptions : FALLBACK_RESULT_OPTIONS;
+}
+
+// Headcount Records 各欄位的下拉選單選項（來自試算表的資料驗證規則，fetchData 時載入）
+var headcountDropdownData = {};
+function rebuildHeadcountDropdowns() {
+  var map = {};
+  Object.keys(headcountDropdownData).forEach(function(field){
+    map[field] = function(){ return headcountDropdownData[field] || []; };
+  });
+  MAINTAIN_DROPDOWNS['Headcount Records'] = map;
 }
 
 // 哪些欄位是下拉選單
@@ -1851,7 +1917,8 @@ var MAINTAIN_DROPDOWNS = {
     'Source': function(){ return [...new Set(allData.map(function(d){return String(d.Source||'').trim();}))].filter(Boolean).sort(); },
     'Inviter': function(){ return [...new Set(allData.map(function(d){return String(d.Inviter||'').trim();}))].filter(Boolean).sort(); },
     'Result': function(){ return getResultOptions(); }
-  }
+  },
+  'Headcount Records': {}
 };
 
 var MAINTAIN_DATE_FIELDS = ['invite_date','invite date','PI_date','Interview_date','Update_date','Update date','Onboard date'];
@@ -1866,11 +1933,28 @@ function normalizeDateForSave(field, raw) {
   var now = new Date();
   if (isDateOnly) return fmtDateOnly(raw);
   if (isDateTime) {
+    if (raw.includes('整天')) {
+      var dmAD = raw.match(/(\d{4})?[\/\-]?(\d{1,2})[\/\-](\d{1,2})/);
+      if (dmAD) {
+        var yrAD = dmAD[1] ? dmAD[1] : now.getFullYear();
+        return yrAD+'/'+String(parseInt(dmAD[2])).padStart(2,'0')+'/'+String(parseInt(dmAD[3])).padStart(2,'0')+'整天';
+      }
+      return raw;
+    }
     var periodMatch = raw.match(/(上午|中午|下午)/);
     var dm = raw.match(/(\d{4})?[\/\-]?(\d{1,2})[\/\-](\d{1,2})/);
     if (periodMatch && dm) {
       var yr = dm[1] ? dm[1] : now.getFullYear();
       return yr+'/'+String(parseInt(dm[2])).padStart(2,'0')+'/'+String(parseInt(dm[3])).padStart(2,'0')+' '+periodMatch[1];
+    }
+    var rangeMatch = raw.match(/(\d{1,2}):(\d{2})\s*[~\-–到至]\s*(\d{1,2}):(\d{2})/);
+    if (rangeMatch) {
+      var timeRangeStr = String(parseInt(rangeMatch[1])).padStart(2,'0')+':'+rangeMatch[2]+'~'+String(parseInt(rangeMatch[3])).padStart(2,'0')+':'+rangeMatch[4];
+      if (dm) {
+        var yrRR = dm[1] ? dm[1] : now.getFullYear();
+        return yrRR+'/'+String(parseInt(dm[2])).padStart(2,'0')+'/'+String(parseInt(dm[3])).padStart(2,'0')+' '+timeRangeStr;
+      }
+      return timeRangeStr;
     }
     var tm = raw.match(/(\d{1,2}):(\d{2})/);
     if (dm && tm) {
@@ -2132,11 +2216,125 @@ function renderMaintain() {
   }).join('');
 }
 
+// ===== Market Salary Records（獨立畫面）=====
+function renderSalaryScreen() {
+  var headers = maintainHeaders['Market Salary Records'] || (salaryData.length ? Object.keys(salaryData[0]).filter(function(k){return k!=='_row';}) : []);
+
+  var buKey = headers.find(function(h){return h==='BU'||h==='Company';});
+  var buLabelEl = document.getElementById('salaryBuLabel');
+  if (buLabelEl) buLabelEl.textContent = buKey === 'Company' ? '公司' : (buKey || '篩選');
+
+  if (buKey) {
+    var bus = [...new Set(salaryData.map(function(r){return String(r[buKey]||'').trim();}))].filter(Boolean).sort();
+    document.getElementById('salaryBuBar').innerHTML =
+      '<button class="bu-btn '+(salaryBU==='all'?'active':'')+'" data-bu="all" onclick="salaryFilter(this.getAttribute(\'data-bu\'),this)">全部</button>'+
+      bus.map(function(b){return '<button class="bu-btn '+(salaryBU===b?'active':'')+'" data-bu="'+b+'" onclick="salaryFilter(this.getAttribute(\'data-bu\'),this)">'+b+'</button>';}).join('');
+  } else {
+    document.getElementById('salaryBuBar').innerHTML = '';
+  }
+
+  var search = (document.getElementById('salarySearch')?document.getElementById('salarySearch').value:'').toLowerCase();
+  var records = salaryData.filter(function(r){
+    var buMatch = !buKey || salaryBU==='all' || String(r[buKey]||'').trim()===salaryBU;
+    var searchMatch = !search || headers.some(function(h){return String(r[h]||'').toLowerCase().includes(search);});
+    return buMatch && searchMatch;
+  });
+
+  if (!headers.length) {
+    document.getElementById('salaryTableHead').innerHTML = '';
+    document.getElementById('salaryTableBody').innerHTML = '<tr><td style="padding:20px;color:var(--text-tertiary);">尚無資料或欄位資訊</td></tr>';
+    return;
+  }
+
+  document.getElementById('salaryTableHead').innerHTML =
+    '<tr>' + headers.map(function(h){ return '<th style="white-space:nowrap;">'+h+'</th>'; }).join('') + '<th style="width:40px;"></th></tr>';
+
+  document.getElementById('salaryTableBody').innerHTML = records.map(function(rec){
+    var idx = salaryData.indexOf(rec);
+    var cells = headers.map(function(h){
+      return '<td style="padding:2px;">'+renderTableCellInput('Market Salary Records', rec, h, idx)+'</td>';
+    }).join('');
+    return '<tr>'+cells+'<td><button onclick="deleteSalaryRow('+rec._row+')" style="font-size:12px;color:#EF4444;background:none;border:none;cursor:pointer;padding:4px 8px;">✕</button></td></tr>';
+  }).join('');
+}
+
+function salaryFilter(val, el) {
+  salaryBU = val;
+  document.querySelectorAll('#salaryBuBar .bu-btn').forEach(function(b){b.classList.remove('active');});
+  el.classList.add('active');
+  renderSalaryScreen();
+}
+
+async function deleteSalaryRow(row) {
+  if (!confirm('確定要刪除這一列嗎？此動作無法復原。')) return;
+  var statusEl = document.getElementById('salaryStatus');
+  if (statusEl) statusEl.textContent = '刪除中...';
+  try {
+    var url = APPS_SCRIPT_URL + '?action=deleteRow&sheet=' + encodeURIComponent('Market Salary Records') + '&row=' + encodeURIComponent(row);
+    await fetch(url, {mode:'no-cors'});
+    await fetchData();
+    if (currentTab === 'salary') renderSalaryScreen();
+    if (statusEl) { statusEl.textContent = '✓ 已刪除'; setTimeout(function(){statusEl.textContent='';}, 2000); }
+  } catch(e) {
+    if (statusEl) statusEl.textContent = '❌ 刪除失敗：'+e.message;
+  }
+}
+
+function ensureNewSalaryFieldsRendered() {
+  var el = document.getElementById('newSalaryFields');
+  if (el && !el.children.length) renderNewSalaryFields();
+}
+
+function renderNewSalaryFields() {
+  var headers = maintainHeaders['Market Salary Records'] || (salaryData.length ? Object.keys(salaryData[0]).filter(function(k){return k!=='_row';}) : []);
+  document.getElementById('newSalaryFields').innerHTML = headers.map(function(h){
+    var isRequired = h === 'Company';
+    var label = h + (isRequired ? ' <span style="color:#EF4444;">*</span>' : '');
+    return '<div><div class="modal-label" style="margin-bottom:4px;">'+label+'</div><input type="text" class="new-salary-input" data-field="'+h+'" style="width:100%;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;box-sizing:border-box;"></div>';
+  }).join('');
+}
+
+async function submitNewSalaryRow() {
+  var headers = maintainHeaders['Market Salary Records'] || [];
+  var requiredFields = ['Company'];
+  var values = {};
+  var missing = [];
+  document.querySelectorAll('#newSalaryFields .new-salary-input').forEach(function(inp){
+    var field = inp.getAttribute('data-field');
+    var val = inp.value.trim();
+    if (val && (MAINTAIN_DATE_FIELDS.indexOf(field) >= 0 || MAINTAIN_DATEONLY_FIELDS.indexOf(field) >= 0)) {
+      val = normalizeDateForSave(field, val);
+    }
+    values[field] = val;
+    if (requiredFields.indexOf(field) >= 0 && !val) missing.push(field);
+  });
+  if (missing.length) { showToast('請填寫必填欄位：'+missing.join('、')); return; }
+
+  var orderedValues = headers.map(function(h){ return values[h] || ''; });
+  showToast('新增中...');
+  try {
+    var url = APPS_SCRIPT_URL + '?action=addRow&sheet=' + encodeURIComponent('Market Salary Records') +
+      '&values=' + encodeURIComponent(JSON.stringify(orderedValues));
+    await fetch(url, {mode:'no-cors'});
+    await fetchData();
+    renderNewSalaryFields();
+    renderSalaryScreen();
+    showToast('✓ 已新增一筆資料');
+  } catch(e) {
+    showToast('❌ 新增失敗：'+e.message);
+  }
+}
+
 // ---- 共用：編輯/儲存 ----
 function enterMaintainEdit(el) {
   var raw = el.getAttribute('data-raw') || '';
-  el.dataset.original = raw;
-  el.textContent = raw;
+  var field = el.getAttribute('data-field');
+  var isDateOnlyField = MAINTAIN_DATEONLY_FIELDS.indexOf(field) >= 0;
+  var isDateField = MAINTAIN_DATE_FIELDS.indexOf(field) >= 0;
+  // 編輯時一律顯示乾淨格式（例如 2026/07/03 13:30），不要出現 JS Date 原始字串（例如 Thu May 21 2026 00:00:00 GMT+0800）
+  var editVal = isDateOnlyField ? fmtDateOnly(raw) : isDateField ? fmtDate(raw) : raw;
+  el.dataset.original = editVal;
+  el.textContent = editVal;
   var range = document.createRange();
   range.selectNodeContents(el);
   range.collapse(false);
@@ -2153,7 +2351,20 @@ async function saveMaintainField(sheet, row, col, field, idx, newVal) {
     await fetch(url, {mode:'no-cors'});
     var records = getMaintainRecords(sheet) === allData || sheet === 'Phone Interview' ? (sheet==='Phone Interview'?piData:allData) : getMaintainRecords(sheet);
     var rec = records[idx];
-    if (rec) rec[field] = newVal;
+    if (rec) {
+      rec[field] = newVal;
+      // 跟後端一致：Candidate Records / Market Salary Records 只要有任何欄位被改動，畫面上也立即帶出今天的 Update_date
+      var updateFieldName = sheet === 'Candidate Records' ? 'Update_date' : (sheet === 'Market Salary Records' ? 'Update date' : null);
+      if (updateFieldName && field !== updateFieldName) {
+        var todayStr = getTodayDateStr();
+        rec[updateFieldName] = todayStr;
+        var updEl = document.querySelector('[data-sheet="'+sheet+'"][data-row="'+row+'"][data-field="'+updateFieldName+'"]');
+        if (updEl) {
+          updEl.setAttribute('data-raw', todayStr);
+          if (updEl.tagName === 'SELECT') updEl.value = todayStr; else updEl.textContent = fmtDateOnly(todayStr);
+        }
+      }
+    }
     showToast('✓ 已儲存');
     return true;
   } catch(e) {
