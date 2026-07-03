@@ -511,7 +511,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
     </div>
     <div class="table-wrap">
       <table class="pi-table">
-        <thead><tr><th>姓名</th><th>單位</th><th>職缺</th><th>履歷代碼</th><th>Onboard date</th></tr></thead>
+        <thead><tr><th>姓名</th><th>單位</th><th>職缺</th><th>職等</th><th>履歷代碼</th><th>Onboard date</th></tr></thead>
         <tbody id="offersTableBody"></tbody>
       </table>
     </div>
@@ -1610,7 +1610,7 @@ function renderOffers() {
   document.getElementById('offersSub').textContent = '共 '+filtered.length+' 位錄取人選 · '+periodLabel;
 
   if (!filtered.length) {
-    document.getElementById('offersTableBody').innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-tertiary);padding:24px">目前無錄取人選</td></tr>';
+    document.getElementById('offersTableBody').innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-tertiary);padding:24px">目前無錄取人選</td></tr>';
     return;
   }
 
@@ -1620,10 +1620,18 @@ function renderOffers() {
       '<td style="font-weight:600;white-space:nowrap">'+d.Name+'</td>'+
       '<td style="white-space:nowrap">'+d.BU+'</td>'+
       '<td style="white-space:nowrap">'+(d['Job Function']||'')+'</td>'+
+      '<td style="white-space:nowrap">'+getOfferGradeLevel(d.Name)+'</td>'+
       '<td style="white-space:nowrap">'+(d[resumeKey]||'—')+'</td>'+
       '<td style="white-space:nowrap">'+fmtDateOnly(d['Onboard date']||'')+'</td>'+
     '</tr>';
   }).join('');
+}
+
+// 職等：從 Headcount Records 的「遞補人員」欄位比對這位錄取人選的姓名，抓同一列的「職等」欄位
+function getOfferGradeLevel(name) {
+  if (!name || !hcRawData.length) return '—';
+  var match = hcRawData.find(function(h){ return String(h['遞補人員']||'').trim() === String(name).trim(); });
+  return (match && match['職等']) ? match['職等'] : '—';
 }
 
 // ===== TRENDS =====
