@@ -65,11 +65,11 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
 .kanban-board{display:flex;gap:12px;min-width:max-content;align-items:flex-start;}
 .kanban-phase{display:flex;gap:10px;}
 .kanban-phase-divider{width:2px;background:var(--border);border-radius:2px;align-self:stretch;margin:0 4px;min-height:200px;}
-.kanban-col{width:170px;flex-shrink:0;}
+.kanban-col{width:140px;flex-shrink:0;}
 .kanban-col-hdr{padding:10px 12px;border-radius:8px 8px 0 0;font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;border-bottom:3px solid transparent;}
 .kanban-col-count{font-size:11px;font-weight:500;padding:1px 7px;border-radius:10px;background:rgba(255,255,255,.5);}
 .kanban-cards{display:flex;flex-direction:column;gap:6px;min-height:80px;}
-.kanban-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;cursor:pointer;transition:box-shadow .15s;}
+.kanban-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:7px 8px;cursor:pointer;transition:box-shadow .15s;}
 .kanban-card:hover{box-shadow:0 2px 10px rgba(0,0,0,.1);border-color:#C7D2FE;}
 .kanban-card-row1{display:flex;align-items:center;justify-content:space-between;gap:8px;}
 .kanban-card-name{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
@@ -257,6 +257,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
 <div class="container">
   <div class="tab-bar">
     <div class="tab active" data-tab-role="both" onclick="switchTab('kanban',this)">Recruitment Overview</div>
+    <div class="tab" data-tab-role="both" onclick="switchTab('offers',this)">錄取名單</div>
     <div class="tab" data-tab-role="recruiter" onclick="switchTab('overview',this)">Recruitment Status</div>
     <div class="tab" data-tab-role="recruiter" onclick="switchTab('trends',this)">Trends</div>
     <div class="tab" data-tab-role="both" onclick="switchTab('pi',this)">Phone Interview Record</div>
@@ -270,63 +271,77 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
 
   <!-- ===== KANBAN ===== -->
   <div id="view-kanban" style="position:relative;">
-    <div class="page-title">Recruitment Overview</div>
-    <div class="page-sub">點擊人選卡片可變更招募階段</div>
-    <div style="display:flex;gap:20px;align-items:flex-start;">
-      <div style="flex:1;min-width:0;">
-        <div style="display:flex;align-items:flex-end;gap:14px;margin-bottom:10px;flex-wrap:wrap;">
-          <div class="search-wrap" style="width:280px;margin-bottom:0;">
-            <div class="search-label">搜尋</div>
-            <input class="search-input" type="text" id="kbSearch" placeholder="姓名..." oninput="renderKanban()" style="width:100%;">
-          </div>
-          <button class="refresh-btn" style="margin-left:0;" onclick="openKbNewCandidateModal()">＋ 新增人選資料</button>
-        </div>
-        <div class="filter-bar" style="margin-bottom:20px;">
-          <div class="filter-group">
-            <div class="filter-group-label">單位</div>
-            <div class="filter-btns" id="kbBuBar"><button class="bu-btn active" onclick="kbFilter('bu','all',this)">全部單位</button></div>
-          </div>
-          <div class="filter-divider"></div>
-          <div class="filter-group">
-            <div class="filter-group-label">Job Function</div>
-            <div class="filter-btns">
-              <button class="pos-btn active" onclick="kbFilter('pos','all',this)">全部 Job Function</button>
-              <button class="pos-btn" onclick="kbFilter('pos','Sales',this)">Sales</button>
-              <button class="pos-btn" onclick="kbFilter('pos','FAE',this)">FAE</button>
-            </div>
-          </div>
-          <div class="filter-divider"></div>
-          <div id="kbDateFilterSlot"></div>
-        </div>
-        <div class="kanban-wrap">
-          <div class="kanban-board" id="kanbanBoard"></div>
-        </div>
-
-        <!-- 折疊區 -->
-        <div id="kanbanCollapse"></div>
-      </div>
-
-      <div style="width:320px;flex-shrink:0;">
-        <div class="mini-card" style="padding:16px 20px;text-align:center;margin-bottom:16px;">
-          <div style="font-size:12px;font-weight:600;color:var(--text-tertiary);letter-spacing:.06em;text-transform:uppercase;">轉換率</div>
-          <div style="font-size:36px;font-weight:700;color:var(--accent);line-height:1.3;" id="kbConversionRate">—</div>
-        </div>
-        <div class="mini-card" style="padding:16px 18px;">
-          <div style="font-size:14px;font-weight:700;margin-bottom:10px;">錄取名單</div>
-          <div class="search-wrap" style="margin-bottom:8px;">
-            <input class="search-input" type="text" id="offersSearch" placeholder="搜尋姓名..." oninput="renderOffers()" style="width:100%;font-size:12px;">
-          </div>
-          <div id="offersSub" style="font-size:11px;color:var(--text-tertiary);margin-bottom:8px;"></div>
-          <div style="max-height:440px;overflow-y:auto;">
-            <table class="pi-table" style="font-size:12px;">
-              <thead><tr><th>姓名</th><th>職缺</th><th>職等</th><th>到職日</th></tr></thead>
-              <tbody id="offersTableBody"></tbody>
-            </table>
-          </div>
-        </div>
+    <div style="position:absolute;top:0;right:0;">
+      <div class="mini-card" style="padding:18px 36px;text-align:center;">
+        <div style="font-size:12px;font-weight:600;color:var(--text-tertiary);letter-spacing:.06em;text-transform:uppercase;">轉換率</div>
+        <div style="font-size:42px;font-weight:700;color:var(--accent);line-height:1.3;" id="kbConversionRate">—</div>
       </div>
     </div>
+    <div class="page-title">Recruitment Overview</div>
+    <div class="page-sub">點擊人選卡片可變更招募階段</div>
+    <div style="display:flex;align-items:flex-end;gap:14px;margin-bottom:10px;flex-wrap:wrap;">
+      <div class="search-wrap" style="width:280px;margin-bottom:0;">
+        <div class="search-label">搜尋</div>
+        <input class="search-input" type="text" id="kbSearch" placeholder="姓名..." oninput="renderKanban()" style="width:100%;">
+      </div>
+      <button class="refresh-btn" style="margin-left:0;" onclick="openKbNewCandidateModal()">＋ 新增人選資料</button>
+    </div>
+    <div class="filter-bar" style="margin-bottom:20px;">
+      <div class="filter-group">
+        <div class="filter-group-label">單位</div>
+        <div class="filter-btns" id="kbBuBar"><button class="bu-btn active" onclick="kbFilter('bu','all',this)">全部單位</button></div>
+      </div>
+      <div class="filter-divider"></div>
+      <div class="filter-group">
+        <div class="filter-group-label">Job Function</div>
+        <div class="filter-btns">
+          <button class="pos-btn active" onclick="kbFilter('pos','all',this)">全部 Job Function</button>
+          <button class="pos-btn" onclick="kbFilter('pos','Sales',this)">Sales</button>
+          <button class="pos-btn" onclick="kbFilter('pos','FAE',this)">FAE</button>
+        </div>
+      </div>
+      <div class="filter-divider"></div>
+      <div id="kbDateFilterSlot"></div>
+    </div>
+    <div class="kanban-wrap">
+      <div class="kanban-board" id="kanbanBoard"></div>
+    </div>
+
+    <!-- 折疊區 -->
+    <div id="kanbanCollapse"></div>
   </div>
+
+  <!-- ===== OFFER LIST ===== -->
+  <div id="view-offers" style="display:none">
+    <div class="page-title">錄取名單</div>
+    <div class="page-sub" id="offersSub">載入中...</div>
+    <div class="filter-bar">
+      <div class="filter-group">
+        <div class="filter-group-label">單位</div>
+        <div class="filter-btns" id="offersBuBar"><button class="bu-btn active" onclick="offersFilter('bu','all',this)">全部單位</button></div>
+      </div>
+      <div class="filter-divider"></div>
+      <div class="filter-group">
+        <div class="filter-group-label">年月</div>
+        <div style="display:flex;gap:6px;">
+          <select id="offersYearSelect" onchange="offersFilterYearMonth()" style="font-size:12px;padding:5px 8px;border:1.5px solid var(--border);border-radius:8px;background:var(--surface);font-family:inherit;"></select>
+          <select id="offersMonthSelect" onchange="offersFilterYearMonth()" style="font-size:12px;padding:5px 8px;border:1.5px solid var(--border);border-radius:8px;background:var(--surface);font-family:inherit;"></select>
+        </div>
+      </div>
+      <div class="filter-divider"></div>
+      <div class="search-wrap">
+        <div class="search-label">搜尋</div>
+        <input class="search-input" type="text" id="offersSearch" placeholder="姓名..." oninput="renderOffers()" style="width:200px;">
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table class="pi-table">
+        <thead><tr><th>姓名</th><th>單位</th><th>職缺</th><th>職等</th><th>履歷代碼</th><th>Onboard date</th></tr></thead>
+        <tbody id="offersTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
 
   <!-- ===== RECRUITMENT OVERVIEW ===== -->
   <div id="view-overview" style="display:none">
@@ -453,11 +468,16 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
       <div class="filter-divider"></div>
       <div class="filter-group">
         <div class="filter-group-label">Job Function</div>
-        <div class="filter-btns">
+        <div class="filter-btns" id="piJobBar">
           <button class="pos-btn active" onclick="piFilter('pos','all',this)">全部 Job Function</button>
           <button class="pos-btn" onclick="piFilter('pos','Sales',this)">Sales</button>
           <button class="pos-btn" onclick="piFilter('pos','FAE',this)">FAE</button>
         </div>
+      </div>
+      <div class="filter-divider"></div>
+      <div class="filter-group">
+        <div class="filter-group-label">目前狀態</div>
+        <div class="filter-btns" id="piResultBar"><button class="pos-btn active" data-result="all" onclick="piFilter('result',this.getAttribute('data-result'),this)">全部</button></div>
       </div>
       <div class="filter-divider"></div>
       <div id="piDateFilterSlot"></div>
@@ -748,7 +768,7 @@ var userRole = null;
 var allData=[], piData=[], salaryData=[], scheduleData=[], managerDirectoryData=[], resultOptions=[];
 var currentTab='kanban';
 var ovBU='all', ovPos='all';
-var piBU='all', piPos='all';
+var piBU='all', piPos='all', piResult='all';
 var kbBU='all', kbPos='all';
 var activeFilter=null;
 var selectedCard=null;
@@ -981,6 +1001,7 @@ function renderAll(){
   }
   if (currentTab === 'schedule') renderSchedule();
   if (currentTab === 'salary') renderSalaryScreen();
+  if (currentTab === 'offers') renderOffers();
 }
 
 // ---- role selection ----
@@ -1004,7 +1025,7 @@ function selectRole(role) {
     var match = onclickAttr.match(/switchTab\('(\w+)'/);
     if (match) {
       currentTab = match[1];
-      ['kanban','overview','pi','hc','maintain','trends','schedule','salary'].forEach(function(v){
+      ['kanban','overview','pi','hc','maintain','trends','offers','schedule','salary'].forEach(function(v){
         document.getElementById('view-'+v).style.display = v===currentTab ? '' : 'none';
       });
     }
@@ -1024,7 +1045,7 @@ function switchTab(tab,el) {
   currentTab=tab;
   document.querySelectorAll('.tab-bar:first-of-type > .tab').forEach(function(t){t.classList.remove('active');});
   el.classList.add('active');
-  ['kanban','overview','pi','hc','maintain','trends','schedule','salary'].forEach(function(v){
+  ['kanban','overview','pi','hc','maintain','trends','offers','schedule','salary'].forEach(function(v){
     document.getElementById('view-'+v).style.display=v===tab?'':'none';
   });
   if (tab === 'maintain') {
@@ -1032,6 +1053,7 @@ function switchTab(tab,el) {
     else renderMaintain();
   }
   if (tab === 'trends') renderTrends();
+  if (tab === 'offers') renderOffers();
   if (tab === 'schedule') renderSchedule();
   if (tab === 'salary') { ensureNewSalaryFieldsRendered(); renderSalaryScreen(); }
 }
@@ -1052,10 +1074,16 @@ function ovFilter(type,val,el){
   el.classList.add('active'); renderOverview();
 }
 function piFilter(type,val,el){
-  if(type==='bu') piBU=val; else piPos=val;
-  document.querySelectorAll('#piBuBar .bu-btn, #view-pi .pos-btn').forEach(function(b){
-    if((type==='bu'&&b.closest('#piBuBar'))||(type==='pos'&&!b.closest('#piBuBar'))) b.classList.remove('active');
-  });
+  if (type === 'bu') {
+    piBU = val;
+    document.querySelectorAll('#piBuBar .bu-btn').forEach(function(b){b.classList.remove('active');});
+  } else if (type === 'pos') {
+    piPos = val;
+    document.querySelectorAll('#piJobBar .pos-btn').forEach(function(b){b.classList.remove('active');});
+  } else if (type === 'result') {
+    piResult = val;
+    document.querySelectorAll('#piResultBar .pos-btn').forEach(function(b){b.classList.remove('active');});
+  }
   el.classList.add('active'); renderPi();
 }
 function toggleFilter(stage){activeFilter=activeFilter===stage?null:stage;renderOverview();}
@@ -1153,7 +1181,6 @@ function renderKanban() {
   var convRate = convBase.length ? (convOffer.length/convBase.length*100) : 0;
   var convEl = document.getElementById('kbConversionRate');
   if (convEl) convEl.textContent = convBase.length ? convRate.toFixed(1)+'%' : '—';
-  renderOffers();
 }
 
 // ---- Modal ----
@@ -1289,6 +1316,7 @@ function renderPi() {
   var filtered=piData.filter(function(d){
     return (piBU==='all'||String(d.BU||'').trim()===piBU) &&
            (piPos==='all'||String(d['Job Function']||'').includes(piPos)) &&
+           (piResult==='all'||String(d.Result||'').trim()===piResult) &&
            (!search||String(d.Name||'').toLowerCase().includes(search)||String(d['Job Function']||'').toLowerCase().includes(search)) &&
            dateFilterPass('pi', d);
   });
@@ -1298,6 +1326,14 @@ function renderPi() {
     return tsa-tsb;
   });
   document.getElementById('piSub').textContent='共 '+filtered.length+' 筆電訪記錄';
+
+  var resultBarEl = document.getElementById('piResultBar');
+  if (resultBarEl) {
+    var piResultOptions = getResultOptions();
+    resultBarEl.innerHTML =
+      '<button class="pos-btn '+(piResult==='all'?'active':'')+'" data-result="all" onclick="piFilter(\'result\',this.getAttribute(\'data-result\'),this)">全部</button>'+
+      piResultOptions.map(function(r){return '<button class="pos-btn '+(piResult===r?'active':'')+'" data-result="'+r.replace(/"/g,'&quot;')+'" onclick="piFilter(\'result\',this.getAttribute(\'data-result\'),this)">'+r+'</button>';}).join('');
+  }
 
   // Phone Interview 工作表的實際欄位（Result 是從 Candidate Records 對應過來的虛擬欄位，不含在裡面）
   var piHeaders = (maintainHeaders['Phone Interview'] || (piData.length ? Object.keys(piData[0]).filter(function(k){return k!=='_row';}) : []))
@@ -1330,6 +1366,41 @@ function renderPi() {
 }
 
 // 可重複使用的「表格用」欄位輸入元件：下拉選單用 select，其餘用可編輯文字格，統一走 commitMaintain* 寫回試算表
+// 共用元件：下拉選單 + 可手動輸入新值（用 input+datalist，而不是 select，這樣既能選也能自己打新的值）
+var _dlIdCounter = 0;
+function buildDropdownDatalistInput(sheetName, rec, field, col, idx, options, inputStyle) {
+  var dlId = 'dl_' + (_dlIdCounter++);
+  var rawVal = rec[field] !== undefined ? rec[field] : '';
+  var rawSafe = String(rawVal||'').replace(/"/g,'&quot;');
+  var optHtml = options.map(function(o){ return '<option value="'+String(o).replace(/"/g,'&quot;')+'">'; }).join('');
+  return '<input type="text" list="'+dlId+'" data-sheet="'+sheetName+'" data-row="'+rec._row+'" data-col="'+col+'" data-field="'+field+'" data-idx="'+idx+'" data-raw="'+rawSafe+'" value="'+rawSafe+'" '+
+    'onchange="commitMaintainInputList(this)" style="'+inputStyle+'">'+
+    '<datalist id="'+dlId+'">'+optHtml+'</datalist>';
+}
+
+async function commitMaintainInputList(el) {
+  var newVal = el.value.trim();
+  var original = el.getAttribute('data-raw') || '';
+  var field0 = el.getAttribute('data-field');
+  var isDateField = MAINTAIN_DATE_FIELDS.indexOf(field0) >= 0;
+  var isDateOnlyField = MAINTAIN_DATEONLY_FIELDS.indexOf(field0) >= 0;
+  if (newVal && (isDateField || isDateOnlyField)) newVal = normalizeDateForSave(field0, newVal);
+
+  if (newVal === original) { el.value = newVal; return; }
+
+  var sheet = el.getAttribute('data-sheet');
+  var row = el.getAttribute('data-row');
+  var col = el.getAttribute('data-col');
+  var field = el.getAttribute('data-field');
+  var idx = parseInt(el.getAttribute('data-idx'));
+
+  var ok = await saveMaintainField(sheet, row, col, field, idx, newVal);
+  if (ok) {
+    el.setAttribute('data-raw', newVal.replace(/"/g,'&quot;'));
+    el.value = newVal;
+  }
+}
+
 function renderTableCellInput(sheetName, rec, field, idx) {
   var rawVal = rec[field] !== undefined ? rec[field] : '';
   var col = (maintainHeaders[sheetName] || Object.keys(rec)).indexOf(field) + 1;
@@ -1341,11 +1412,8 @@ function renderTableCellInput(sheetName, rec, field, idx) {
 
   if (dropdowns[field]) {
     var options = dropdowns[field]();
-    var optHtml = '<option value=""></option>' + options.map(function(o){
-      return '<option value="'+o.replace(/"/g,'&quot;')+'"'+(String(rawVal).trim()===o?' selected':'')+'>'+o+'</option>';
-    }).join('');
-    return '<select data-sheet="'+sheetName+'" data-row="'+rec._row+'" data-col="'+col+'" data-field="'+field+'" data-idx="'+idx+'" '+
-      'onchange="commitMaintainSelect(this)" style="font-size:12px;padding:5px 20px 5px 6px;border:1px solid var(--border);border-radius:6px;background:var(--surface);max-width:170px;">'+optHtml+'</select>';
+    return buildDropdownDatalistInput(sheetName, rec, field, col, idx, options,
+      'font-size:12px;padding:5px 6px;border:1px solid var(--border);border-radius:6px;background:var(--surface);max-width:170px;width:100%;box-sizing:border-box;');
   }
   return '<div contenteditable="true" data-sheet="'+sheetName+'" data-row="'+rec._row+'" data-col="'+col+'" data-field="'+field+'" data-idx="'+idx+'" data-raw="'+rawSafe+'" '+
     'onfocus="enterMaintainEdit(this)" onblur="commitMaintainCell(this)" '+
@@ -1361,16 +1429,19 @@ function renderPiResultCell(piRec, candMatch) {
     return '<span class="result-badge">'+(val||'—')+'</span>';
   }
   var options = getResultOptions();
-  var optHtml = '<option value=""></option>' + options.map(function(o){
-    return '<option value="'+o.replace(/"/g,'&quot;')+'"'+(val===o?' selected':'')+'>'+o+'</option>';
-  }).join('');
-  return '<select data-cand-row="'+candMatch._row+'" onchange="commitPiResult(this)" style="font-size:12px;padding:5px 20px 5px 6px;border:1px solid var(--border);border-radius:6px;background:var(--surface);max-width:170px;">'+optHtml+'</select>';
+  var dlId = 'dl_' + (_dlIdCounter++);
+  var optHtml = options.map(function(o){ return '<option value="'+o.replace(/"/g,'&quot;')+'">'; }).join('');
+  var valSafe = String(val||'').replace(/"/g,'&quot;');
+  return '<input type="text" list="'+dlId+'" data-cand-row="'+candMatch._row+'" value="'+valSafe+'" data-raw="'+valSafe+'" onchange="commitPiResult(this)" '+
+    'style="font-size:12px;padding:5px 6px;border:1px solid var(--border);border-radius:6px;background:var(--surface);max-width:170px;width:100%;box-sizing:border-box;">'+
+    '<datalist id="'+dlId+'">'+optHtml+'</datalist>';
 }
 
 async function commitPiResult(el) {
   var row = parseInt(el.getAttribute('data-cand-row'));
-  var newVal = el.value;
-  if (!row) return;
+  var newVal = el.value.trim();
+  var original = el.getAttribute('data-raw') || '';
+  if (!row || newVal === original) return;
   showToast('更新中...');
   try {
     var url = APPS_SCRIPT_URL + '?action=update&row=' + encodeURIComponent(row) + '&result=' + encodeURIComponent(newVal);
@@ -1591,35 +1662,96 @@ async function saveMemo() {
   }
 }
 
-// ===== OFFER LIST（現嵌入 Recruitment Overview 右側）=====
+// ===== OFFER LIST =====
+var offersBU = 'all';
+var _offersNow = new Date();
+var offersYear = String(_offersNow.getFullYear());
+var offersMonth = String(_offersNow.getMonth()+1);
+
+function offersFilter(type, val, el) {
+  if (type === 'bu') offersBU = val;
+  document.querySelectorAll('#offersBuBar .bu-btn').forEach(function(b){b.classList.remove('active');});
+  el.classList.add('active');
+  renderOffers();
+}
+
+function offersFilterYearMonth() {
+  offersYear = document.getElementById('offersYearSelect').value;
+  offersMonth = document.getElementById('offersMonthSelect').value;
+  renderOffers();
+}
+
 function renderOffers() {
   var search = (document.getElementById('offersSearch')?document.getElementById('offersSearch').value:'').toLowerCase();
   var offers = allData.filter(function(d){ return d.Result === '錄取'; });
 
-  offers = offers.filter(function(d){ return !search || String(d.Name||'').toLowerCase().includes(search); });
-  offers.sort(function(a,b){
+  // Onboard date 來源為 Candidate Records 的 Onboard date 欄位
+  var yearsSet = [...new Set(offers.map(function(d){
+    var t = parseDateTime(d['Onboard date']||'');
+    return t ? String(t.getFullYear()) : null;
+  }).filter(Boolean))].sort().reverse();
+  if (yearsSet.indexOf(offersYear) < 0 && offersYear !== 'all') { if(!yearsSet.length){offersYear='all';} }
+  var yearSel = document.getElementById('offersYearSelect');
+  if (yearSel) {
+    yearSel.innerHTML = '<option value="all">全部年份</option>' +
+      yearsSet.map(function(y){return '<option value="'+y+'"'+(offersYear===y?' selected':'')+'>'+y+'年</option>';}).join('');
+    yearSel.value = offersYear;
+  }
+  var monthSel = document.getElementById('offersMonthSelect');
+  if (monthSel) {
+    var monthOpts = '<option value="all">全部月份</option>';
+    for (var mi=1; mi<=12; mi++) monthOpts += '<option value="'+mi+'"'+(offersMonth===String(mi)?' selected':'')+'>'+mi+'月</option>';
+    monthSel.innerHTML = monthOpts;
+    monthSel.value = offersMonth;
+  }
+
+  offers = offers.filter(function(d){
+    var t = parseDateTime(d['Onboard date']||'');
+    if (!t) return false;
+    if (offersYear !== 'all' && String(t.getFullYear()) !== offersYear) return false;
+    if (offersMonth !== 'all' && String(t.getMonth()+1) !== offersMonth) return false;
+    return true;
+  });
+
+  var buBarEl = document.getElementById('offersBuBar');
+  if (buBarEl) {
+    var bus = [...new Set(offers.map(function(d){return String(d.BU||'').trim();}))].filter(Boolean).sort();
+    buBarEl.innerHTML =
+      '<button class="bu-btn '+(offersBU==='all'?'active':'')+'" data-bu="all" onclick="offersFilter(\'bu\',this.getAttribute(\'data-bu\'),this)">全部單位</button>'+
+      bus.map(function(b){return '<button class="bu-btn '+(offersBU===b?'active':'')+'" data-bu="'+b+'" onclick="offersFilter(\'bu\',this.getAttribute(\'data-bu\'),this)">'+b+'</button>';}).join('');
+  }
+
+  var filtered = offers.filter(function(d){
+    return (offersBU==='all'||String(d.BU||'').trim()===offersBU) &&
+           (!search||String(d.Name||'').toLowerCase().includes(search));
+  });
+  filtered.sort(function(a,b){
     var ta = parseDateTime(a['Onboard date']||'');
     var tb = parseDateTime(b['Onboard date']||'');
     var tsa = ta?ta.getTime():0, tsb = tb?tb.getTime():0;
     return tsb-tsa;
   });
 
+  var periodLabel = (offersYear==='all'?'全部年份':offersYear+'年') + '・' + (offersMonth==='all'?'全部月份':offersMonth+'月');
   var subEl = document.getElementById('offersSub');
-  if (subEl) subEl.textContent = '共 '+offers.length+' 位錄取人選';
+  if (subEl) subEl.textContent = '共 '+filtered.length+' 位錄取人選 · '+periodLabel;
 
   var bodyEl = document.getElementById('offersTableBody');
   if (!bodyEl) return;
-  if (!offers.length) {
-    bodyEl.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text-tertiary);padding:16px;font-size:12px;">目前無錄取人選</td></tr>';
+  if (!filtered.length) {
+    bodyEl.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-tertiary);padding:24px">目前無錄取人選</td></tr>';
     return;
   }
 
-  bodyEl.innerHTML = offers.map(function(d){
+  var resumeKey = filtered.length ? findResumeCodeKey(filtered[0]) : '履歷代碼';
+  bodyEl.innerHTML = filtered.map(function(d){
     return '<tr>'+
-      '<td style="font-weight:600;white-space:nowrap;">'+d.Name+'</td>'+
-      '<td style="white-space:nowrap;">'+(d['Job Function']||'')+'</td>'+
-      '<td style="white-space:nowrap;">'+getOfferGradeLevel(d.Name)+'</td>'+
-      '<td style="white-space:nowrap;">'+fmtDateOnly(d['Onboard date']||'')+'</td>'+
+      '<td style="font-weight:600;white-space:nowrap">'+d.Name+'</td>'+
+      '<td style="white-space:nowrap">'+d.BU+'</td>'+
+      '<td style="white-space:nowrap">'+(d['Job Function']||'')+'</td>'+
+      '<td style="white-space:nowrap">'+getOfferGradeLevel(d.Name)+'</td>'+
+      '<td style="white-space:nowrap">'+(d[resumeKey]||'—')+'</td>'+
+      '<td style="white-space:nowrap">'+fmtDateOnly(d['Onboard date']||'')+'</td>'+
     '</tr>';
   }).join('');
 }
@@ -1857,6 +1989,7 @@ var MAINTAIN_DROPDOWNS = {
   'Candidate Records': {
     'BU': function(){ return [...new Set(allData.map(function(d){return String(d.BU||'').trim();}))].filter(Boolean).sort(); },
     'Job Function': function(){ return [...new Set(allData.map(function(d){return String(d['Job Function']||'').trim();}))].filter(Boolean).sort(); },
+    '104_Position': function(){ return [...new Set(allData.map(function(d){return String(d['104_Position']||'').trim();}))].filter(Boolean).sort(); },
     'Source': function(){ return [...new Set(allData.map(function(d){return String(d.Source||'').trim();}))].filter(Boolean).sort(); },
     'Inviter': function(){ return [...new Set(allData.map(function(d){return String(d.Inviter||'').trim();}))].filter(Boolean).sort(); },
     'Result': function(){ return getResultOptions(); }
@@ -2072,11 +2205,8 @@ function renderQueryField(sheetName, rec, field, idx, fullWidth) {
   var inputHtml;
   if (dropdowns[field]) {
     var options = dropdowns[field]();
-    var optHtml = '<option value=""></option>' + options.map(function(o){
-      return '<option value="'+o.replace(/"/g,'&quot;')+'"'+(String(rawVal).trim()===o?' selected':'')+'>'+o+'</option>';
-    }).join('');
-    inputHtml = '<select data-sheet="'+sheetName+'" data-row="'+rec._row+'" data-col="'+col+'" data-field="'+field+'" data-idx="'+idx+'" '+
-      'onchange="commitMaintainSelect(this)" style="width:100%;font-size:13px;padding:6px 24px 6px 8px;border:1.5px solid var(--border);border-radius:8px;background:var(--surface);">'+optHtml+'</select>';
+    inputHtml = buildDropdownDatalistInput(sheetName, rec, field, col, idx, options,
+      'width:100%;font-size:13px;padding:6px 8px;border:1.5px solid var(--border);border-radius:8px;background:var(--surface);box-sizing:border-box;');
   } else if (fullWidth) {
     inputHtml = '<textarea data-sheet="'+sheetName+'" data-row="'+rec._row+'" data-col="'+col+'" data-field="'+field+'" data-idx="'+idx+'" data-raw="'+rawSafe+'" '+
       'onfocus="this.dataset.original=this.value" onblur="commitMaintainTextarea(this)" rows="2" '+
@@ -2386,6 +2516,14 @@ function ensureNewCandidateFieldsRendered() {
   if (el && !el.children.length) renderNewCandidateFields();
 }
 
+// 共用元件：給「填寫中、尚未存檔」的表單用的下拉+可手動輸入欄位（不會自動存檔，等按送出才收集）
+function buildFormDatalistInput(className, field, options, prefillVal, extraAttrs) {
+  var dlId = 'dl_' + (_dlIdCounter++);
+  var optHtml = options.map(function(o){ return '<option value="'+String(o).replace(/"/g,'&quot;')+'">'; }).join('');
+  return '<input type="text" list="'+dlId+'" class="'+className+'" data-field="'+field+'" value="'+String(prefillVal||'').replace(/"/g,'&quot;')+'"'+(extraAttrs||'')+' style="width:100%;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;box-sizing:border-box;">'+
+    '<datalist id="'+dlId+'">'+optHtml+'</datalist>';
+}
+
 function renderNewCandidateFields() {
   var headers = maintainHeaders['Candidate Records'] || ['invite_date','BU','Job Function','104_Position','Name','履歷代碼','Source','Inviter','PI_date','Interview_date','Result','Update_date','Onboard date','Memo'];
   var dropdowns = MAINTAIN_DROPDOWNS['Candidate Records'] || {};
@@ -2404,10 +2542,7 @@ function renderNewCandidateFields() {
 
     if (dropdowns[h]) {
       var options = dropdowns[h]();
-      var optHtml = '<option value="">請選擇...</option>' + options.map(function(o){
-        return '<option value="'+o.replace(/"/g,'&quot;')+'">'+o+'</option>';
-      }).join('');
-      return '<div style="'+spanStyle+'"><div class="modal-label" style="margin-bottom:4px;">'+label+'</div><select class="new-cand-input" data-field="'+h+'" style="width:100%;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;">'+optHtml+'</select></div>';
+      return '<div style="'+spanStyle+'"><div class="modal-label" style="margin-bottom:4px;">'+label+'</div>'+buildFormDatalistInput('new-cand-input', h, options, prefillVal)+'</div>';
     }
     return '<div style="'+spanStyle+'"><div class="modal-label" style="margin-bottom:4px;">'+label+'</div><input type="text" class="new-cand-input" data-field="'+h+'" value="'+prefillVal+'"'+dupAttr+' style="width:100%;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;box-sizing:border-box;"></div>';
   }).join('');
@@ -2523,10 +2658,7 @@ function openKbNewCandidateModal() {
 
     if (dropdowns[h]) {
       var options = dropdowns[h]();
-      var optHtml = '<option value="">請選擇...</option>' + options.map(function(o){
-        return '<option value="'+o.replace(/"/g,'&quot;')+'">'+o+'</option>';
-      }).join('');
-      return '<div style="'+spanStyle+'"><div class="modal-label" style="margin-bottom:4px;">'+label+'</div><select data-field="'+h+'" class="kb-new-cand-input" style="width:100%;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;">'+optHtml+'</select></div>';
+      return '<div style="'+spanStyle+'"><div class="modal-label" style="margin-bottom:4px;">'+label+'</div>'+buildFormDatalistInput('kb-new-cand-input', h, options, prefillVal)+'</div>';
     }
     var valAttr = prefillVal ? ' value="'+prefillVal+'"' : '';
     return '<div style="'+spanStyle+'"><div class="modal-label" style="margin-bottom:4px;">'+label+'</div><input type="text" data-field="'+h+'" class="kb-new-cand-input" style="width:100%;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;box-sizing:border-box;"'+valAttr+'></div>';
@@ -2583,8 +2715,7 @@ function addMaintainRow() {
     var label = h + (isRequired ? ' <span style="color:#EF4444;">*</span>' : '');
     if (dropdowns[h]) {
       var options = dropdowns[h]();
-      var optHtml = '<option value="">請選擇...</option>' + options.map(function(o){return '<option value="'+o.replace(/"/g,'&quot;')+'">'+o+'</option>';}).join('');
-      return '<div><div class="modal-label" style="margin-bottom:4px;">'+label+'</div><select data-field="'+h+'" class="add-row-input" style="width:100%;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;">'+optHtml+'</select></div>';
+      return '<div><div class="modal-label" style="margin-bottom:4px;">'+label+'</div>'+buildFormDatalistInput('add-row-input', h, options, '')+'</div>';
     }
     return '<div><div class="modal-label" style="margin-bottom:4px;">'+label+'</div><input type="text" data-field="'+h+'" class="add-row-input" style="width:100%;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;box-sizing:border-box;"></div>';
   }).join('');
