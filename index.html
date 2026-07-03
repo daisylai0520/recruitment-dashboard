@@ -294,11 +294,16 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
       <div class="filter-divider"></div>
       <div class="filter-group">
         <div class="filter-group-label">Job Function</div>
-        <div class="filter-btns">
+        <div class="filter-btns" id="kbJobBar">
           <button class="pos-btn active" onclick="kbFilter('pos','all',this)">全部 Job Function</button>
           <button class="pos-btn" onclick="kbFilter('pos','Sales',this)">Sales</button>
           <button class="pos-btn" onclick="kbFilter('pos','FAE',this)">FAE</button>
         </div>
+      </div>
+      <div class="filter-divider"></div>
+      <div class="filter-group">
+        <div class="filter-group-label">目前狀態</div>
+        <div class="filter-btns" id="kbResultBar"><button class="pos-btn active" data-result="all" onclick="kbFilter('result',this.getAttribute('data-result'),this)">全部</button></div>
       </div>
       <div class="filter-divider"></div>
       <div id="kbDateFilterSlot"></div>
@@ -769,7 +774,7 @@ var allData=[], piData=[], salaryData=[], scheduleData=[], managerDirectoryData=
 var currentTab='kanban';
 var ovBU='all', ovPos='all';
 var piBU='all', piPos='all', piResult='all';
-var kbBU='all', kbPos='all';
+var kbBU='all', kbPos='all', kbResult='all';
 var activeFilter=null;
 var selectedCard=null;
 
@@ -1060,10 +1065,16 @@ function switchTab(tab,el) {
 
 // ---- filter helpers ----
 function kbFilter(type,val,el){
-  if(type==='bu') kbBU=val; else kbPos=val;
-  document.querySelectorAll('#kbBuBar .bu-btn, #view-kanban .pos-btn').forEach(function(b){
-    if((type==='bu'&&b.closest('#kbBuBar'))||(type==='pos'&&!b.closest('#kbBuBar'))) b.classList.remove('active');
-  });
+  if (type === 'bu') {
+    kbBU = val;
+    document.querySelectorAll('#kbBuBar .bu-btn').forEach(function(b){b.classList.remove('active');});
+  } else if (type === 'pos') {
+    kbPos = val;
+    document.querySelectorAll('#kbJobBar .pos-btn').forEach(function(b){b.classList.remove('active');});
+  } else if (type === 'result') {
+    kbResult = val;
+    document.querySelectorAll('#kbResultBar .pos-btn').forEach(function(b){b.classList.remove('active');});
+  }
   el.classList.add('active'); renderKanban();
 }
 function ovFilter(type,val,el){
@@ -1096,9 +1107,19 @@ function toggleCollapse(type){
 function renderKanban() {
   var search=(document.getElementById('kbSearch')?document.getElementById('kbSearch').value:'').toLowerCase();
   var now=new Date(); now.setHours(0,0,0,0);
+
+  var resultBarEl = document.getElementById('kbResultBar');
+  if (resultBarEl) {
+    var kbResultOptions = getResultOptions();
+    resultBarEl.innerHTML =
+      '<button class="pos-btn '+(kbResult==='all'?'active':'')+'" data-result="all" onclick="kbFilter(\'result\',this.getAttribute(\'data-result\'),this)">全部</button>'+
+      kbResultOptions.map(function(r){return '<button class="pos-btn '+(kbResult===r?'active':'')+'" data-result="'+r.replace(/"/g,'&quot;')+'" onclick="kbFilter(\'result\',this.getAttribute(\'data-result\'),this)">'+r+'</button>';}).join('');
+  }
+
   var filtered=allData.filter(function(d){
     if((kbBU!=='all'&&String(d.BU||'').trim()!==kbBU)) return false;
     if((kbPos!=='all'&&!String(d['Job Function']||'').includes(kbPos))) return false;
+    if((kbResult!=='all'&&String(d.Result||'').trim()!==kbResult)) return false;
     if(search&&!String(d.Name||'').toLowerCase().includes(search)) return false;
     if(!dateFilterPass('kanban', d)) return false;
     // 超過7天未回覆不顯示
@@ -1367,6 +1388,7 @@ function renderPi() {
 
 // 可重複使用的「表格用」欄位輸入元件：下拉選單用 select，其餘用可編輯文字格，統一走 commitMaintain* 寫回試算表
 // 共用元件：下拉選單 + 可手動輸入新值（用 input+datalist，而不是 select，這樣既能選也能自己打新的值）
+// 點進欄位時會先清空顯示，確保瀏覽器一定顯示完整選單（否則已有值時瀏覽器常常只會比對開頭文字，選單會顯示不全）
 var _dlIdCounter = 0;
 function buildDropdownDatalistInput(sheetName, rec, field, col, idx, options, inputStyle) {
   var dlId = 'dl_' + (_dlIdCounter++);
@@ -1374,11 +1396,24 @@ function buildDropdownDatalistInput(sheetName, rec, field, col, idx, options, in
   var rawSafe = String(rawVal||'').replace(/"/g,'&quot;');
   var optHtml = options.map(function(o){ return '<option value="'+String(o).replace(/"/g,'&quot;')+'">'; }).join('');
   return '<input type="text" list="'+dlId+'" data-sheet="'+sheetName+'" data-row="'+rec._row+'" data-col="'+col+'" data-field="'+field+'" data-idx="'+idx+'" data-raw="'+rawSafe+'" value="'+rawSafe+'" '+
-    'onchange="commitMaintainInputList(this)" style="'+inputStyle+'">'+
+    'onfocus="dlInputFocus(this)" onchange="commitMaintainInputList(this)" onblur="commitMaintainInputList(this)" style="'+inputStyle+'">'+
     '<datalist id="'+dlId+'">'+optHtml+'</datalist>';
 }
 
+// 點進下拉輸入框時，先把目前的值存起來、清空欄位，讓瀏覽器顯示完整選單；如果最後沒有選新的，onblur 會還原
+function dlInputFocus(el) {
+  el.dataset.beforeFocus = el.value;
+  el.value = '';
+}
+
+function dlInputRestoreIfEmpty(el) {
+  if (!el.value.trim() && el.dataset.beforeFocus) {
+    el.value = el.dataset.beforeFocus;
+  }
+}
+
 async function commitMaintainInputList(el) {
+  dlInputRestoreIfEmpty(el);
   var newVal = el.value.trim();
   var original = el.getAttribute('data-raw') || '';
   var field0 = el.getAttribute('data-field');
@@ -1432,12 +1467,13 @@ function renderPiResultCell(piRec, candMatch) {
   var dlId = 'dl_' + (_dlIdCounter++);
   var optHtml = options.map(function(o){ return '<option value="'+o.replace(/"/g,'&quot;')+'">'; }).join('');
   var valSafe = String(val||'').replace(/"/g,'&quot;');
-  return '<input type="text" list="'+dlId+'" data-cand-row="'+candMatch._row+'" value="'+valSafe+'" data-raw="'+valSafe+'" onchange="commitPiResult(this)" '+
+  return '<input type="text" list="'+dlId+'" data-cand-row="'+candMatch._row+'" value="'+valSafe+'" data-raw="'+valSafe+'" onfocus="dlInputFocus(this)" onchange="commitPiResult(this)" onblur="commitPiResult(this)" '+
     'style="font-size:12px;padding:5px 6px;border:1px solid var(--border);border-radius:6px;background:var(--surface);max-width:170px;width:100%;box-sizing:border-box;">'+
     '<datalist id="'+dlId+'">'+optHtml+'</datalist>';
 }
 
 async function commitPiResult(el) {
+  dlInputRestoreIfEmpty(el);
   var row = parseInt(el.getAttribute('data-cand-row'));
   var newVal = el.value.trim();
   var original = el.getAttribute('data-raw') || '';
@@ -1971,7 +2007,11 @@ var FALLBACK_RESULT_OPTIONS = ['未回覆','待排電訪','待電訪','待確認
 
 // Result 選項一律以 Google 試算表 Candidate Records 的「Result」欄位資料驗證規則為主，若讀不到才用備用清單
 function getResultOptions() {
-  return resultOptions && resultOptions.length ? resultOptions : FALLBACK_RESULT_OPTIONS;
+  var base = (resultOptions && resultOptions.length) ? resultOptions.slice() : FALLBACK_RESULT_OPTIONS.slice();
+  // 保險：不管試算表的資料驗證有沒有讀取成功，畫面上實際出現過的 Result 值一定要能被篩選/選到
+  var actualValues = [...new Set(allData.map(function(d){ return String(d.Result||'').trim(); }))].filter(Boolean);
+  actualValues.forEach(function(v){ if (base.indexOf(v) < 0) base.push(v); });
+  return base;
 }
 
 // Headcount Records 各欄位的下拉選單選項（來自試算表的資料驗證規則，fetchData 時載入）
@@ -2520,7 +2560,7 @@ function ensureNewCandidateFieldsRendered() {
 function buildFormDatalistInput(className, field, options, prefillVal, extraAttrs) {
   var dlId = 'dl_' + (_dlIdCounter++);
   var optHtml = options.map(function(o){ return '<option value="'+String(o).replace(/"/g,'&quot;')+'">'; }).join('');
-  return '<input type="text" list="'+dlId+'" class="'+className+'" data-field="'+field+'" value="'+String(prefillVal||'').replace(/"/g,'&quot;')+'"'+(extraAttrs||'')+' style="width:100%;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;box-sizing:border-box;">'+
+  return '<input type="text" list="'+dlId+'" class="'+className+'" data-field="'+field+'" value="'+String(prefillVal||'').replace(/"/g,'&quot;')+'" onfocus="dlInputFocus(this)" onblur="dlInputRestoreIfEmpty(this)"'+(extraAttrs||'')+' style="width:100%;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;box-sizing:border-box;">'+
     '<datalist id="'+dlId+'">'+optHtml+'</datalist>';
 }
 
