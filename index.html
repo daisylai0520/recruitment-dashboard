@@ -444,7 +444,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
     <div class="table-wrap">
       <table class="pi-table">
         <thead>
-          <tr><th>姓名</th><th>職缺</th><th>電訪時間</th><th style="min-width:200px">Memo</th><th>是否邀約</th><th>目前狀態</th></tr>
+          <tr id="piTableHead"><th>姓名</th><th>職缺</th><th>電訪時間</th><th style="min-width:200px">Memo</th><th>是否邀約</th><th>目前狀態</th></tr>
         </thead>
         <tbody id="piBody"></tbody>
       </table>
@@ -456,9 +456,9 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
     <div class="page-title">Headcount Overview</div>
     <div class="page-sub" id="hcSub">尚未載入資料</div>
 
-    <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:14px;padding:14px 18px;margin-bottom:18px;max-width:420px;">
-      <div style="font-size:11px;font-weight:600;color:var(--text-tertiary);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px;">各 Job Function Headcount 人數</div>
-      <div id="kbJobFunctionCounts" style="display:flex;flex-direction:column;gap:5px;"></div>
+    <div style="margin-bottom:20px;">
+      <div style="font-size:13px;font-weight:600;color:var(--text-secondary);margin-bottom:10px;">各 Job Function 缺額總人數</div>
+      <div class="collapse-grid" id="hcJobTotalCards" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;"></div>
     </div>
 
     <div id="hcEmptyState" style="text-align:center;padding:60px 20px;color:var(--text-tertiary);">
@@ -481,11 +481,6 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
         <div id="hcDateFilterSlot"></div>
       </div>
       <div class="collapse-grid" id="hcCards" style="grid-template-columns:repeat(2,1fr);gap:14px;"></div>
-
-      <div style="margin-top:24px;">
-        <div style="font-size:13px;font-weight:600;color:var(--text-secondary);margin-bottom:10px;">各 Job Function 缺額總人數</div>
-        <div class="collapse-grid" id="hcJobTotalCards" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;"></div>
-      </div>
     </div>
   </div>
 
@@ -542,18 +537,30 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
     <div class="tab-bar" style="margin-bottom:16px;padding-top:0;">
       <div class="tab active" onclick="switchMaintainSheet('Candidate Records',this)">Candidate Records</div>
       <div class="tab" onclick="switchMaintainSheet('Headcount Records',this)">Headcount Records</div>
-      <div class="tab" onclick="switchMaintainSheet('Candidate Salary Records',this)">Candidate Salary Records</div>
+      <div class="tab" onclick="switchMaintainSheet('Market Salary Records',this)">Market Salary Records</div>
     </div>
 
     <!-- ===== Candidate Records：查詢卡模式 ===== -->
     <div id="maintainCandidateView">
+      <div id="newCandidatePanel" class="mini-card" style="padding:18px 20px;margin-bottom:20px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+          <div style="font-size:14px;font-weight:700;">＋ 新增人選資料</div>
+          <div id="newCandSelectedHint" style="font-size:12px;color:var(--accent);"></div>
+        </div>
+        <div id="newCandFields" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin-bottom:10px;"></div>
+        <div id="newCandDupWarning" style="display:none;font-size:12px;background:var(--amber-bg);color:var(--amber-text);padding:8px 10px;border-radius:8px;margin-bottom:10px;"></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="lock-btn" style="width:auto;margin-top:0;padding:8px 18px;" onclick="submitNewCandidateForm()">＋ 新增人選資料</button>
+          <button class="refresh-btn" style="margin-left:0;" onclick="applyCopyToNewCandidateForm()">📄 複製人選資料（先在下方點選要複製的人選）</button>
+          <button class="btn-cancel" onclick="clearNewCandidateForm()">清空表單</button>
+        </div>
+      </div>
+
       <div style="display:flex;align-items:flex-end;gap:14px;margin-bottom:16px;flex-wrap:wrap;">
         <div class="search-wrap" style="width:320px;margin-bottom:0;">
           <div class="search-label">搜尋姓名或履歷代碼</div>
           <input class="search-input" type="text" id="candQuerySearch" placeholder="輸入姓名或履歷代碼..." oninput="renderCandQuery()" style="width:100%;">
         </div>
-        <button class="refresh-btn" style="margin-left:0;" onclick="openNewCandidateModal()">＋ 新增人選資料</button>
-        <button class="refresh-btn" style="margin-left:0;" onclick="openCopyCandidateModal()">📄 複製人選資料</button>
       </div>
       <div class="filter-bar" style="margin-bottom:20px;">
         <div class="filter-group">
@@ -564,6 +571,11 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
         <div class="filter-group">
           <div class="filter-group-label">Job Function</div>
           <div class="filter-btns" id="candJobBar"><button class="pos-btn active" data-job="all" onclick="candFilter('job',this.getAttribute('data-job'),this)">全部</button></div>
+        </div>
+        <div class="filter-divider"></div>
+        <div class="filter-group">
+          <div class="filter-group-label">目前狀態</div>
+          <div class="filter-btns" id="candResultBar"><button class="pos-btn active" data-result="all" onclick="candFilter('result',this.getAttribute('data-result'),this)">全部</button></div>
         </div>
       </div>
       <div id="candQueryResults"></div>
@@ -605,6 +617,19 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
     <div id="modalStages"></div>
     <div class="modal-actions">
       <button class="btn-cancel" onclick="closeModal()">取消</button>
+      <button class="refresh-btn" style="margin-left:auto;" onclick="openFullEditFromStageModal()">✏️ 編輯完整資料</button>
+    </div>
+  </div>
+</div>
+
+<!-- EDIT CANDIDATE (FULL) MODAL -->
+<div id="editCandidateModal" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeEditCandidateModal()">
+  <div class="modal modal-wide">
+    <div class="modal-title" id="editCandModalName">—</div>
+    <div class="modal-sub">直接編輯欄位即可即時同步到試算表</div>
+    <div id="editCandModalFields" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;max-height:60vh;overflow-y:auto;padding-right:4px;"></div>
+    <div class="modal-actions" style="margin-top:14px;">
+      <button class="btn-cancel" onclick="closeEditCandidateModal()">關閉</button>
     </div>
   </div>
 </div>
@@ -665,25 +690,24 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
       </div>
       <div style="border-top:1px solid var(--border);margin:2px 0;"></div>
       <div>
-        <div class="modal-label" style="margin-bottom:4px;">主管所屬 BU <span style="color:#EF4444;">*</span></div>
-        <select id="schedManagerBU" onchange="onSchedManagerBUChange()" style="width:100%;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;">
-          <option value="">請選擇單位...</option>
-        </select>
-      </div>
-      <div>
-        <div class="modal-label" style="margin-bottom:4px;">主管姓名 <span style="color:#EF4444;">*</span></div>
-        <select id="schedManagerSelect" onchange="onSchedManagerSelectChange()" style="width:100%;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;">
-          <option value="">請先選擇單位...</option>
-        </select>
-      </div>
-      <div id="schedManagerManualWrap" style="display:none;">
-        <div class="modal-label" style="margin-bottom:4px;">手動輸入主管姓名</div>
-        <input type="text" id="schedManagerNameManual" style="width:100%;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;box-sizing:border-box;">
-      </div>
-      <div>
-        <div class="modal-label" style="margin-bottom:4px;">主管 Email <span style="color:#EF4444;">*</span></div>
-        <input type="email" id="schedManagerEmail" readonly placeholder="選擇主管後自動帶出" style="width:100%;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;background:var(--bg);box-sizing:border-box;">
-        <div style="font-size:11px;color:var(--text-tertiary);margin-top:4px;">Email 來自「Manager Email」試算表，若名冊裡沒有，請在上方選「其他」自行輸入</div>
+        <div class="modal-label" style="margin-bottom:4px;">邀請主管（可加入多位，一次全部寄信）<span style="color:#EF4444;">*</span></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px;">
+          <select id="schedManagerBU" onchange="onSchedManagerBUChange()" style="flex:1;min-width:120px;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;">
+            <option value="">請選擇單位...</option>
+          </select>
+          <select id="schedManagerSelect" onchange="onSchedManagerSelectChange()" style="flex:1;min-width:120px;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;">
+            <option value="">請先選擇單位...</option>
+          </select>
+        </div>
+        <div id="schedManagerManualWrap" style="display:none;margin-bottom:6px;">
+          <input type="text" id="schedManagerNameManual" placeholder="手動輸入主管姓名" style="width:100%;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;box-sizing:border-box;">
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
+          <input type="email" id="schedManagerEmail" placeholder="選擇主管後自動帶出，找不到人可手動輸入" style="flex:1;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;box-sizing:border-box;">
+          <button class="refresh-btn" style="margin-left:0;white-space:nowrap;" onclick="addManagerToScheduleList()">＋ 加入</button>
+        </div>
+        <div id="schedManagerTags" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px;"></div>
+        <div style="font-size:11px;color:var(--text-tertiary);">Email 來自「Manager Email」試算表；選好後按「＋加入」，可重複加入多位主管一起寄信</div>
       </div>
     </div>
     <div class="modal-actions">
@@ -696,7 +720,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
 <script>
 var APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby0h1OkoC_xNWeAAbuh4cBicbTl4B8g1KDtL-s2YK9f80TYjIyxQtdeu9RkWFQVtY3pnw/exec';
 var userRole = null;
-var allData=[], piData=[], salaryData=[], scheduleData=[], managerDirectoryData=[];
+var allData=[], piData=[], salaryData=[], scheduleData=[], managerDirectoryData=[], resultOptions=[];
 var currentTab='kanban';
 var ovBU='all', ovPos='all';
 var piBU='all', piPos='all';
@@ -874,6 +898,7 @@ async function fetchData() {
     salaryData=(json.salaryRecords||[]).filter(function(d){return d.Company;});
     scheduleData=(json.scheduleRecords||[]).filter(function(d){return d.Token;});
     managerDirectoryData=(json.managerDirectory||[]).filter(function(d){return d.Name;});
+    resultOptions=(json.resultOptions||[]).map(function(v){return String(v).trim();}).filter(Boolean);
     loadHeadcountData(json.headcount||[]);
     maintainHeaders = json.sheetHeaders || {};
     var bus=[...new Set(allData.map(function(d){return String(d.BU||'').trim();}))].filter(Boolean).sort();
@@ -958,7 +983,7 @@ function switchTab(tab,el) {
     document.getElementById('view-'+v).style.display=v===tab?'':'none';
   });
   if (tab === 'maintain') {
-    if (maintainSheet === 'Candidate Records') renderCandQuery();
+    if (maintainSheet === 'Candidate Records') { ensureNewCandidateFieldsRendered(); renderCandQuery(); }
     else renderMaintain();
   }
   if (tab === 'trends') renderTrends();
@@ -1085,31 +1110,6 @@ function renderKanban() {
   if (convEl) convEl.textContent = convBase.length ? convRate.toFixed(1)+'%' : '—';
 }
 
-// ---- 各 Job Function Headcount 人數（顯示於 Headcount Overview，統計 Headcount Records 筆數，含已補實與缺額）----
-function renderJobFunctionCandidateCounts() {
-  var jfCountsEl = document.getElementById('kbJobFunctionCounts');
-  if (!jfCountsEl) return;
-  if (!hcRawData.length) {
-    jfCountsEl.innerHTML = '<div style="font-size:12px;color:var(--text-tertiary);text-align:center;">無資料</div>';
-    return;
-  }
-  var jobKey = Object.keys(hcRawData[0]).find(function(k){return k.trim()==='Job Function';}) || 'Job Function';
-  var jfCounts = {};
-  hcRawData.forEach(function(r){
-    var jf = String(r[jobKey]||'').trim();
-    if (!jf) return;
-    jfCounts[jf] = (jfCounts[jf]||0) + 1;
-  });
-  var jfArr = Object.keys(jfCounts).map(function(j){return {job:j, count:jfCounts[j]};}).sort(function(a,b){return b.count-a.count;});
-  jfCountsEl.innerHTML = jfArr.length===0 ? '<div style="font-size:12px;color:var(--text-tertiary);text-align:center;">無資料</div>' :
-    jfArr.map(function(jt){
-      return '<div style="display:flex;align-items:center;justify-content:space-between;gap:16px;font-size:12px;">'+
-        '<span class="kanban-card-pos '+jfClass(jt.job)+'">'+jt.job+'</span>'+
-        '<span style="font-weight:700;color:var(--accent);">'+jt.count+'</span>'+
-      '</div>';
-    }).join('');
-}
-
 // ---- Modal ----
 function handleCardClick(el) {
   var idx = parseInt(el.getAttribute('data-idx'));
@@ -1130,6 +1130,10 @@ function openModal(row, name, pos, bu, currentStage) {
     {label:'🏆 錄取階段', stages:OFFER_STAGES},
     {label:'⬇️ 結束/不推進', stages:COLLAPSE_STAGES}
   ];
+  // 試算表裡若有新增、但不在上面四個分類中的 Result 選項，歸到「其他狀態」，確保都能被選到
+  var knownStages = PHONE_STAGES.concat(INTERVIEW_STAGES, OFFER_STAGES, COLLAPSE_STAGES);
+  var otherStages = getResultOptions().filter(function(s){ return knownStages.indexOf(s) < 0; });
+  if (otherStages.length) phases.push({label:'🔖 其他狀態', stages:otherStages});
   var html='';
   phases.forEach(function(phase){
     html+='<div class="modal-stage-group"><div class="modal-stage-group-title">'+phase.label+'</div><div class="modal-stages">';
@@ -1145,6 +1149,30 @@ function openModal(row, name, pos, bu, currentStage) {
 }
 
 function closeModal(){document.getElementById('modal').style.display='none';selectedCard=null;}
+
+function openFullEditFromStageModal() {
+  if (!selectedCard) return;
+  var row = selectedCard.row;
+  closeModal();
+  openEditCandidateModal(row);
+}
+
+function openEditCandidateModal(row) {
+  var cand = allData.find(function(d){ return d._row === row; });
+  if (!cand) { showToast('找不到這位人選的資料'); return; }
+  var idx = allData.indexOf(cand);
+  var candHeaders = maintainHeaders['Candidate Records'] || Object.keys(cand).filter(function(k){return k!=='_row';});
+  document.getElementById('editCandModalName').textContent = cand.Name || '編輯人選資料';
+  document.getElementById('editCandModalFields').innerHTML = candHeaders.map(function(h){
+    return renderQueryField('Candidate Records', cand, h, idx);
+  }).join('');
+  document.getElementById('editCandidateModal').style.display = 'flex';
+}
+
+function closeEditCandidateModal() {
+  document.getElementById('editCandidateModal').style.display = 'none';
+  renderAll();
+}
 
 async function changeStage(newStage) {
   if (!selectedCard) return;
@@ -1225,15 +1253,85 @@ function renderPi() {
     return tsa-tsb;
   });
   document.getElementById('piSub').textContent='共 '+filtered.length+' 筆電訪記錄';
-  function yesNo(v){v=String(v||'').trim();var yes=(v==='Y'||v==='y'||v==='是'||v.toLowerCase()==='yes'||v==='TRUE'||v==='true');return yes?'<span class="badge badge-yes">✓ 是</span>':v?'<span class="badge badge-no">'+v+'</span>':'<span class="badge badge-no">—</span>';}
-  if (!filtered.length){document.getElementById('piBody').innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--text-tertiary);padding:24px">目前無電訪記錄</td></tr>';return;}
+
+  // Phone Interview 工作表的實際欄位（Result 是從 Candidate Records 對應過來的虛擬欄位，不含在裡面）
+  var piHeaders = (maintainHeaders['Phone Interview'] || (piData.length ? Object.keys(piData[0]).filter(function(k){return k!=='_row';}) : []))
+    .filter(function(h){ return h !== 'Result'; });
+
+  var theadEl = document.getElementById('piTableHead');
+  if (theadEl) {
+    theadEl.innerHTML = piHeaders.map(function(h){
+      return '<th'+(h.includes('Memo')||h.includes('Comment')?' style="min-width:200px"':'')+'>'+h+'</th>';
+    }).join('') + '<th>目前狀態</th>';
+  }
+
+  if (!filtered.length){document.getElementById('piBody').innerHTML='<tr><td colspan="'+(piHeaders.length+1)+'" style="text-align:center;color:var(--text-tertiary);padding:24px">目前無電訪記錄</td></tr>';return;}
+
   document.getElementById('piBody').innerHTML=filtered.map(function(d){
-    var memoKey=Object.keys(d).find(function(k){return k.includes('Memo')||k.includes('文案');})||'';
-    var provKey=Object.keys(d).find(function(k){return k.includes('是否邀約')||k.includes('提供');})||'';
-    var resKey=Object.keys(d).find(function(k){return k==='Result';})||'';
-    var memo=memoKey?d[memoKey]:'',prov=provKey?d[provKey]:'',res=resKey?d[resKey]:'';
-    return '<tr><td style="font-weight:600;white-space:nowrap">'+d.Name+'</td><td style="white-space:nowrap">'+(d['Job Function']||'')+'</td><td style="white-space:nowrap">'+fmtDate(d.PI_date||'')+'</td><td class="memo-cell">'+(memo||'<span style="color:var(--text-tertiary)">—</span>')+'</td><td>'+yesNo(prov)+'</td><td><span class="result-badge">'+( d.Result||'—')+'</span></td></tr>';
+    var idx = piData.indexOf(d);
+    var cellsHtml = piHeaders.map(function(h){
+      return '<td>'+renderTableCellInput('Phone Interview', d, h, idx)+'</td>';
+    }).join('');
+    var resumeKey = findResumeCodeKey(d);
+    var candMatch = allData.find(function(c){ return resumeKey && String(c[findResumeCodeKey(c)]||'')===String(d[resumeKey]||'') && d[resumeKey]; });
+    return '<tr>'+cellsHtml+'<td>'+renderPiResultCell(d, candMatch)+'</td></tr>';
   }).join('');
+}
+
+// 可重複使用的「表格用」欄位輸入元件：下拉選單用 select，其餘用可編輯文字格，統一走 commitMaintain* 寫回試算表
+function renderTableCellInput(sheetName, rec, field, idx) {
+  var rawVal = rec[field] !== undefined ? rec[field] : '';
+  var col = (maintainHeaders[sheetName] || Object.keys(rec)).indexOf(field) + 1;
+  var dropdowns = MAINTAIN_DROPDOWNS[sheetName] || {};
+  var isDateField = MAINTAIN_DATE_FIELDS.indexOf(field) >= 0;
+  var isDateOnlyField = MAINTAIN_DATEONLY_FIELDS.indexOf(field) >= 0;
+  var displayVal = isDateOnlyField ? fmtDateOnly(rawVal) : isDateField ? fmtDate(rawVal) : rawVal;
+  var rawSafe = String(rawVal||'').replace(/"/g,'&quot;');
+
+  if (dropdowns[field]) {
+    var options = dropdowns[field]();
+    var optHtml = '<option value=""></option>' + options.map(function(o){
+      return '<option value="'+o.replace(/"/g,'&quot;')+'"'+(String(rawVal).trim()===o?' selected':'')+'>'+o+'</option>';
+    }).join('');
+    return '<select data-sheet="'+sheetName+'" data-row="'+rec._row+'" data-col="'+col+'" data-field="'+field+'" data-idx="'+idx+'" '+
+      'onchange="commitMaintainSelect(this)" style="font-size:12px;padding:5px 20px 5px 6px;border:1px solid var(--border);border-radius:6px;background:var(--surface);max-width:170px;">'+optHtml+'</select>';
+  }
+  return '<div contenteditable="true" data-sheet="'+sheetName+'" data-row="'+rec._row+'" data-col="'+col+'" data-field="'+field+'" data-idx="'+idx+'" data-raw="'+rawSafe+'" '+
+    'onfocus="enterMaintainEdit(this)" onblur="commitMaintainCell(this)" '+
+    'style="font-size:12px;padding:5px 7px;border-radius:6px;min-height:16px;cursor:text;min-width:60px;">'+
+    (displayVal||'').toString().replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</div>';
+}
+
+// Result（目前狀態）欄位其實存在 Candidate Records，Phone Interview 這邊只是鏡射顯示，
+// 所以編輯時走跟 Kanban 卡片一樣的 action=update，寫回對應的候選人那一列
+function renderPiResultCell(piRec, candMatch) {
+  var val = piRec.Result || '';
+  if (!candMatch) {
+    return '<span class="result-badge">'+(val||'—')+'</span>';
+  }
+  var options = getResultOptions();
+  var optHtml = '<option value=""></option>' + options.map(function(o){
+    return '<option value="'+o.replace(/"/g,'&quot;')+'"'+(val===o?' selected':'')+'>'+o+'</option>';
+  }).join('');
+  return '<select data-cand-row="'+candMatch._row+'" onchange="commitPiResult(this)" style="font-size:12px;padding:5px 20px 5px 6px;border:1px solid var(--border);border-radius:6px;background:var(--surface);max-width:170px;">'+optHtml+'</select>';
+}
+
+async function commitPiResult(el) {
+  var row = parseInt(el.getAttribute('data-cand-row'));
+  var newVal = el.value;
+  if (!row) return;
+  showToast('更新中...');
+  try {
+    var url = APPS_SCRIPT_URL + '?action=update&row=' + encodeURIComponent(row) + '&result=' + encodeURIComponent(newVal);
+    await fetch(url, {mode:'no-cors'});
+    var d = allData.find(function(x){ return x._row === row; });
+    if (d) d.Result = newVal;
+    showToast('✓ 已更新狀態');
+    await fetchData();
+    if (currentTab === 'pi') renderPi();
+  } catch(e) {
+    showToast('❌ 更新失敗：'+e.message);
+  }
 }
 
 // ===== HEADCOUNT OVERVIEW =====
@@ -1265,8 +1363,11 @@ function hcFilter(type,val,el) {
 }
 
 function renderHeadcount() {
-  renderJobFunctionCandidateCounts();
-  if (!hcRawData.length) return;
+  if (!hcRawData.length) {
+    var emptyJobTotalsEl = document.getElementById('hcJobTotalCards');
+    if (emptyJobTotalsEl) emptyJobTotalsEl.innerHTML = '<div class="empty">無資料</div>';
+    return;
+  }
   var divKey = Object.keys(hcRawData[0]).find(function(k){return k.trim()==='Division';}) || 'Division';
   var deptKey = Object.keys(hcRawData[0]).find(function(k){return k.trim()==='Department';}) || 'Department';
   var sectionKey = Object.keys(hcRawData[0]).find(function(k){return k.trim()==='Section';}) || 'Section';
@@ -1724,6 +1825,15 @@ var maintainHeaders = {};
 var maintainBU = 'all';
 var candFilterBU = 'all';
 var candFilterJob = 'all';
+var candFilterResult = 'all';
+
+// 備用清單：試算表尚未設定資料驗證、或資料還沒載入完成時使用
+var FALLBACK_RESULT_OPTIONS = ['未回覆','待排電訪','待電訪','待確認主管邀約電訪意願','待確認主管面試意願','待排面試','待面試','待確認主管錄取意願','待確認人選錄取意願','婉拒電訪','HR不邀約電訪','HR不邀約面試','主管不邀約面試','婉拒面試','錄取','未錄取','婉拒錄取','已面試，排複試','已關閉履歷','思考一下','???'];
+
+// Result 選項一律以 Google 試算表 Candidate Records 的「Result」欄位資料驗證規則為主，若讀不到才用備用清單
+function getResultOptions() {
+  return resultOptions && resultOptions.length ? resultOptions : FALLBACK_RESULT_OPTIONS;
+}
 
 // 哪些欄位是下拉選單
 var MAINTAIN_DROPDOWNS = {
@@ -1732,7 +1842,7 @@ var MAINTAIN_DROPDOWNS = {
     'Job Function': function(){ return [...new Set(allData.map(function(d){return String(d['Job Function']||'').trim();}))].filter(Boolean).sort(); },
     'Source': function(){ return [...new Set(allData.map(function(d){return String(d.Source||'').trim();}))].filter(Boolean).sort(); },
     'Inviter': function(){ return [...new Set(allData.map(function(d){return String(d.Inviter||'').trim();}))].filter(Boolean).sort(); },
-    'Result': function(){ return ['未回覆','待排電訪','待電訪','待確認主管邀約電訪意願','待確認主管面試意願','待排面試','待面試','待確認主管錄取意願','待確認人選錄取意願','婉拒電訪','HR不邀約電訪','HR不邀約面試','主管不邀約面試','婉拒面試','錄取','未錄取','婉拒錄取','已面試，排複試','已關閉履歷','思考一下','???']; }
+    'Result': function(){ return getResultOptions(); }
   }
 };
 
@@ -1794,14 +1904,14 @@ function switchMaintainSheet(sheetName, el) {
   el.classList.add('active');
   document.getElementById('maintainCandidateView').style.display = sheetName==='Candidate Records' ? '' : 'none';
   document.getElementById('maintainHcView').style.display = sheetName!=='Candidate Records' ? '' : 'none';
-  if (sheetName === 'Candidate Records') renderCandQuery();
+  if (sheetName === 'Candidate Records') { ensureNewCandidateFieldsRendered(); renderCandQuery(); }
   else renderMaintain();
 }
 
 function getMaintainRecords(sheetName) {
   if (sheetName === 'Candidate Records') return allData;
   if (sheetName === 'Headcount Records') return hcRawData;
-  if (sheetName === 'Candidate Salary Records') return salaryData;
+  if (sheetName === 'Market Salary Records') return salaryData;
   return [];
 }
 
@@ -1813,6 +1923,7 @@ function findResumeCodeKey(rec) {
 function renderCandFilterBars() {
   var buBar = document.getElementById('candBuBar');
   var jobBar = document.getElementById('candJobBar');
+  var resultBar = document.getElementById('candResultBar');
   if (!buBar || !jobBar) return;
   var bus = [...new Set(allData.map(function(d){return String(d.BU||'').trim();}))].filter(Boolean).sort();
   buBar.innerHTML =
@@ -1822,6 +1933,12 @@ function renderCandFilterBars() {
   jobBar.innerHTML =
     '<button class="pos-btn '+(candFilterJob==='all'?'active':'')+'" data-job="all" onclick="candFilter(\'job\',this.getAttribute(\'data-job\'),this)">全部</button>'+
     jobs.map(function(j){return '<button class="pos-btn '+(candFilterJob===j?'active':'')+'" data-job="'+j+'" onclick="candFilter(\'job\',this.getAttribute(\'data-job\'),this)">'+j+'</button>';}).join('');
+  if (resultBar) {
+    var results = getResultOptions();
+    resultBar.innerHTML =
+      '<button class="pos-btn '+(candFilterResult==='all'?'active':'')+'" data-result="all" onclick="candFilter(\'result\',this.getAttribute(\'data-result\'),this)">全部</button>'+
+      results.map(function(r){return '<button class="pos-btn '+(candFilterResult===r?'active':'')+'" data-result="'+r.replace(/"/g,'&quot;')+'" onclick="candFilter(\'result\',this.getAttribute(\'data-result\'),this)">'+r+'</button>';}).join('');
+  }
 }
 
 function candFilter(type, val, el) {
@@ -1831,6 +1948,9 @@ function candFilter(type, val, el) {
   } else if (type === 'job') {
     candFilterJob = val;
     document.querySelectorAll('#candJobBar .pos-btn').forEach(function(b){b.classList.remove('active');});
+  } else if (type === 'result') {
+    candFilterResult = val;
+    document.querySelectorAll('#candResultBar .pos-btn').forEach(function(b){b.classList.remove('active');});
   }
   el.classList.add('active');
   renderCandQuery();
@@ -1839,7 +1959,7 @@ function candFilter(type, val, el) {
 function renderCandQuery() {
   var search = (document.getElementById('candQuerySearch').value || '').trim().toLowerCase();
   var container = document.getElementById('candQueryResults');
-  if (!search && candFilterBU==='all' && candFilterJob==='all') {
+  if (!search && candFilterBU==='all' && candFilterJob==='all' && candFilterResult==='all') {
     container.innerHTML = '<div class="empty" style="padding:30px 0;text-align:center;">請輸入姓名或履歷代碼查詢，或使用上方篩選條件顯示人選</div>';
     return;
   }
@@ -1849,7 +1969,8 @@ function renderCandQuery() {
     var textMatch = !search || String(d.Name||'').toLowerCase().includes(search) || String(d[resumeKey]||'').toLowerCase().includes(search);
     var buMatch = candFilterBU==='all' || String(d.BU||'').trim()===candFilterBU;
     var jobMatch = candFilterJob==='all' || String(d['Job Function']||'').trim()===candFilterJob;
-    return textMatch && buMatch && jobMatch;
+    var resultMatch = candFilterResult==='all' || String(d.Result||'').trim()===candFilterResult;
+    return textMatch && buMatch && jobMatch && resultMatch;
   });
 
   if (!matched.length) {
@@ -1862,6 +1983,7 @@ function renderCandQuery() {
     var resumeKey = findResumeCodeKey(cand);
     var resumeCode = cand[resumeKey];
     var candHeaders = maintainHeaders['Candidate Records'] || Object.keys(cand).filter(function(k){return k!=='_row';});
+    var isSelected = selectedCandForCopy && selectedCandForCopy._row === cand._row;
 
     // 找對應的 Phone Interview 記錄（依履歷代碼配對）
     var piRec = piData.find(function(p){ return resumeCode && String(p[findResumeCodeKey(p)]||'')===String(resumeCode); });
@@ -1891,8 +2013,11 @@ function renderCandQuery() {
       '</div>';
     }
 
-    return '<div class="mini-card" style="padding:20px 22px;margin-bottom:16px;">'+
-      '<div style="font-size:16px;font-weight:700;margin-bottom:14px;">'+cand.Name+'</div>'+
+    return '<div class="mini-card" style="padding:20px 22px;margin-bottom:16px;'+(isSelected?'border-color:var(--accent);box-shadow:0 0 0 2px var(--accent);':'')+'">'+
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px;">'+
+        '<div style="font-size:16px;font-weight:700;">'+cand.Name+(isSelected?' <span style="font-size:11px;font-weight:600;color:var(--accent);">（已選取，將用於複製）</span>':'')+'</div>'+
+        '<button class="refresh-btn" style="margin-left:0;" onclick="selectCandForCopy('+cand._row+')">📌 選取以複製</button>'+
+      '</div>'+
       '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;">'+fieldsHtml+'</div>'+
       piFieldsHtml+
     '</div>';
@@ -2062,66 +2187,139 @@ async function commitMaintainSelect(selectEl) {
   await saveMaintainField(selectEl.getAttribute('data-sheet'), selectEl.getAttribute('data-row'), selectEl.getAttribute('data-col'), selectEl.getAttribute('data-field'), parseInt(selectEl.getAttribute('data-idx')), newVal);
 }
 
-// ---- 新增一列（Modal）----
+// ---- 新增人選資料（常駐空白表單，不再跳出視窗）----
 function getTodayDateStr() {
   var d = new Date();
   return d.getFullYear()+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+String(d.getDate()).padStart(2,'0');
 }
 
-// 複製人選資料時，這些欄位需清空（人選專屬 / 流程紀錄類欄位），其餘欄位（如 BU、Job Function、Source、Inviter）會沿用來源人選的值
-var COPY_CLEAR_FIELDS = ['Name','履歷代碼','PI_date','Interview_date','Result','Update_date','Update date','Onboard date','Memo'];
+// 複製人選資料時，這些欄位需清空（流程紀錄類欄位／104_Position 依需求不複製）；Name、履歷代碼會一起複製
+var COPY_CLEAR_FIELDS = ['PI_date','Interview_date','Result','Update_date','Update date','Onboard date','Memo'];
 
-function openNewCandidateModal(sourceRecord) {
+var selectedCandForCopy = null;
+
+function ensureNewCandidateFieldsRendered() {
+  var el = document.getElementById('newCandFields');
+  if (el && !el.children.length) renderNewCandidateFields();
+}
+
+function renderNewCandidateFields() {
   var headers = maintainHeaders['Candidate Records'] || ['invite_date','BU','Job Function','104_Position','Name','履歷代碼','Source','Inviter','PI_date','Interview_date','Result','Update_date','Onboard date','Memo'];
-  var prevSheet = maintainSheet;
-  maintainSheet = 'Candidate Records'; // 暫時切換情境以重用 addRowModal 邏輯
-  document.getElementById('addRowModalSub').textContent = sourceRecord
-    ? '複製「'+(sourceRecord.Name||'')+'」的資料建立新人選，請確認並補齊欄位'
-    : '新增全新人選至 Candidate Records';
-  var requiredFields = ['Name','Result','invite_date'];
   var dropdowns = MAINTAIN_DROPDOWNS['Candidate Records'] || {};
+  var requiredFields = ['Name','Result','invite_date'];
   var todayStr = getTodayDateStr();
 
-  document.getElementById('addRowModalFields').innerHTML = headers.map(function(h){
+  document.getElementById('newCandFields').innerHTML = headers.map(function(h){
     var isRequired = requiredFields.indexOf(h) >= 0;
     var label = h + (isRequired ? ' <span style="color:#EF4444;">*</span>' : '');
     var isInviteDate = (h === 'invite_date' || h === 'invite date');
-    var isResumeCode = h.indexOf('履歷代碼') >= 0;
     var isMemo = h.indexOf('Memo') >= 0;
-    var prefillVal = '';
-    if (isInviteDate) prefillVal = todayStr;
-    else if (sourceRecord && !isResumeCode && COPY_CLEAR_FIELDS.indexOf(h) < 0) prefillVal = sourceRecord[h] || '';
+    var isNameOrResume = (h === 'Name' || h.indexOf('履歷代碼') >= 0);
     var spanStyle = isMemo ? 'grid-column:1/-1;' : '';
+    var dupAttr = isNameOrResume ? ' oninput="checkNewCandDuplicate()"' : '';
+    var prefillVal = isInviteDate ? todayStr : '';
 
     if (dropdowns[h]) {
       var options = dropdowns[h]();
       var optHtml = '<option value="">請選擇...</option>' + options.map(function(o){
-        return '<option value="'+o.replace(/"/g,'&quot;')+'"'+(prefillVal===o?' selected':'')+'>'+o+'</option>';
+        return '<option value="'+o.replace(/"/g,'&quot;')+'">'+o+'</option>';
       }).join('');
-      return '<div style="'+spanStyle+'"><div class="modal-label" style="margin-bottom:4px;">'+label+'</div><select data-field="'+h+'" class="add-row-input" style="width:100%;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;">'+optHtml+'</select></div>';
+      return '<div style="'+spanStyle+'"><div class="modal-label" style="margin-bottom:4px;">'+label+'</div><select class="new-cand-input" data-field="'+h+'" style="width:100%;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;">'+optHtml+'</select></div>';
     }
-    var valAttr = prefillVal ? ' value="'+String(prefillVal).replace(/"/g,'&quot;')+'"' : '';
-    return '<div style="'+spanStyle+'"><div class="modal-label" style="margin-bottom:4px;">'+label+'</div><input type="text" data-field="'+h+'" class="add-row-input" style="width:100%;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;box-sizing:border-box;"'+valAttr+'></div>';
+    return '<div style="'+spanStyle+'"><div class="modal-label" style="margin-bottom:4px;">'+label+'</div><input type="text" class="new-cand-input" data-field="'+h+'" value="'+prefillVal+'"'+dupAttr+' style="width:100%;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;box-sizing:border-box;"></div>';
   }).join('');
 
-  document.querySelector('#addRowModal .modal').classList.add('modal-wide');
-  document.getElementById('addRowModal').style.display = 'flex';
-  maintainSheet = prevSheet; // 還原，避免影響其他畫面狀態（submitAddRow 會再次明確指定 sheet）
-  window._newCandidateMode = true;
+  document.getElementById('newCandDupWarning').style.display = 'none';
 }
 
-// ---- 複製人選資料 ----
-function openCopyCandidateModal() {
-  var searchEl = document.getElementById('candQuerySearch');
-  var search = (searchEl && searchEl.value || '').trim().toLowerCase();
-  if (!search) { showToast('請先在搜尋框輸入姓名或履歷代碼，選擇要複製的人選'); return; }
+// 輸入姓名或履歷代碼時，即時檢查這位人選是否已經有紀錄，避免重複建檔
+function checkNewCandDuplicate() {
+  var name = '', resume = '';
+  document.querySelectorAll('#newCandFields .new-cand-input').forEach(function(inp){
+    var f = inp.getAttribute('data-field');
+    if (f === 'Name') name = inp.value.trim().toLowerCase();
+    if (f && f.indexOf('履歷代碼') >= 0) resume = inp.value.trim().toLowerCase();
+  });
+  var warnEl = document.getElementById('newCandDupWarning');
+  if (!name && !resume) { warnEl.style.display = 'none'; return; }
+
   var matched = allData.filter(function(d){
     var resumeKey = findResumeCodeKey(d);
-    return String(d.Name||'').toLowerCase().includes(search) || String(d[resumeKey]||'').toLowerCase().includes(search);
+    return (name && String(d.Name||'').toLowerCase()===name) || (resume && String(d[resumeKey]||'').toLowerCase()===resume);
   });
-  if (!matched.length) { showToast('找不到符合的人選可複製'); return; }
-  if (matched.length > 1) { showToast('搜尋結果有 '+matched.length+' 筆，請輸入更精確的姓名或履歷代碼以指定要複製的人選'); return; }
-  openNewCandidateModal(matched[0]);
+  if (matched.length) {
+    warnEl.style.display = '';
+    warnEl.innerHTML = '⚠️ 已經有相符的紀錄：' + matched.map(function(m){
+      return (m.Name||'') + '（' + (m['履歷代碼']||'') + '）目前狀態：' + (m.Result||'—');
+    }).join('；') + '，請確認是否要繼續新增，避免重複建檔';
+  } else {
+    warnEl.style.display = 'none';
+  }
+}
+
+// 點選下方人選資料卡，標記為「要複製的來源」
+function selectCandForCopy(row) {
+  var cand = allData.find(function(d){ return d._row === row; });
+  if (!cand) return;
+  selectedCandForCopy = cand;
+  document.getElementById('newCandSelectedHint').textContent = '已選取「'+(cand.Name||'')+'」，點擊「複製人選資料」套用到上方表單';
+  renderCandQuery();
+}
+
+// 把選取的人選資料套用到常駐表單（Name、履歷代碼會一起複製；104_Position 與流程紀錄類欄位不複製）
+function applyCopyToNewCandidateForm() {
+  if (!selectedCandForCopy) { showToast('請先在下方人選清單點選要複製的人選'); return; }
+  var todayStr = getTodayDateStr();
+  document.querySelectorAll('#newCandFields .new-cand-input').forEach(function(inp){
+    var f = inp.getAttribute('data-field');
+    var isInviteDate = (f === 'invite_date' || f === 'invite date');
+    var isPosition = f.indexOf('104') >= 0;
+    if (isInviteDate) { inp.value = todayStr; return; }
+    if (isPosition || COPY_CLEAR_FIELDS.indexOf(f) >= 0) { inp.value = ''; return; }
+    inp.value = selectedCandForCopy[f] || '';
+  });
+  showToast('✓ 已複製「'+(selectedCandForCopy.Name||'')+'」的資料，可修改後再新增');
+  checkNewCandDuplicate();
+}
+
+function clearNewCandidateForm() {
+  selectedCandForCopy = null;
+  document.getElementById('newCandSelectedHint').textContent = '';
+  renderNewCandidateFields();
+  renderCandQuery();
+}
+
+async function submitNewCandidateForm() {
+  var requiredFields = ['Name','Result','invite_date'];
+  var headers = maintainHeaders['Candidate Records'] || [];
+  var values = {};
+  var missing = [];
+  document.querySelectorAll('#newCandFields .new-cand-input').forEach(function(inp){
+    var field = inp.getAttribute('data-field');
+    var val = inp.value.trim();
+    if (val && (MAINTAIN_DATE_FIELDS.indexOf(field) >= 0 || MAINTAIN_DATEONLY_FIELDS.indexOf(field) >= 0)) {
+      val = normalizeDateForSave(field, val);
+    }
+    values[field] = val;
+    if (requiredFields.indexOf(field) >= 0 && !val) missing.push(field);
+  });
+  if (missing.length) { showToast('請填寫必填欄位：'+missing.join('、')); return; }
+
+  var orderedValues = headers.map(function(h){ return values[h] || ''; });
+  showToast('新增中...');
+  try {
+    var url = APPS_SCRIPT_URL + '?action=addRow&sheet=' + encodeURIComponent('Candidate Records') +
+      '&values=' + encodeURIComponent(JSON.stringify(orderedValues));
+    await fetch(url, {mode:'no-cors'});
+    await fetchData();
+    selectedCandForCopy = null;
+    document.getElementById('newCandSelectedHint').textContent = '';
+    renderNewCandidateFields();
+    renderCandQuery();
+    showToast('✓ 已新增人選資料');
+  } catch(e) {
+    showToast('❌ 新增失敗：'+e.message);
+  }
 }
 
 function addMaintainRow() {
@@ -2130,7 +2328,7 @@ function addMaintainRow() {
   if (!headers.length) { showToast('找不到欄位資訊，無法新增'); return; }
 
   document.getElementById('addRowModalSub').textContent = '新增至「'+maintainSheet+'」，填寫後會直接寫入試算表';
-  var requiredFields = maintainSheet === 'Headcount Records' ? ['Division'] : maintainSheet === 'Candidate Salary Records' ? ['Company'] : ['Name','Result'];
+  var requiredFields = maintainSheet === 'Headcount Records' ? ['Division'] : maintainSheet === 'Market Salary Records' ? ['Company'] : ['Name','Result'];
   var dropdowns = MAINTAIN_DROPDOWNS[maintainSheet] || {};
 
   document.getElementById('addRowModalFields').innerHTML = headers.map(function(h){
@@ -2154,10 +2352,9 @@ function closeAddRowModal() {
 }
 
 async function submitAddRow() {
-  var isNewCandidate = window._newCandidateMode;
-  var targetSheet = isNewCandidate ? 'Candidate Records' : maintainSheet;
+  var targetSheet = maintainSheet;
   var headers = maintainHeaders[targetSheet] || [];
-  var requiredFields = targetSheet === 'Headcount Records' ? ['Division'] : targetSheet === 'Candidate Salary Records' ? ['Company'] : (isNewCandidate ? ['Name','Result','invite_date'] : ['Name','Result']);
+  var requiredFields = targetSheet === 'Headcount Records' ? ['Division'] : targetSheet === 'Market Salary Records' ? ['Company'] : ['Name','Result'];
 
   var values = {};
   var missing = [];
@@ -2177,7 +2374,6 @@ async function submitAddRow() {
   }
 
   var orderedValues = headers.map(function(h){ return values[h] || ''; });
-  window._newCandidateMode = false;
   closeAddRowModal();
   var statusEl = document.getElementById('maintainStatus');
   if (statusEl) statusEl.textContent = '新增中...';
@@ -2187,11 +2383,7 @@ async function submitAddRow() {
     await fetch(url, {mode:'no-cors'});
     if (statusEl) statusEl.textContent = '正在同步...';
     await fetchData();
-    if (currentTab === 'maintain') {
-      if (isNewCandidate || targetSheet==='Candidate Records') renderCandQuery();
-      else renderMaintain();
-    }
-    if (isNewCandidate) showToast('✓ 已新增人選資料');
+    if (currentTab === 'maintain') renderMaintain();
     if (statusEl) { statusEl.textContent = '✓ 已新增一列'; setTimeout(function(){statusEl.textContent='';}, 2000); }
   } catch(e) {
     if (statusEl) statusEl.textContent = '❌ 新增失敗：'+e.message;
@@ -2248,6 +2440,8 @@ function openScheduleModal() {
   document.getElementById('schedRound').value = '電訪';
   populateManagerBUOptions();
   resetManagerSelects();
+  scheduleManagerList = [];
+  renderManagerTags();
   populateCreatorDatalist();
   // 帶入上一次建立邀約的人，避免同一人連續建立多筆時要重複輸入；如果這次是別人建立，直接改掉即可
   var lastCreator = getLastCreator();
@@ -2258,6 +2452,40 @@ function openScheduleModal() {
 
 function closeScheduleModal() {
   document.getElementById('scheduleModal').style.display = 'none';
+}
+
+// ---- 邀請多位主管：加入清單後一次寄信 ----
+var scheduleManagerList = [];
+
+function renderManagerTags() {
+  var wrap = document.getElementById('schedManagerTags');
+  if (!wrap) return;
+  if (!scheduleManagerList.length) { wrap.innerHTML = ''; return; }
+  wrap.innerHTML = scheduleManagerList.map(function(m, idx){
+    return '<span style="display:inline-flex;align-items:center;gap:6px;background:var(--bg);border:1px solid var(--border);border-radius:20px;padding:4px 6px 4px 12px;font-size:12px;">'+
+      (m.name||'（未命名）')+'（'+(m.email||'')+'）'+
+      '<button onclick="removeManagerFromScheduleList('+idx+')" style="border:none;background:none;cursor:pointer;color:var(--text-tertiary);font-size:14px;line-height:1;padding:2px;">✕</button>'+
+    '</span>';
+  }).join('');
+}
+
+function addManagerToScheduleList() {
+  var info = getSelectedManagerInfo();
+  if (!info.name) { showToast('請選擇或輸入主管姓名'); return; }
+  if (!info.email) { showToast('請選擇或輸入主管 Email'); return; }
+  if (scheduleManagerList.some(function(m){ return m.email.toLowerCase() === info.email.toLowerCase(); })) {
+    showToast('這位主管已經在清單裡了');
+    return;
+  }
+  scheduleManagerList.push({ name: info.name, email: info.email });
+  renderManagerTags();
+  // 清空目前的選擇，方便繼續加入下一位主管
+  resetManagerSelects();
+}
+
+function removeManagerFromScheduleList(idx) {
+  scheduleManagerList.splice(idx, 1);
+  renderManagerTags();
 }
 
 // ---- 主管名冊：BU → 主管 → Email（資料來源：Manager Email 工作表）----
@@ -2275,9 +2503,7 @@ function resetManagerSelects() {
   document.getElementById('schedManagerSelect').innerHTML = '<option value="">請先選擇單位...</option>';
   document.getElementById('schedManagerNameManual').value = '';
   document.getElementById('schedManagerManualWrap').style.display = 'none';
-  var emailEl = document.getElementById('schedManagerEmail');
-  emailEl.value = '';
-  emailEl.readOnly = true;
+  document.getElementById('schedManagerEmail').value = '';
 }
 
 function onSchedManagerBUChange() {
@@ -2292,7 +2518,6 @@ function onSchedManagerBUChange() {
     sel.innerHTML = '<option value="">請先選擇單位...</option>';
     sel._managers = [];
     manualWrap.style.display = 'none';
-    emailEl.readOnly = true;
     return;
   }
   if (bu === '__other__') {
@@ -2300,7 +2525,6 @@ function onSchedManagerBUChange() {
     sel.value = '__other__';
     sel._managers = [];
     manualWrap.style.display = '';
-    emailEl.readOnly = false;
     return;
   }
   var managers = managerDirectoryData.filter(function(m){ return String(m.BU||'').trim() === bu; });
@@ -2309,7 +2533,6 @@ function onSchedManagerBUChange() {
     '<option value="__other__">其他（不在名冊中，手動輸入）</option>';
   sel._managers = managers;
   manualWrap.style.display = 'none';
-  emailEl.readOnly = true;
 }
 
 function onSchedManagerSelectChange() {
@@ -2321,11 +2544,9 @@ function onSchedManagerSelectChange() {
   if (val === '__other__') {
     manualWrap.style.display = '';
     emailEl.value = '';
-    emailEl.readOnly = false;
     return;
   }
   manualWrap.style.display = 'none';
-  emailEl.readOnly = true;
   var managers = sel._managers || [];
   var idx = parseInt(val);
   emailEl.value = (!isNaN(idx) && managers[idx]) ? (managers[idx].Email || '') : '';
@@ -2393,13 +2614,16 @@ function autofillCreatorEmail() {
 
 async function submitCreateSchedule() {
   var search = (document.getElementById('schedCandSearch').value||'').trim().toLowerCase();
-  var mgrInfo = getSelectedManagerInfo();
+  // 如果使用者填了主管欄位但忘記按「＋加入」，先幫忙加入一次，避免白填
+  if (!scheduleManagerList.length) {
+    var current = getSelectedManagerInfo();
+    if (current.name && current.email) scheduleManagerList.push({name: current.name, email: current.email});
+  }
   var creatorEmail = (document.getElementById('schedCreatorEmail').value||'').trim();
   var creatorName = (document.getElementById('schedCreatorName').value||'').trim();
   if (!search) { showToast('請輸入人選姓名或履歷代碼'); return; }
   if (!creatorEmail) { showToast('請輸入你的 Email，主管回信時才會寄到你的信箱'); return; }
-  if (!mgrInfo.name) { showToast('請選擇或輸入主管姓名'); return; }
-  if (!mgrInfo.email) { showToast('請選擇或輸入主管 Email'); return; }
+  if (!scheduleManagerList.length) { showToast('請至少加入一位主管'); return; }
   var matched = allData.filter(function(d){
     var resumeKey = findResumeCodeKey(d);
     return String(d.Name||'').toLowerCase().includes(search) || String(d[resumeKey]||'').toLowerCase().includes(search);
@@ -2408,8 +2632,9 @@ async function submitCreateSchedule() {
   if (matched.length > 1) { showToast('找到 '+matched.length+' 筆符合的人選，請輸入更精確的姓名或履歷代碼'); return; }
   var cand = matched[0];
   var resumeKey2 = findResumeCodeKey(cand);
+  var managersToSend = scheduleManagerList.slice();
   closeScheduleModal();
-  showToast('建立中，正在寄信給主管...');
+  showToast('建立中，正在寄信給 '+managersToSend.length+' 位主管...');
   try {
     var url = APPS_SCRIPT_URL + '?action=createSchedule'
       + '&resumeCode=' + encodeURIComponent(cand[resumeKey2]||'')
@@ -2417,15 +2642,14 @@ async function submitCreateSchedule() {
       + '&bu=' + encodeURIComponent(cand.BU||'')
       + '&jobFunction=' + encodeURIComponent(cand['Job Function']||'')
       + '&round=' + encodeURIComponent(document.getElementById('schedRound').value||'')
-      + '&managerName=' + encodeURIComponent(mgrInfo.name)
-      + '&managerEmail=' + encodeURIComponent(mgrInfo.email)
+      + '&managers=' + encodeURIComponent(JSON.stringify(managersToSend))
       + '&createdByName=' + encodeURIComponent(creatorName)
       + '&createdByEmail=' + encodeURIComponent(creatorEmail)
       + '&createdBy=' + encodeURIComponent(userRole||'');
     await fetch(url, {mode:'no-cors'});
     await fetchData();
     if (currentTab === 'schedule') renderSchedule();
-    showToast('✓ 已建立邀約並寄信給主管');
+    showToast('✓ 已建立邀約並寄信給 '+managersToSend.length+' 位主管');
   } catch(e) {
     showToast('❌ 建立失敗：'+e.message);
   }
@@ -2477,7 +2701,24 @@ async function saveFinalTime(btn) {
   }
 }
 
-// ---- 簡易日期關鍵字比對（僅供參考提示，非精準比對，請務必人工再次確認）----
+// Recruiter/BP 直接在後台代填主管方便時間（不透過寄信連結）
+async function saveManagerAvailability(btn) {
+  var token = btn.getAttribute('data-token');
+  var textarea = document.querySelector('.sched-mgr-input[data-token="'+token+'"]');
+  var text = textarea ? textarea.value : '';
+  showToast('儲存中...');
+  try {
+    var url = APPS_SCRIPT_URL + '?action=updateManagerAvailability&token=' + encodeURIComponent(token) + '&text=' + encodeURIComponent(text);
+    await fetch(url, {mode:'no-cors'});
+    await fetchData();
+    if (currentTab === 'schedule') renderSchedule();
+    showToast('✓ 已儲存主管方便時間');
+  } catch(e) {
+    showToast('❌ 儲存失敗：'+e.message);
+  }
+}
+
+// ---- 簡易日期／時段關鍵字比對（僅供參考提示，非精準比對，請務必人工再次確認）----
 function extractDateHints(text) {
   text = String(text||'');
   var hints = [];
@@ -2492,11 +2733,47 @@ function extractDateHints(text) {
   return [...new Set(hints)];
 }
 
+// 抓出文字中的時間段，例如 9:30~11:00、15:00-17:30、9:30到11:00
+function extractTimeRanges(text) {
+  text = String(text||'');
+  var ranges = [];
+  var re = /(\d{1,2}):(\d{2})\s*[~\-–到至]\s*(\d{1,2}):(\d{2})/g;
+  var m;
+  while ((m = re.exec(text))) {
+    var start = parseInt(m[1])*60 + parseInt(m[2]);
+    var end = parseInt(m[3])*60 + parseInt(m[4]);
+    if (end > start) ranges.push({start:start, end:end});
+  }
+  return ranges;
+}
+
+function minutesToHHMM(mins) {
+  var h = Math.floor(mins/60), m = mins%60;
+  return (h<10?'0'+h:h)+':'+(m<10?'0'+m:m);
+}
+
+// 找出雙方時間段裡實際重疊的區間（例如 9:00~11:00 跟 10:00~12:00 → 重疊 10:00~11:00）
+function findOverlappingTimeRanges(textA, textB) {
+  var a = extractTimeRanges(textA);
+  var b = extractTimeRanges(textB);
+  var hints = [];
+  a.forEach(function(ra){
+    b.forEach(function(rb){
+      var start = Math.max(ra.start, rb.start);
+      var end = Math.min(ra.end, rb.end);
+      if (end > start) hints.push(minutesToHHMM(start)+'~'+minutesToHHMM(end));
+    });
+  });
+  return [...new Set(hints)];
+}
+
 function findSuggestedOverlap(managerText, candidateText) {
   if (!managerText || !candidateText) return [];
   var mgrHints = extractDateHints(managerText);
   var candHints = extractDateHints(candidateText);
-  return mgrHints.filter(function(h){ return candHints.indexOf(h) >= 0; });
+  var dateOverlap = mgrHints.filter(function(h){ return candHints.indexOf(h) >= 0; });
+  var timeOverlap = findOverlappingTimeRanges(managerText, candidateText);
+  return dateOverlap.concat(timeOverlap);
 }
 
 function scheduleStatusStyle(status) {
@@ -2506,6 +2783,21 @@ function scheduleStatusStyle(status) {
   return {bg:'var(--gray-bg)', text:'var(--gray-text)'};
 }
 
+function groupScheduleData() {
+  var groups = {};
+  var order = [];
+  scheduleData.forEach(function(r){
+    var gid = r.GroupId || r.Token; // 舊資料沒有 GroupId 的話，自己單獨成一組
+    if (!groups[gid]) {
+      groups[gid] = { key: gid, name: r.Name, jobFunction: r.JobFunction, round: r.Round,
+        createdAt: r.CreatedAt, createdByName: r.CreatedByName, createdByEmail: r.CreatedByEmail, rows: [] };
+      order.push(gid);
+    }
+    groups[gid].rows.push(r);
+  });
+  return order.map(function(gid){ return groups[gid]; });
+}
+
 function renderSchedule() {
   var container = document.getElementById('scheduleList');
   if (!container) return;
@@ -2513,44 +2805,54 @@ function renderSchedule() {
     container.innerHTML = '<div class="empty" style="padding:30px 0;text-align:center;">尚無面試時間邀約，點擊右上角「＋ 建立面試時間邀約」開始</div>';
     return;
   }
-  var sorted = scheduleData.slice().sort(function(a,b){
-    return String(b.CreatedAt||'').localeCompare(String(a.CreatedAt||''));
+  var groups = groupScheduleData().sort(function(a,b){
+    return String(b.createdAt||'').localeCompare(String(a.createdAt||''));
   });
-  container.innerHTML = sorted.map(function(r){
-    var overlap = findSuggestedOverlap(r.ManagerAvailability, r.CandidateAvailability);
-    var st = scheduleStatusStyle(r.Status);
-    var link = getManagerScheduleLink(r.Token);
-    var tokenSafe = String(r.Token||'').replace(/"/g,'&quot;');
-    return '<div class="mini-card" style="padding:18px 20px;margin-bottom:14px;">'+
-      '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;flex-wrap:wrap;gap:8px;">'+
-        '<div>'+
-          '<div style="font-size:15px;font-weight:700;">'+(r.Name||'')+' <span style="font-weight:400;font-size:12px;color:var(--text-secondary);">'+(r.JobFunction||'')+(r.Round?' · '+r.Round:'')+'</span></div>'+
-          '<div style="font-size:12px;color:var(--text-tertiary);margin-top:2px;">主管：'+(r.ManagerName||'—')+'（'+(r.ManagerEmail||'')+'）</div>'+
-          '<div style="font-size:11px;color:var(--text-tertiary);margin-top:2px;">建立人：'+(r.CreatedByName||'—')+(r.CreatedByEmail?'（'+r.CreatedByEmail+'）':'')+'</div>'+
+
+  container.innerHTML = groups.map(function(g){
+    var repToken = g.rows[0].Token;
+    var candText = g.rows[0].CandidateAvailability || '';
+    var candTokenSafe = String(repToken).replace(/"/g,'&quot;');
+
+    var managerBlocks = g.rows.map(function(r){
+      var overlap = findSuggestedOverlap(r.ManagerAvailability, candText);
+      var st = scheduleStatusStyle(r.Status);
+      var link = getManagerScheduleLink(r.Token);
+      var tokenSafe = String(r.Token||'').replace(/"/g,'&quot;');
+      return '<div style="border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:10px;">'+
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:6px;">'+
+          '<div style="font-size:13px;font-weight:600;">👤 '+(r.ManagerName||'—')+' <span style="font-weight:400;font-size:11px;color:var(--text-tertiary);">'+(r.ManagerEmail||'')+'</span></div>'+
+          '<span style="font-size:11px;font-weight:600;padding:3px 10px;border-radius:10px;background:'+st.bg+';color:'+st.text+';white-space:nowrap;">'+(r.Status||'')+'</span>'+
         '</div>'+
-        '<span style="font-size:11px;font-weight:600;padding:3px 10px;border-radius:10px;background:'+st.bg+';color:'+st.text+';white-space:nowrap;">'+(r.Status||'')+'</span>'+
-      '</div>'+
-      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:10px;">'+
-        '<div>'+
-          '<div style="font-size:10px;font-weight:600;color:var(--text-tertiary);margin-bottom:4px;">主管方便時間</div>'+
-          '<div style="font-size:12px;padding:8px 10px;background:var(--bg);border-radius:8px;min-height:40px;white-space:pre-wrap;">'+(r.ManagerAvailability||'尚未填寫')+'</div>'+
+        '<div style="margin-bottom:8px;">'+
+          '<div style="font-size:10px;font-weight:600;color:var(--text-tertiary);margin-bottom:4px;">主管方便時間（可直接在這裡代填，或等主管透過信件連結自己填寫）</div>'+
+          '<textarea data-token="'+tokenSafe+'" class="sched-mgr-input" placeholder="例如：7/3(四) 9:30~11:00" style="width:100%;font-size:12px;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;min-height:40px;font-family:inherit;resize:vertical;box-sizing:border-box;">'+(r.ManagerAvailability||'')+'</textarea>'+
         '</div>'+
-        '<div>'+
-          '<div style="font-size:10px;font-weight:600;color:var(--text-tertiary);margin-bottom:4px;">候選人／HR 方便時間</div>'+
-          '<textarea data-token="'+tokenSafe+'" class="sched-cand-input" placeholder="電訪／Line 詢問候選人後，在此輸入方便時間" style="width:100%;font-size:12px;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;min-height:40px;font-family:inherit;resize:vertical;box-sizing:border-box;">'+(r.CandidateAvailability||'')+'</textarea>'+
+        (overlap.length
+          ? '<div style="font-size:12px;background:var(--teal-bg);color:var(--teal-text);padding:8px 10px;border-radius:8px;margin-bottom:8px;">💡 系統偵測到可能重疊：<b>'+overlap.join('、')+'</b>（僅供參考，請人工再次確認實際時間）</div>'
+          : (r.ManagerAvailability && candText
+            ? '<div style="font-size:12px;background:var(--amber-bg);color:var(--amber-text);padding:8px 10px;border-radius:8px;margin-bottom:8px;">⚠️ 系統無法自動判斷共同時段，請人工比對主管與候選人的時間文字</div>'
+            : ''))+
+        '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">'+
+          '<button class="refresh-btn" style="margin-left:0;" data-token="'+tokenSafe+'" onclick="saveManagerAvailability(this)">儲存主管時間</button>'+
+          '<button class="refresh-btn" style="margin-left:0;" data-link="'+link+'" onclick="copyManagerLink(this)">複製主管填寫連結</button>'+
+          '<input type="text" class="sched-final-input" data-token="'+tokenSafe+'" placeholder="最終確認時間" value="'+(r.FinalConfirmedTime||'').toString().replace(/"/g,'&quot;')+'" style="flex:1;min-width:150px;font-size:12px;padding:6px 10px;border:1.5px solid var(--border);border-radius:8px;">'+
+          '<button class="lock-btn" style="width:auto;margin-top:0;padding:6px 14px;" data-token="'+tokenSafe+'" onclick="saveFinalTime(this)">確認此時間</button>'+
         '</div>'+
+      '</div>';
+    }).join('');
+
+    return '<div class="mini-card" style="padding:18px 20px;margin-bottom:16px;">'+
+      '<div style="margin-bottom:12px;">'+
+        '<div style="font-size:15px;font-weight:700;">'+(g.name||'')+' <span style="font-weight:400;font-size:12px;color:var(--text-secondary);">'+(g.jobFunction||'')+(g.round?' · '+g.round:'')+'</span></div>'+
+        '<div style="font-size:11px;color:var(--text-tertiary);margin-top:2px;">建立人：'+(g.createdByName||'—')+(g.createdByEmail?'（'+g.createdByEmail+'）':'')+' ・ 共邀請 '+g.rows.length+' 位主管</div>'+
       '</div>'+
-      (overlap.length
-        ? '<div style="font-size:12px;background:var(--teal-bg);color:var(--teal-text);padding:8px 10px;border-radius:8px;margin-bottom:10px;">💡 系統偵測到雙方都提到：<b>'+overlap.join('、')+'</b>（僅供參考，請人工再次確認實際時間）</div>'
-        : (r.ManagerAvailability && r.CandidateAvailability
-          ? '<div style="font-size:12px;background:var(--amber-bg);color:var(--amber-text);padding:8px 10px;border-radius:8px;margin-bottom:10px;">⚠️ 系統無法自動判斷共同時段，請人工比對左右兩邊文字</div>'
-          : ''))+
-      '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">'+
-        '<button class="refresh-btn" style="margin-left:0;" data-token="'+tokenSafe+'" onclick="saveCandAvailability(this)">儲存候選人時間</button>'+
-        '<button class="refresh-btn" style="margin-left:0;" data-link="'+link+'" onclick="copyManagerLink(this)">複製主管填寫連結</button>'+
-        '<input type="text" class="sched-final-input" data-token="'+tokenSafe+'" placeholder="最終確認時間（人工填寫後自行通知三方）" value="'+(r.FinalConfirmedTime||'').toString().replace(/"/g,'&quot;')+'" style="flex:1;min-width:180px;font-size:12px;padding:6px 10px;border:1.5px solid var(--border);border-radius:8px;">'+
-        '<button class="lock-btn" style="width:auto;margin-top:0;padding:6px 14px;" data-token="'+tokenSafe+'" onclick="saveFinalTime(this)">確認最終時間</button>'+
+      '<div style="margin-bottom:14px;">'+
+        '<div style="font-size:10px;font-weight:600;color:var(--text-tertiary);margin-bottom:4px;">候選人／HR 方便時間（會套用到下面全部主管）</div>'+
+        '<textarea data-token="'+candTokenSafe+'" class="sched-cand-input" placeholder="電訪／Line 詢問候選人後，在此輸入方便時間" style="width:100%;font-size:12px;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;min-height:40px;font-family:inherit;resize:vertical;box-sizing:border-box;">'+candText+'</textarea>'+
+        '<div style="margin-top:6px;"><button class="refresh-btn" style="margin-left:0;" data-token="'+candTokenSafe+'" onclick="saveCandAvailability(this)">儲存候選人／HR 時間</button></div>'+
       '</div>'+
+      managerBlocks+
     '</div>';
   }).join('');
 }
