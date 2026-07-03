@@ -770,7 +770,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
 <script>
 var APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby0h1OkoC_xNWeAAbuh4cBicbTl4B8g1KDtL-s2YK9f80TYjIyxQtdeu9RkWFQVtY3pnw/exec';
 var userRole = null;
-var allData=[], piData=[], salaryData=[], scheduleData=[], managerDirectoryData=[], resultOptions=[];
+var allData=[], piData=[], salaryData=[], scheduleData=[], managerDirectoryData=[], resultOptions=[], positionOptions=[];
 var currentTab='kanban';
 var ovBU='all', ovPos='all';
 var piBU='all', piPos='all', piResult='all';
@@ -966,6 +966,7 @@ async function fetchData() {
     scheduleData=(json.scheduleRecords||[]).filter(function(d){return d.Token;});
     managerDirectoryData=(json.managerDirectory||[]).filter(function(d){return d.Name;});
     resultOptions=(json.resultOptions||[]).map(function(v){return String(v).trim();}).filter(Boolean);
+    positionOptions=(json.positionOptions||[]).map(function(v){return String(v).trim();}).filter(Boolean);
     headcountDropdownData = json.headcountDropdowns || {};
     rebuildHeadcountDropdowns();
     loadHeadcountData(json.headcount||[]);
@@ -1169,8 +1170,15 @@ function renderKanban() {
   document.getElementById('kanbanBoard').innerHTML=boardHtml;
 
   // 折疊區
+  // 折疊區：除了固定的「結束/不推進」分類，任何不屬於電訪/面試/錄取/結束這幾個既定分類的 Result 值
+  // （例如試算表裡新增、但還沒被歸類進上面陣列的狀態）也要能顯示出來，不然這些人選會直接從畫面上消失
+  var knownKbStages = PHONE_STAGES.concat(INTERVIEW_STAGES, OFFER_STAGES, COLLAPSE_STAGES);
+  var otherKbStages = [...new Set(filtered.map(function(d){ return String(d.Result||'').trim(); }))]
+    .filter(function(s){ return s && knownKbStages.indexOf(s) < 0; });
+  var collapseStagesToShow = COLLAPSE_STAGES.concat(otherKbStages);
+
   var collapseHtml='';
-  COLLAPSE_STAGES.forEach(function(stage){
+  collapseStagesToShow.forEach(function(stage){
     var cands=filtered.filter(function(d){return d.Result===stage;});
     if(!cands.length) return;
     var color=STAGE_COLORS[stage]||'#9CA3AF';
@@ -2014,6 +2022,15 @@ function getResultOptions() {
   return base;
 }
 
+// 104_Position 選項：優先用試算表的資料驗證清單（可能列出還沒被用過的職缺），
+// 同時保險加入實際資料裡出現過的值，確保兩邊都不會漏
+function getPositionOptions() {
+  var base = positionOptions && positionOptions.length ? positionOptions.slice() : [];
+  var actualValues = [...new Set(allData.map(function(d){ return String(d['104_Position']||'').trim(); }))].filter(Boolean);
+  actualValues.forEach(function(v){ if (base.indexOf(v) < 0) base.push(v); });
+  return base;
+}
+
 // Headcount Records 各欄位的下拉選單選項（來自試算表的資料驗證規則，fetchData 時載入）
 var headcountDropdownData = {};
 function rebuildHeadcountDropdowns() {
@@ -2029,7 +2046,7 @@ var MAINTAIN_DROPDOWNS = {
   'Candidate Records': {
     'BU': function(){ return [...new Set(allData.map(function(d){return String(d.BU||'').trim();}))].filter(Boolean).sort(); },
     'Job Function': function(){ return [...new Set(allData.map(function(d){return String(d['Job Function']||'').trim();}))].filter(Boolean).sort(); },
-    '104_Position': function(){ return [...new Set(allData.map(function(d){return String(d['104_Position']||'').trim();}))].filter(Boolean).sort(); },
+    '104_Position': function(){ return getPositionOptions(); },
     'Source': function(){ return [...new Set(allData.map(function(d){return String(d.Source||'').trim();}))].filter(Boolean).sort(); },
     'Inviter': function(){ return [...new Set(allData.map(function(d){return String(d.Inviter||'').trim();}))].filter(Boolean).sort(); },
     'Result': function(){ return getResultOptions(); }
