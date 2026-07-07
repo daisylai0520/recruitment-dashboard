@@ -54,6 +54,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
 .bu-btn,.pos-btn{font-size:12px;font-weight:500;padding:4px 12px;border-radius:20px;border:1.5px solid var(--border);cursor:pointer;background:var(--surface);color:var(--text-secondary);transition:all .15s;white-space:nowrap;}
 .bu-btn:hover,.pos-btn:hover{border-color:var(--accent);color:var(--accent);}
 .bu-btn.active,.pos-btn.active{background:var(--accent);border-color:var(--accent);color:#fff;}
+.filter-selectall-btn{font-size:12px;font-weight:600;color:var(--accent);background:none;border:none;cursor:pointer;padding:5px 8px;text-decoration:underline;white-space:nowrap;}
 .filter-divider{width:1px;background:var(--border);align-self:stretch;margin:0 4px;}
 .search-wrap{display:flex;flex-direction:column;gap:6px;}
 .search-label{font-size:10px;font-weight:600;color:var(--text-tertiary);letter-spacing:.08em;text-transform:uppercase;}
@@ -65,7 +66,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
 .kanban-board{display:flex;gap:12px;min-width:max-content;align-items:flex-start;}
 .kanban-phase{display:flex;gap:10px;}
 .kanban-phase-divider{width:2px;background:var(--border);border-radius:2px;align-self:stretch;margin:0 4px;min-height:200px;}
-.kanban-col{width:140px;flex-shrink:0;}
+.kanban-col{width:auto;min-width:110px;max-width:220px;flex-shrink:0;}
 .kanban-col-hdr{padding:10px 12px;border-radius:8px 8px 0 0;font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;border-bottom:3px solid transparent;}
 .kanban-col-count{font-size:11px;font-weight:500;padding:1px 7px;border-radius:10px;background:rgba(255,255,255,.5);}
 .kanban-cards{display:flex;flex-direction:column;gap:6px;min-height:80px;}
@@ -264,7 +265,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
     <div class="tab" data-tab-role="both" onclick="switchTab('hc',this)">Headcount Overview</div>
     <div class="tab" data-tab-role="both" onclick="switchTab('schedule',this)">面試時間協調</div>
     <div class="tab" data-tab-role="both" onclick="switchTab('salary',this)">Market Salary Records</div>
-    <div class="tab" data-tab-role="recruiter" onclick="switchTab('maintain',this)">資料維護</div>
+    <div class="tab" data-tab-role="both" onclick="switchTab('maintain',this)">資料維護</div>
   </div>
 
   <div class="error-banner" id="errorBanner"></div>
@@ -289,21 +290,17 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
     <div class="filter-bar" style="margin-bottom:20px;">
       <div class="filter-group">
         <div class="filter-group-label">單位</div>
-        <div class="filter-btns" id="kbBuBar"><button class="bu-btn active" onclick="kbFilter('bu','all',this)">全部單位</button></div>
+        <div class="filter-btns" id="kbBuBar"></div>
       </div>
       <div class="filter-divider"></div>
       <div class="filter-group">
         <div class="filter-group-label">Job Function</div>
-        <div class="filter-btns" id="kbJobBar">
-          <button class="pos-btn active" onclick="kbFilter('pos','all',this)">全部 Job Function</button>
-          <button class="pos-btn" onclick="kbFilter('pos','Sales',this)">Sales</button>
-          <button class="pos-btn" onclick="kbFilter('pos','FAE',this)">FAE</button>
-        </div>
+        <div class="filter-btns" id="kbJobBar"></div>
       </div>
       <div class="filter-divider"></div>
       <div class="filter-group">
         <div class="filter-group-label">目前狀態</div>
-        <div class="filter-btns" id="kbResultBar"><button class="pos-btn active" data-result="all" onclick="kbFilter('result',this.getAttribute('data-result'),this)">全部</button></div>
+        <div class="filter-btns" id="kbResultBar"></div>
       </div>
       <div class="filter-divider"></div>
       <div id="kbDateFilterSlot"></div>
@@ -323,7 +320,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
     <div class="filter-bar">
       <div class="filter-group">
         <div class="filter-group-label">單位</div>
-        <div class="filter-btns" id="offersBuBar"><button class="bu-btn active" onclick="offersFilter('bu','all',this)">全部單位</button></div>
+        <div class="filter-btns" id="offersBuBar"></div>
       </div>
       <div class="filter-divider"></div>
       <div class="filter-group">
@@ -359,16 +356,12 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
     <div class="filter-bar">
       <div class="filter-group">
         <div class="filter-group-label">單位</div>
-        <div class="filter-btns" id="ovBuBar"><button class="bu-btn active" onclick="ovFilter('bu','all',this)">全部單位</button></div>
+        <div class="filter-btns" id="ovBuBar"></div>
       </div>
       <div class="filter-divider"></div>
       <div class="filter-group">
         <div class="filter-group-label">Job Function</div>
-        <div class="filter-btns">
-          <button class="pos-btn active" onclick="ovFilter('pos','all',this)">全部 Job Function</button>
-          <button class="pos-btn" onclick="ovFilter('pos','Sales',this)">Sales</button>
-          <button class="pos-btn" onclick="ovFilter('pos','FAE',this)">FAE</button>
-        </div>
+        <div class="filter-btns" id="ovJobBar"></div>
       </div>
       <div class="filter-divider"></div>
       <div id="ovDateFilterSlot"></div>
@@ -468,21 +461,17 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
     <div class="filter-bar">
       <div class="filter-group">
         <div class="filter-group-label">單位</div>
-        <div class="filter-btns" id="piBuBar"><button class="bu-btn active" onclick="piFilter('bu','all',this)">全部單位</button></div>
+        <div class="filter-btns" id="piBuBar"></div>
       </div>
       <div class="filter-divider"></div>
       <div class="filter-group">
         <div class="filter-group-label">Job Function</div>
-        <div class="filter-btns" id="piJobBar">
-          <button class="pos-btn active" onclick="piFilter('pos','all',this)">全部 Job Function</button>
-          <button class="pos-btn" onclick="piFilter('pos','Sales',this)">Sales</button>
-          <button class="pos-btn" onclick="piFilter('pos','FAE',this)">FAE</button>
-        </div>
+        <div class="filter-btns" id="piJobBar"></div>
       </div>
       <div class="filter-divider"></div>
       <div class="filter-group">
         <div class="filter-group-label">目前狀態</div>
-        <div class="filter-btns" id="piResultBar"><button class="pos-btn active" data-result="all" onclick="piFilter('result',this.getAttribute('data-result'),this)">全部</button></div>
+        <div class="filter-btns" id="piResultBar"></div>
       </div>
       <div class="filter-divider"></div>
       <div id="piDateFilterSlot"></div>
@@ -516,12 +505,12 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
       <div class="filter-bar" id="hcFilterBar">
         <div class="filter-group">
           <div class="filter-group-label">單位</div>
-          <div class="filter-btns" id="hcBuBar"><button class="bu-btn active" onclick="hcFilter('bu','all',this)">全部單位</button></div>
+          <div class="filter-btns" id="hcBuBar"></div>
         </div>
         <div class="filter-divider"></div>
         <div class="filter-group">
           <div class="filter-group-label">Job Function</div>
-          <div class="filter-btns" id="hcJobBar"><button class="pos-btn active" onclick="hcFilter('job','all',this)">全部</button></div>
+          <div class="filter-btns" id="hcJobBar"></div>
         </div>
         <div class="filter-divider"></div>
         <div id="hcDateFilterSlot"></div>
@@ -600,17 +589,17 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
       <div class="filter-bar" style="margin-bottom:20px;">
         <div class="filter-group">
           <div class="filter-group-label">單位</div>
-          <div class="filter-btns" id="candBuBar"><button class="bu-btn active" data-bu="all" onclick="candFilter('bu',this.getAttribute('data-bu'),this)">全部單位</button></div>
+          <div class="filter-btns" id="candBuBar"></div>
         </div>
         <div class="filter-divider"></div>
         <div class="filter-group">
           <div class="filter-group-label">Job Function</div>
-          <div class="filter-btns" id="candJobBar"><button class="pos-btn active" data-job="all" onclick="candFilter('job',this.getAttribute('data-job'),this)">全部</button></div>
+          <div class="filter-btns" id="candJobBar"></div>
         </div>
         <div class="filter-divider"></div>
         <div class="filter-group">
           <div class="filter-group-label">目前狀態</div>
-          <div class="filter-btns" id="candResultBar"><button class="pos-btn active" data-result="all" onclick="candFilter('result',this.getAttribute('data-result'),this)">全部</button></div>
+          <div class="filter-btns" id="candResultBar"></div>
         </div>
       </div>
       <div id="candQueryResults"></div>
@@ -772,9 +761,7 @@ var APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby0h1OkoC_xNWeAAb
 var userRole = null;
 var allData=[], piData=[], salaryData=[], scheduleData=[], managerDirectoryData=[], resultOptions=[], positionOptions=[];
 var currentTab='kanban';
-var ovBU='all', ovPos='all';
-var piBU='all', piPos='all', piResult='all';
-var kbBU='all', kbPos='all', kbResult='all';
+// 舊的單選篩選狀態變數已改用 multiFilterState（見下方通用多選篩選元件），這裡保留 activeFilter 給 Recruitment Status 用
 var activeFilter=null;
 var selectedCard=null;
 
@@ -971,19 +958,6 @@ async function fetchData() {
     rebuildHeadcountDropdowns();
     loadHeadcountData(json.headcount||[]);
     maintainHeaders = json.sheetHeaders || {};
-    var bus=[...new Set(allData.map(function(d){return String(d.BU||'').trim();}))].filter(Boolean).sort();
-    ['kbBuBar','ovBuBar'].forEach(function(barId){
-      var filterFn=barId==='kbBuBar'?'kbFilter':'ovFilter';
-      var cur=barId==='kbBuBar'?kbBU:ovBU;
-      document.getElementById(barId).innerHTML=
-        '<button class="bu-btn '+(cur==='all'?'active':'')+'" onclick="'+filterFn+'(\'bu\',\'all\',this)">全部單位</button>'+
-        bus.map(function(b){return '<button class="bu-btn '+(cur===b?'active':'')+'" onclick="'+filterFn+'(\'bu\',\''+b+'\',this)">'+b+'</button>';}).join('');
-    });
-    var piBus=[...new Set(piData.map(function(d){return String(d.BU||'').trim();}))].filter(Boolean).sort();
-    document.getElementById('piBuBar').innerHTML=
-      '<button class="bu-btn '+(piBU==='all'?'active':'')+'" onclick="piFilter(\'bu\',\'all\',this)">全部單位</button>'+
-      piBus.map(function(b){return '<button class="bu-btn '+(piBU===b?'active':'')+'" onclick="piFilter(\'bu\',\''+b+'\',this)">'+b+'</button>';}).join('');
-    renderCandFilterBars();
     dot.className='sync-dot';
     var now=new Date();
     txt.textContent='已同步 '+String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
@@ -1065,39 +1039,6 @@ function switchTab(tab,el) {
 }
 
 // ---- filter helpers ----
-function kbFilter(type,val,el){
-  if (type === 'bu') {
-    kbBU = val;
-    document.querySelectorAll('#kbBuBar .bu-btn').forEach(function(b){b.classList.remove('active');});
-  } else if (type === 'pos') {
-    kbPos = val;
-    document.querySelectorAll('#kbJobBar .pos-btn').forEach(function(b){b.classList.remove('active');});
-  } else if (type === 'result') {
-    kbResult = val;
-    document.querySelectorAll('#kbResultBar .pos-btn').forEach(function(b){b.classList.remove('active');});
-  }
-  el.classList.add('active'); renderKanban();
-}
-function ovFilter(type,val,el){
-  if(type==='bu') ovBU=val; else ovPos=val;
-  document.querySelectorAll('#ovBuBar .bu-btn, #view-overview .pos-btn').forEach(function(b){
-    if((type==='bu'&&b.closest('#ovBuBar'))||(type==='pos'&&!b.closest('#ovBuBar'))) b.classList.remove('active');
-  });
-  el.classList.add('active'); renderOverview();
-}
-function piFilter(type,val,el){
-  if (type === 'bu') {
-    piBU = val;
-    document.querySelectorAll('#piBuBar .bu-btn').forEach(function(b){b.classList.remove('active');});
-  } else if (type === 'pos') {
-    piPos = val;
-    document.querySelectorAll('#piJobBar .pos-btn').forEach(function(b){b.classList.remove('active');});
-  } else if (type === 'result') {
-    piResult = val;
-    document.querySelectorAll('#piResultBar .pos-btn').forEach(function(b){b.classList.remove('active');});
-  }
-  el.classList.add('active'); renderPi();
-}
 function toggleFilter(stage){activeFilter=activeFilter===stage?null:stage;renderOverview();}
 function toggleCollapse(type){
   var body=document.getElementById('cb-'+type), arrow=document.getElementById('ca-'+type);
@@ -1109,18 +1050,16 @@ function renderKanban() {
   var search=(document.getElementById('kbSearch')?document.getElementById('kbSearch').value:'').toLowerCase();
   var now=new Date(); now.setHours(0,0,0,0);
 
-  var resultBarEl = document.getElementById('kbResultBar');
-  if (resultBarEl) {
-    var kbResultOptions = getResultOptions();
-    resultBarEl.innerHTML =
-      '<button class="pos-btn '+(kbResult==='all'?'active':'')+'" data-result="all" onclick="kbFilter(\'result\',this.getAttribute(\'data-result\'),this)">全部</button>'+
-      kbResultOptions.map(function(r){return '<button class="pos-btn '+(kbResult===r?'active':'')+'" data-result="'+r.replace(/"/g,'&quot;')+'" onclick="kbFilter(\'result\',this.getAttribute(\'data-result\'),this)">'+r+'</button>';}).join('');
-  }
+  var kbBuOptions = [...new Set(allData.map(function(d){return String(d.BU||'').trim();}))].filter(Boolean).sort();
+  renderMultiFilterBar('kbBuBar', 'kb-bu', kbBuOptions);
+  var kbJobOptions = [...new Set(allData.map(function(d){return String(d['Job Function']||'').trim();}))].filter(Boolean).sort();
+  renderMultiFilterBar('kbJobBar', 'kb-job', kbJobOptions);
+  renderMultiFilterBar('kbResultBar', 'kb-result', getResultOptions());
 
   var filtered=allData.filter(function(d){
-    if((kbBU!=='all'&&String(d.BU||'').trim()!==kbBU)) return false;
-    if((kbPos!=='all'&&!String(d['Job Function']||'').includes(kbPos))) return false;
-    if((kbResult!=='all'&&String(d.Result||'').trim()!==kbResult)) return false;
+    if(!multiFilterPass('kb-bu', d.BU)) return false;
+    if(!multiFilterPass('kb-job', d['Job Function'])) return false;
+    if(!multiFilterPass('kb-result', d.Result)) return false;
     if(search&&!String(d.Name||'').toLowerCase().includes(search)) return false;
     if(!dateFilterPass('kanban', d)) return false;
     // 超過7天未回覆不顯示
@@ -1202,8 +1141,8 @@ function renderKanban() {
   // ---- 轉換率計算 ----
   // 分母：所有狀態非「HR不邀約電訪」的人選；分子：狀態為「錄取」的人選
   var convBase = allData.filter(function(d){
-    return (kbBU==='all'||String(d.BU||'').trim()===kbBU) &&
-           (kbPos==='all'||String(d['Job Function']||'').includes(kbPos)) &&
+    return multiFilterPass('kb-bu', d.BU) &&
+           multiFilterPass('kb-job', d['Job Function']) &&
            d.Result !== 'HR不邀約電訪';
   });
   var convOffer = convBase.filter(function(d){return d.Result==='錄取';});
@@ -1301,9 +1240,15 @@ async function changeStage(newStage) {
 // ---- OVERVIEW ----
 function renderOverview() {
   var search=(document.getElementById('ovSearch')?document.getElementById('ovSearch').value:'').toLowerCase();
+
+  var ovBuOptions = [...new Set(allData.map(function(d){return String(d.BU||'').trim();}))].filter(Boolean).sort();
+  renderMultiFilterBar('ovBuBar', 'ov-bu', ovBuOptions);
+  var ovJobOptions = [...new Set(allData.map(function(d){return String(d['Job Function']||'').trim();}))].filter(Boolean).sort();
+  renderMultiFilterBar('ovJobBar', 'ov-job', ovJobOptions);
+
   var filtered=allData.filter(function(d){
-    return (ovBU==='all'||String(d.BU||'').trim()===ovBU) &&
-           (ovPos==='all'||String(d['Job Function']||'').includes(ovPos)) &&
+    return multiFilterPass('ov-bu', d.BU) &&
+           multiFilterPass('ov-job', d['Job Function']) &&
            (!search||String(d.Name||'').toLowerCase().includes(search)) &&
            dateFilterPass('overview', d);
   });
@@ -1342,10 +1287,17 @@ function renderOverview() {
 // ---- PI ----
 function renderPi() {
   var search=(document.getElementById('piSearch')?document.getElementById('piSearch').value:'').toLowerCase();
+
+  var piBuOptions = [...new Set(piData.map(function(d){return String(d.BU||'').trim();}))].filter(Boolean).sort();
+  renderMultiFilterBar('piBuBar', 'pi-bu', piBuOptions);
+  var piJobOptions = [...new Set(piData.map(function(d){return String(d['Job Function']||'').trim();}))].filter(Boolean).sort();
+  renderMultiFilterBar('piJobBar', 'pi-job', piJobOptions);
+  renderMultiFilterBar('piResultBar', 'pi-result', getResultOptions());
+
   var filtered=piData.filter(function(d){
-    return (piBU==='all'||String(d.BU||'').trim()===piBU) &&
-           (piPos==='all'||String(d['Job Function']||'').includes(piPos)) &&
-           (piResult==='all'||String(d.Result||'').trim()===piResult) &&
+    return multiFilterPass('pi-bu', d.BU) &&
+           multiFilterPass('pi-job', d['Job Function']) &&
+           multiFilterPass('pi-result', d.Result) &&
            (!search||String(d.Name||'').toLowerCase().includes(search)||String(d['Job Function']||'').toLowerCase().includes(search)) &&
            dateFilterPass('pi', d);
   });
@@ -1355,14 +1307,6 @@ function renderPi() {
     return tsa-tsb;
   });
   document.getElementById('piSub').textContent='共 '+filtered.length+' 筆電訪記錄';
-
-  var resultBarEl = document.getElementById('piResultBar');
-  if (resultBarEl) {
-    var piResultOptions = getResultOptions();
-    resultBarEl.innerHTML =
-      '<button class="pos-btn '+(piResult==='all'?'active':'')+'" data-result="all" onclick="piFilter(\'result\',this.getAttribute(\'data-result\'),this)">全部</button>'+
-      piResultOptions.map(function(r){return '<button class="pos-btn '+(piResult===r?'active':'')+'" data-result="'+r.replace(/"/g,'&quot;')+'" onclick="piFilter(\'result\',this.getAttribute(\'data-result\'),this)">'+r+'</button>';}).join('');
-  }
 
   // Phone Interview 工作表的實際欄位（Result 是從 Candidate Records 對應過來的虛擬欄位，不含在裡面）
   var piHeaders = (maintainHeaders['Phone Interview'] || (piData.length ? Object.keys(piData[0]).filter(function(k){return k!=='_row';}) : []))
@@ -1503,9 +1447,6 @@ async function commitPiResult(el) {
 // ===== HEADCOUNT OVERVIEW =====
 // 資料來源：自動從 Apps Script 回傳的 headcount 陣列載入（doGet 已包含 Headcount Records 分頁）
 var hcRawData = [];
-var hcBU = 'all';
-var hcJob = 'all';
-
 function loadHeadcountData(records) {
   hcRawData = records || [];
   document.getElementById('hcEmptyState').style.display = hcRawData.length ? 'none' : '';
@@ -1513,18 +1454,6 @@ function loadHeadcountData(records) {
   document.getElementById('hcSub').textContent = hcRawData.length
     ? '共 '+hcRawData.length+' 筆職缺異動記錄'
     : '尚無 Headcount 資料';
-  renderHeadcount();
-}
-
-function hcFilter(type,val,el) {
-  if(type==='bu') {
-    hcBU=val;
-    document.querySelectorAll('#hcBuBar .bu-btn').forEach(function(b){b.classList.remove('active');});
-  } else if(type==='job') {
-    hcJob=val;
-    document.querySelectorAll('#hcJobBar .pos-btn').forEach(function(b){b.classList.remove('active');});
-  }
-  el.classList.add('active');
   renderHeadcount();
 }
 
@@ -1545,20 +1474,14 @@ function renderHeadcount() {
   var succKey = Object.keys(hcRawData[0]).find(function(k){return k.includes('Successor')||k.trim()==='遞補人員';}) || 'Successor';
   var memoKey = Object.keys(hcRawData[0]).find(function(k){return k.trim()==='Memo';}) || 'Memo';
 
+  var hcBuOptions = [...new Set(hcRawData.map(function(r){return String(r[divKey]||'').trim();}))].filter(Boolean).sort();
+  renderMultiFilterBar('hcBuBar', 'hc-bu', hcBuOptions);
+  var hcJobOptions = [...new Set(hcRawData.map(function(r){return String(r[jobKey]||'').trim();}))].filter(Boolean).sort();
+  renderMultiFilterBar('hcJobBar', 'hc-job', hcJobOptions);
+
   var filtered = hcRawData.filter(function(r){
-    return (hcBU==='all' || String(r[divKey]||'').trim()===hcBU) &&
-           (hcJob==='all' || String(r[jobKey]||'').trim()===hcJob);
+    return multiFilterPass('hc-bu', r[divKey]) && multiFilterPass('hc-job', r[jobKey]);
   });
-
-  var bus = [...new Set(hcRawData.map(function(r){return String(r[divKey]||'').trim();}))].filter(Boolean).sort();
-  document.getElementById('hcBuBar').innerHTML =
-    '<button class="bu-btn '+(hcBU==='all'?'active':'')+'" data-bu="all" onclick="hcFilter(\'bu\',this.getAttribute(\'data-bu\'),this)">全部單位</button>'+
-    bus.map(function(b){return '<button class="bu-btn '+(hcBU===b?'active':'')+'" data-bu="'+b+'" onclick="hcFilter(\'bu\',this.getAttribute(\'data-bu\'),this)">'+b+'</button>';}).join('');
-
-  var jobs = [...new Set(hcRawData.map(function(r){return String(r[jobKey]||'').trim();}))].filter(Boolean).sort();
-  document.getElementById('hcJobBar').innerHTML =
-    '<button class="pos-btn '+(hcJob==='all'?'active':'')+'" data-job="all" onclick="hcFilter(\'job\',this.getAttribute(\'data-job\'),this)">全部</button>'+
-    jobs.map(function(j){return '<button class="pos-btn '+(hcJob===j?'active':'')+'" data-job="'+j+'" onclick="hcFilter(\'job\',this.getAttribute(\'data-job\'),this)">'+j+'</button>';}).join('');
 
   var groups = {};
   filtered.forEach(function(r){
@@ -1707,17 +1630,9 @@ async function saveMemo() {
 }
 
 // ===== OFFER LIST =====
-var offersBU = 'all';
 var _offersNow = new Date();
 var offersYear = String(_offersNow.getFullYear());
 var offersMonth = String(_offersNow.getMonth()+1);
-
-function offersFilter(type, val, el) {
-  if (type === 'bu') offersBU = val;
-  document.querySelectorAll('#offersBuBar .bu-btn').forEach(function(b){b.classList.remove('active');});
-  el.classList.add('active');
-  renderOffers();
-}
 
 function offersFilterYearMonth() {
   offersYear = document.getElementById('offersYearSelect').value;
@@ -1757,16 +1672,11 @@ function renderOffers() {
     return true;
   });
 
-  var buBarEl = document.getElementById('offersBuBar');
-  if (buBarEl) {
-    var bus = [...new Set(offers.map(function(d){return String(d.BU||'').trim();}))].filter(Boolean).sort();
-    buBarEl.innerHTML =
-      '<button class="bu-btn '+(offersBU==='all'?'active':'')+'" data-bu="all" onclick="offersFilter(\'bu\',this.getAttribute(\'data-bu\'),this)">全部單位</button>'+
-      bus.map(function(b){return '<button class="bu-btn '+(offersBU===b?'active':'')+'" data-bu="'+b+'" onclick="offersFilter(\'bu\',this.getAttribute(\'data-bu\'),this)">'+b+'</button>';}).join('');
-  }
+  var offersBuOptions = [...new Set(offers.map(function(d){return String(d.BU||'').trim();}))].filter(Boolean).sort();
+  renderMultiFilterBar('offersBuBar', 'offers-bu', offersBuOptions);
 
   var filtered = offers.filter(function(d){
-    return (offersBU==='all'||String(d.BU||'').trim()===offersBU) &&
+    return multiFilterPass('offers-bu', d.BU) &&
            (!search||String(d.Name||'').toLowerCase().includes(search));
   });
   filtered.sort(function(a,b){
@@ -2004,16 +1914,80 @@ function renderTrends() {
 var maintainSheet = 'Candidate Records';
 var maintainHeaders = {};
 var maintainBU = 'all';
-var candFilterBU = 'all';
-var candFilterJob = 'all';
-var candFilterResult = 'all';
-var salaryBU = 'all';
-var salaryJob = 'all';
+// candFilterBU/Job/Result 已改用 multiFilterState（cand-bu / cand-job / cand-result）
+// salaryBU/salaryJob 已改用 multiFilterState（salary-bu / salary-job）
 
 // 備用清單：試算表尚未設定資料驗證、或資料還沒載入完成時使用
 var FALLBACK_RESULT_OPTIONS = ['未回覆','待排電訪','待電訪','待確認主管邀約電訪意願','待確認主管面試意願','待排面試','待面試','待確認主管錄取意願','待確認人選錄取意願','婉拒電訪','HR不邀約電訪','HR不邀約面試','主管不邀約面試','婉拒面試','錄取','未錄取','婉拒錄取','已面試，排複試','已關閉履歷','思考一下','???'];
 
 // Result 選項一律以 Google 試算表 Candidate Records 的「Result」欄位資料驗證規則為主，若讀不到才用備用清單
+// ============================================================
+// ===== 通用多選篩選元件（全站篩選都共用：可複選、有全選／取消全選）=====
+// ============================================================
+var multiFilterState = {}; // { filterId: { selected:Set, known:Set } }
+var MULTI_FILTER_RERENDER = {}; // filterId -> 對應要重新渲染的畫面函式
+
+function registerMultiFilterRerender(filterId, fn) {
+  MULTI_FILTER_RERENDER[filterId] = fn;
+}
+
+function ensureMultiFilterState(filterId, options) {
+  if (!multiFilterState[filterId]) {
+    multiFilterState[filterId] = { selected: new Set(options), known: new Set(options) };
+  } else {
+    var state = multiFilterState[filterId];
+    var optionSet = new Set(options);
+    // 新出現的選項預設打勾（顯示），不會因為新增了選項就突然被濾掉
+    options.forEach(function(o){
+      if (!state.known.has(o)) { state.known.add(o); state.selected.add(o); }
+    });
+    // 消失的選項（該分類已經沒有任何資料）從清單移除，避免篩選卡住
+    state.known.forEach(function(o){
+      if (!optionSet.has(o)) { state.known.delete(o); state.selected.delete(o); }
+    });
+  }
+  return multiFilterState[filterId];
+}
+
+// 判斷某筆資料的欄位值是否通過篩選；全選狀態下（包含尚未初始化）一律通過，含空白值
+function multiFilterPass(filterId, rawValue) {
+  var state = multiFilterState[filterId];
+  if (!state) return true;
+  if (state.selected.size >= state.known.size) return true;
+  return state.selected.has(String(rawValue||'').trim());
+}
+
+function renderMultiFilterBar(containerId, filterId, options) {
+  var el = document.getElementById(containerId);
+  if (!el) return;
+  var state = ensureMultiFilterState(filterId, options);
+  var allSelected = state.selected.size >= state.known.size;
+  var html = '<button class="filter-selectall-btn" onclick="toggleMultiFilterAll(\''+filterId+'\')">'+(allSelected?'取消全選':'全選')+'</button>';
+  html += options.map(function(o){
+    var active = state.selected.has(o);
+    return '<button class="pos-btn'+(active?' active':'')+'" data-val="'+String(o).replace(/"/g,'&quot;')+'" onclick="toggleMultiFilterOption(\''+filterId+'\',this.getAttribute(\'data-val\'))">'+o+'</button>';
+  }).join('');
+  el.innerHTML = html;
+}
+
+function toggleMultiFilterOption(filterId, val) {
+  var state = multiFilterState[filterId];
+  if (!state) return;
+  if (state.selected.has(val)) state.selected.delete(val); else state.selected.add(val);
+  var fn = MULTI_FILTER_RERENDER[filterId];
+  if (fn) fn();
+}
+
+function toggleMultiFilterAll(filterId) {
+  var state = multiFilterState[filterId];
+  if (!state) return;
+  var allSelected = state.selected.size >= state.known.size;
+  if (allSelected) state.selected.clear();
+  else state.known.forEach(function(o){ state.selected.add(o); });
+  var fn = MULTI_FILTER_RERENDER[filterId];
+  if (fn) fn();
+}
+
 function getResultOptions() {
   var base = (resultOptions && resultOptions.length) ? resultOptions.slice() : FALLBACK_RESULT_OPTIONS.slice();
   // 保險：不管試算表的資料驗證有沒有讀取成功，畫面上實際出現過的 Result 值一定要能被篩選/選到
@@ -2145,46 +2119,23 @@ function findResumeCodeKey(rec) {
   return Object.keys(rec).find(function(k){return k.includes('履歷代碼');}) || '履歷代碼';
 }
 
-function renderCandFilterBars() {
-  var buBar = document.getElementById('candBuBar');
-  var jobBar = document.getElementById('candJobBar');
-  var resultBar = document.getElementById('candResultBar');
-  if (!buBar || !jobBar) return;
-  var bus = [...new Set(allData.map(function(d){return String(d.BU||'').trim();}))].filter(Boolean).sort();
-  buBar.innerHTML =
-    '<button class="bu-btn '+(candFilterBU==='all'?'active':'')+'" data-bu="all" onclick="candFilter(\'bu\',this.getAttribute(\'data-bu\'),this)">全部單位</button>'+
-    bus.map(function(b){return '<button class="bu-btn '+(candFilterBU===b?'active':'')+'" data-bu="'+b+'" onclick="candFilter(\'bu\',this.getAttribute(\'data-bu\'),this)">'+b+'</button>';}).join('');
-  var jobs = [...new Set(allData.map(function(d){return String(d['Job Function']||'').trim();}))].filter(Boolean).sort();
-  jobBar.innerHTML =
-    '<button class="pos-btn '+(candFilterJob==='all'?'active':'')+'" data-job="all" onclick="candFilter(\'job\',this.getAttribute(\'data-job\'),this)">全部</button>'+
-    jobs.map(function(j){return '<button class="pos-btn '+(candFilterJob===j?'active':'')+'" data-job="'+j+'" onclick="candFilter(\'job\',this.getAttribute(\'data-job\'),this)">'+j+'</button>';}).join('');
-  if (resultBar) {
-    var results = getResultOptions();
-    resultBar.innerHTML =
-      '<button class="pos-btn '+(candFilterResult==='all'?'active':'')+'" data-result="all" onclick="candFilter(\'result\',this.getAttribute(\'data-result\'),this)">全部</button>'+
-      results.map(function(r){return '<button class="pos-btn '+(candFilterResult===r?'active':'')+'" data-result="'+r.replace(/"/g,'&quot;')+'" onclick="candFilter(\'result\',this.getAttribute(\'data-result\'),this)">'+r+'</button>';}).join('');
-  }
-}
-
-function candFilter(type, val, el) {
-  if (type === 'bu') {
-    candFilterBU = val;
-    document.querySelectorAll('#candBuBar .bu-btn').forEach(function(b){b.classList.remove('active');});
-  } else if (type === 'job') {
-    candFilterJob = val;
-    document.querySelectorAll('#candJobBar .pos-btn').forEach(function(b){b.classList.remove('active');});
-  } else if (type === 'result') {
-    candFilterResult = val;
-    document.querySelectorAll('#candResultBar .pos-btn').forEach(function(b){b.classList.remove('active');});
-  }
-  el.classList.add('active');
-  renderCandQuery();
+function isMultiFilterNarrowed(filterId) {
+  var state = multiFilterState[filterId];
+  if (!state) return false;
+  return state.selected.size < state.known.size;
 }
 
 function renderCandQuery() {
   var search = (document.getElementById('candQuerySearch').value || '').trim().toLowerCase();
   var container = document.getElementById('candQueryResults');
-  if (!search && candFilterBU==='all' && candFilterJob==='all' && candFilterResult==='all') {
+
+  var candBuOptions = [...new Set(allData.map(function(d){return String(d.BU||'').trim();}))].filter(Boolean).sort();
+  renderMultiFilterBar('candBuBar', 'cand-bu', candBuOptions);
+  var candJobOptions = [...new Set(allData.map(function(d){return String(d['Job Function']||'').trim();}))].filter(Boolean).sort();
+  renderMultiFilterBar('candJobBar', 'cand-job', candJobOptions);
+  renderMultiFilterBar('candResultBar', 'cand-result', getResultOptions());
+
+  if (!search && !isMultiFilterNarrowed('cand-bu') && !isMultiFilterNarrowed('cand-job') && !isMultiFilterNarrowed('cand-result')) {
     container.innerHTML = '<div class="empty" style="padding:30px 0;text-align:center;">請輸入姓名或履歷代碼查詢，或使用上方篩選條件顯示人選</div>';
     return;
   }
@@ -2192,10 +2143,7 @@ function renderCandQuery() {
   var matched = allData.filter(function(d){
     var resumeKey = findResumeCodeKey(d);
     var textMatch = !search || String(d.Name||'').toLowerCase().includes(search) || String(d[resumeKey]||'').toLowerCase().includes(search);
-    var buMatch = candFilterBU==='all' || String(d.BU||'').trim()===candFilterBU;
-    var jobMatch = candFilterJob==='all' || String(d['Job Function']||'').trim()===candFilterJob;
-    var resultMatch = candFilterResult==='all' || String(d.Result||'').trim()===candFilterResult;
-    return textMatch && buMatch && jobMatch && resultMatch;
+    return textMatch && multiFilterPass('cand-bu', d.BU) && multiFilterPass('cand-job', d['Job Function']) && multiFilterPass('cand-result', d.Result);
   });
 
   if (!matched.length) {
@@ -2230,11 +2178,9 @@ function renderCandQuery() {
         '</div>'+
       '</div>';
     } else {
-      var resumeCodeSafe = String(resumeCode||'').replace(/"/g,'&quot;');
-      var nameSafe = String(cand.Name||'').replace(/"/g,'&quot;');
       piFieldsHtml = '<div style="margin-top:14px;">'+
         '<div style="font-size:12px;color:var(--text-tertiary);margin-bottom:8px;">此人選尚無 Phone Interview 記錄</div>'+
-        '<button class="refresh-btn" style="margin-left:0;" data-resume="'+resumeCodeSafe+'" data-name="'+nameSafe+'" onclick="createInterviewRecord(this.getAttribute(\'data-resume\'),this.getAttribute(\'data-name\'))">＋ 建立電訪記錄</button>'+
+        '<button class="refresh-btn" style="margin-left:0;" onclick="createInterviewRecord('+cand._row+')">＋ 建立電訪記錄</button>'+
       '</div>';
     }
 
@@ -2356,30 +2302,24 @@ function renderSalaryScreen() {
 
   if (buKey) {
     var bus = [...new Set(salaryData.map(function(r){return String(r[buKey]||'').trim();}))].filter(Boolean).sort();
-    document.getElementById('salaryBuBar').innerHTML =
-      '<button class="bu-btn '+(salaryBU==='all'?'active':'')+'" data-bu="all" onclick="salaryFilter(this.getAttribute(\'data-bu\'),this)">全部</button>'+
-      bus.map(function(b){return '<button class="bu-btn '+(salaryBU===b?'active':'')+'" data-bu="'+b+'" onclick="salaryFilter(this.getAttribute(\'data-bu\'),this)">'+b+'</button>';}).join('');
+    renderMultiFilterBar('salaryBuBar', 'salary-bu', bus);
   } else {
     document.getElementById('salaryBuBar').innerHTML = '';
   }
 
   var jobKey = headers.find(function(h){return h==='Job Function';});
-  var jobBarEl = document.getElementById('salaryJobBar');
-  if (jobBarEl) {
-    if (jobKey) {
-      var jobs = [...new Set(salaryData.map(function(r){return String(r[jobKey]||'').trim();}))].filter(Boolean).sort();
-      jobBarEl.innerHTML =
-        '<button class="pos-btn '+(salaryJob==='all'?'active':'')+'" data-job="all" onclick="salaryJobFilter(this.getAttribute(\'data-job\'),this)">全部</button>'+
-        jobs.map(function(j){return '<button class="pos-btn '+(salaryJob===j?'active':'')+'" data-job="'+j+'" onclick="salaryJobFilter(this.getAttribute(\'data-job\'),this)">'+j+'</button>';}).join('');
-    } else {
-      jobBarEl.innerHTML = '';
-    }
+  if (jobKey) {
+    var jobs = [...new Set(salaryData.map(function(r){return String(r[jobKey]||'').trim();}))].filter(Boolean).sort();
+    renderMultiFilterBar('salaryJobBar', 'salary-job', jobs);
+  } else {
+    var jobBarEl = document.getElementById('salaryJobBar');
+    if (jobBarEl) jobBarEl.innerHTML = '';
   }
 
   var search = (document.getElementById('salarySearch')?document.getElementById('salarySearch').value:'').toLowerCase();
   var records = salaryData.filter(function(r){
-    var buMatch = !buKey || salaryBU==='all' || String(r[buKey]||'').trim()===salaryBU;
-    var jobMatch = !jobKey || salaryJob==='all' || String(r[jobKey]||'').trim()===salaryJob;
+    var buMatch = !buKey || multiFilterPass('salary-bu', r[buKey]);
+    var jobMatch = !jobKey || multiFilterPass('salary-job', r[jobKey]);
     var searchMatch = !search || headers.some(function(h){return String(r[h]||'').toLowerCase().includes(search);});
     return buMatch && jobMatch && searchMatch;
   });
@@ -2400,20 +2340,6 @@ function renderSalaryScreen() {
     }).join('');
     return '<tr>'+cells+'<td><button onclick="deleteSalaryRow('+rec._row+')" style="font-size:12px;color:#EF4444;background:none;border:none;cursor:pointer;padding:4px 8px;">✕</button></td></tr>';
   }).join('');
-}
-
-function salaryFilter(val, el) {
-  salaryBU = val;
-  document.querySelectorAll('#salaryBuBar .bu-btn').forEach(function(b){b.classList.remove('active');});
-  el.classList.add('active');
-  renderSalaryScreen();
-}
-
-function salaryJobFilter(val, el) {
-  salaryJob = val;
-  document.querySelectorAll('#salaryJobBar .pos-btn').forEach(function(b){b.classList.remove('active');});
-  el.classList.add('active');
-  renderSalaryScreen();
 }
 
 async function deleteSalaryRow(row) {
@@ -2832,17 +2758,22 @@ async function submitAddRow() {
   }
 }
 
-async function createInterviewRecord(resumeCode, name) {
+async function createInterviewRecord(row) {
+  var cand = allData.find(function(d){ return d._row === row; });
+  if (!cand) { showToast('找不到這位人選的資料'); return; }
+  var resumeKey = findResumeCodeKey(cand);
+  var resumeCode = cand[resumeKey];
   if (!resumeCode) { showToast('此人選沒有履歷代碼，無法建立電訪記錄'); return; }
+
   var piHeaders = maintainHeaders['Phone Interview'] || [];
   if (!piHeaders.length) { showToast('找不到 Phone Interview 欄位資訊'); return; }
 
-  // BU、Job Function、Name、Source、PI_date 是 XLOOKUP 公式欄位，留空避免覆蓋公式；履歷代碼填入，其他欄位留空
   var resumeCodeKey = piHeaders.find(function(h){return h.includes('履歷代碼');}) || '履歷代碼';
-  var lookupFields = ['BU','Job Function','Name','Source','PI_date'];
   var orderedValues = piHeaders.map(function(h){
     if (h === resumeCodeKey) return resumeCode;
-    if (lookupFields.indexOf(h) >= 0) return '';
+    if (h === 'Name') return cand.Name || '';
+    if (h === 'BU') return cand.BU || '';
+    if (h === 'Job Function') return cand['Job Function'] || '';
     return '';
   });
 
@@ -2854,7 +2785,7 @@ async function createInterviewRecord(resumeCode, name) {
     showToast('正在同步...');
     await fetchData();
     renderCandQuery();
-    showToast('✓ 已建立 '+name+' 的電訪記錄');
+    showToast('✓ 已建立 '+(cand.Name||'')+' 的電訪記錄');
   } catch(e) {
     showToast('❌ 建立失敗：'+e.message);
   }
@@ -3297,6 +3228,24 @@ function renderSchedule() {
     '</div>';
   }).join('');
 }
+
+// ===== 註冊每個篩選對應要重新渲染的畫面 =====
+registerMultiFilterRerender('kb-bu', renderKanban);
+registerMultiFilterRerender('kb-job', renderKanban);
+registerMultiFilterRerender('kb-result', renderKanban);
+registerMultiFilterRerender('ov-bu', renderOverview);
+registerMultiFilterRerender('ov-job', renderOverview);
+registerMultiFilterRerender('pi-bu', renderPi);
+registerMultiFilterRerender('pi-job', renderPi);
+registerMultiFilterRerender('pi-result', renderPi);
+registerMultiFilterRerender('cand-bu', renderCandQuery);
+registerMultiFilterRerender('cand-job', renderCandQuery);
+registerMultiFilterRerender('cand-result', renderCandQuery);
+registerMultiFilterRerender('hc-bu', renderHeadcount);
+registerMultiFilterRerender('hc-job', renderHeadcount);
+registerMultiFilterRerender('salary-bu', renderSalaryScreen);
+registerMultiFilterRerender('salary-job', renderSalaryScreen);
+registerMultiFilterRerender('offers-bu', renderOffers);
 
 setInterval(fetchData,5*60*1000);
 
