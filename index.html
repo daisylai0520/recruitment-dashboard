@@ -772,7 +772,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
 <script>
 var APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby0h1OkoC_xNWeAAbuh4cBicbTl4B8g1KDtL-s2YK9f80TYjIyxQtdeu9RkWFQVtY3pnw/exec';
 var userRole = null;
-var allData=[], piData=[], salaryData=[], scheduleData=[], managerDirectoryData=[], managerInfoData=[], resultOptions=[], positionOptions=[];
+var allData=[], piData=[], salaryData=[], scheduleData=[], managerDirectoryData=[], resultOptions=[], positionOptions=[];
 var currentTab='kanban';
 // 舊的單選篩選狀態變數已改用 multiFilterState（見下方通用多選篩選元件），這裡保留 activeFilter 給 Recruitment Status 用
 var activeFilter=null;
@@ -965,7 +965,6 @@ async function fetchData() {
     salaryData=(json.salaryRecords||[]).filter(function(d){return d.Company;});
     scheduleData=(json.scheduleRecords||[]).filter(function(d){return d.Token;});
     managerDirectoryData=(json.managerDirectory||[]).filter(function(d){return d.Name;});
-    managerInfoData=(json.managerInfo||[]).filter(function(d){return d.Name;});
     resultOptions=(json.resultOptions||[]).map(function(v){return String(v).trim();}).filter(Boolean);
     positionOptions=(json.positionOptions||[]).map(function(v){return String(v).trim();}).filter(Boolean);
     headcountDropdownData = json.headcountDropdowns || {};
@@ -2101,11 +2100,7 @@ var MAINTAIN_DROPDOWNS = {
     'Job Function': function(){ return [...new Set(allData.map(function(d){return String(d['Job Function']||'').trim();}))].filter(Boolean).sort(); },
     '104_Position': function(){ return getPositionOptions(); },
     'Source': function(){ return [...new Set(allData.map(function(d){return String(d.Source||'').trim();}))].filter(Boolean).sort(); },
-    'Inviter': function(){
-      var fromManagerInfo = managerInfoData.map(function(m){return String(m.Name||'').trim();});
-      var fromHistory = allData.map(function(d){return String(d.Inviter||'').trim();});
-      return [...new Set(fromManagerInfo.concat(fromHistory))].filter(Boolean).sort();
-    },
+    'Inviter': function(){ return [...new Set(allData.map(function(d){return String(d.Inviter||'').trim();}))].filter(Boolean).sort(); },
     'Result': function(){ return getResultOptions(); }
   },
   'Headcount Records': {}
@@ -2216,7 +2211,7 @@ function renderCandQuery() {
   renderMultiFilterBar('candBuBar', 'cand-bu', candBuOptions);
   var candJobOptions = [...new Set(allData.map(function(d){return String(d['Job Function']||'').trim();}))].filter(Boolean).sort();
   renderMultiFilterBar('candJobBar', 'cand-job', candJobOptions);
-  renderMultiFilterBar('candResultBar', 'cand-result', getResultOptions());
+  renderMultiFilterDropdown('candResultBar', 'cand-result', getResultOptions(), '目前狀態');
 
   if (!search && !isMultiFilterNarrowed('cand-bu') && !isMultiFilterNarrowed('cand-job') && !isMultiFilterNarrowed('cand-result')) {
     container.innerHTML = '<div class="empty" style="padding:30px 0;text-align:center;">請輸入姓名或履歷代碼查詢，或使用上方篩選條件顯示人選</div>';
@@ -2608,71 +2603,12 @@ function renderNewCandidateFields() {
 
     if (dropdowns[h]) {
       var options = dropdowns[h]();
-      var extraAttrs = h === 'Inviter' ? ' onchange="handleInviterAutoFill(this)"' : '';
-      var fieldHtml = '<div style="'+spanStyle+'"><div class="modal-label" style="margin-bottom:4px;">'+label+'</div>'+buildFormDatalistInput('new-cand-input', h, options, prefillVal, extraAttrs)+'</div>';
-      if (h === 'Inviter') fieldHtml += '<div id="inviterAssignPicker" style="grid-column:1/-1;"></div>';
-      return fieldHtml;
+      return '<div style="'+spanStyle+'"><div class="modal-label" style="margin-bottom:4px;">'+label+'</div>'+buildFormDatalistInput('new-cand-input', h, options, prefillVal)+'</div>';
     }
     return '<div style="'+spanStyle+'"><div class="modal-label" style="margin-bottom:4px;">'+label+'</div><input type="text" class="new-cand-input" data-field="'+h+'" value="'+prefillVal+'"'+dupAttr+' style="width:100%;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;box-sizing:border-box;"></div>';
   }).join('');
 
   document.getElementById('newCandDupWarning').style.display = 'none';
-}
-
-// 選擇 Inviter 後，依 Manager Information 對照表自動帶出 BU / Job Function
-// 一個主管可能橫跨多個單位/職能：只有 1 筆設定就直接帶入；有多筆則跳出選項讓使用者自己選最準
-function handleInviterAutoFill(el) {
-  var name = el.value.trim();
-  var pickerEl = document.getElementById('inviterAssignPicker');
-  if (pickerEl) pickerEl.innerHTML = '';
-  if (!name) return;
-
-  var matches = managerInfoData.filter(function(m){ return String(m.Name||'').trim() === name; });
-  if (!matches.length) return; // 這位 Inviter 不在 Manager Information 名冊裡，維持原本手動填寫
-
-  var combos = [];
-  var seen = {};
-  matches.forEach(function(m){
-    var bu = String(m.BU||'').trim();
-    var jf = String(m.Function||'').trim();
-    var key = bu + '‖' + jf;
-    if (!seen[key]) { seen[key] = true; combos.push({bu: bu, jf: jf}); }
-  });
-
-  function applyCombo(combo) {
-    document.querySelectorAll('#newCandFields .new-cand-input').forEach(function(inp){
-      var f = inp.getAttribute('data-field');
-      if (f === 'BU') inp.value = combo.bu;
-      if (f === 'Job Function') inp.value = combo.jf;
-    });
-  }
-
-  if (combos.length === 1) {
-    applyCombo(combos[0]);
-    return;
-  }
-
-  // 橫跨多個單位/職能：顯示按鈕讓使用者點選這筆邀約實際對應哪一組
-  window._inviterCombos = combos;
-  if (pickerEl) {
-    pickerEl.innerHTML = '<div style="font-size:11px;color:var(--text-tertiary);margin:4px 0;">「'+name+'」橫跨多個單位/職能，請選擇這筆邀約對應的：</div>'+
-      '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px;">'+
-      combos.map(function(c, i){
-        return '<button type="button" class="pos-btn" onclick="applyInviterCombo('+i+')" style="font-size:11px;padding:4px 10px;">'+(c.bu||'—')+' ／ '+(c.jf||'—')+'</button>';
-      }).join('') + '</div>';
-  }
-}
-
-function applyInviterCombo(i) {
-  var c = (window._inviterCombos || [])[i];
-  if (!c) return;
-  document.querySelectorAll('#newCandFields .new-cand-input').forEach(function(inp){
-    var f = inp.getAttribute('data-field');
-    if (f === 'BU') inp.value = c.bu;
-    if (f === 'Job Function') inp.value = c.jf;
-  });
-  var pickerEl = document.getElementById('inviterAssignPicker');
-  if (pickerEl) pickerEl.innerHTML = '';
 }
 
 // 輸入姓名或履歷代碼時，即時檢查這位人選是否已經有紀錄，避免重複建檔
