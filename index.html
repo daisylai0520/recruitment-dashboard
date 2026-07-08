@@ -55,6 +55,14 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
 .bu-btn:hover,.pos-btn:hover{border-color:var(--accent);color:var(--accent);}
 .bu-btn.active,.pos-btn.active{background:var(--accent);border-color:var(--accent);color:#fff;}
 .filter-selectall-btn{font-size:12px;font-weight:600;color:var(--accent);background:none;border:none;cursor:pointer;padding:5px 8px;text-decoration:underline;white-space:nowrap;}
+.ms-dropdown{position:relative;display:inline-block;}
+.ms-dropdown-toggle{font-size:12px;padding:6px 12px;border:1.5px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text-primary);cursor:pointer;white-space:nowrap;}
+.ms-dropdown-caret{font-size:9px;color:var(--text-tertiary);}
+.ms-dropdown-panel{position:absolute;top:calc(100% + 4px);left:0;z-index:50;background:var(--surface);border:1.5px solid var(--border);border-radius:10px;padding:10px;box-shadow:0 8px 24px rgba(0,0,0,.12);min-width:220px;max-height:320px;overflow-y:auto;}
+.ms-dropdown-option{display:block;font-size:13px;padding:5px 4px;cursor:pointer;white-space:nowrap;}
+.ms-dropdown-option:hover{background:var(--bg);border-radius:6px;}
+.tab-toggle-btn{font-size:13px;font-weight:600;padding:7px 16px;border:1.5px solid var(--border);border-radius:20px;background:var(--surface);color:var(--text-secondary);cursor:pointer;}
+.tab-toggle-btn.active{background:var(--accent);border-color:var(--accent);color:#fff;}
 .filter-divider{width:1px;background:var(--border);align-self:stretch;margin:0 4px;}
 .search-wrap{display:flex;flex-direction:column;gap:6px;}
 .search-label{font-size:10px;font-weight:600;color:var(--text-tertiary);letter-spacing:.08em;text-transform:uppercase;}
@@ -515,6 +523,11 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
         <div class="filter-divider"></div>
         <div id="hcDateFilterSlot"></div>
       </div>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+        <button class="tab-toggle-btn active" id="hcViewCurrentBtn" onclick="switchHcView('current')">目前缺額</button>
+        <button class="tab-toggle-btn" id="hcViewPastBtn" onclick="switchHcView('past')">過往 Headcount</button>
+      </div>
+      <div style="font-size:13px;font-weight:600;color:var(--text-secondary);margin-bottom:10px;" id="hcSectionTitle">各單位缺額明細</div>
       <div class="collapse-grid" id="hcCards" style="grid-template-columns:repeat(2,1fr);gap:14px;"></div>
     </div>
   </div>
@@ -604,7 +617,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
       </div>
       <div id="candQueryResults"></div>
 
-      <div id="newCandidatePanel" class="mini-card" style="padding:18px 20px;margin-top:24px;">
+      <div id="newCandidatePanel" class="mini-card" style="padding:18px 20px;margin-top:24px;background:#F5F3FF;border-color:#DDD6FE;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
           <div style="font-size:14px;font-weight:700;">＋ 新增人選資料</div>
           <div id="newCandSelectedHint" style="font-size:12px;color:var(--accent);"></div>
@@ -1054,7 +1067,7 @@ function renderKanban() {
   renderMultiFilterBar('kbBuBar', 'kb-bu', kbBuOptions);
   var kbJobOptions = [...new Set(allData.map(function(d){return String(d['Job Function']||'').trim();}))].filter(Boolean).sort();
   renderMultiFilterBar('kbJobBar', 'kb-job', kbJobOptions);
-  renderMultiFilterBar('kbResultBar', 'kb-result', getResultOptions());
+  renderMultiFilterDropdown('kbResultBar', 'kb-result', getResultOptions(), '目前狀態');
 
   var filtered=allData.filter(function(d){
     if(!multiFilterPass('kb-bu', d.BU)) return false;
@@ -1292,7 +1305,7 @@ function renderPi() {
   renderMultiFilterBar('piBuBar', 'pi-bu', piBuOptions);
   var piJobOptions = [...new Set(piData.map(function(d){return String(d['Job Function']||'').trim();}))].filter(Boolean).sort();
   renderMultiFilterBar('piJobBar', 'pi-job', piJobOptions);
-  renderMultiFilterBar('piResultBar', 'pi-result', getResultOptions());
+  renderMultiFilterDropdown('piResultBar', 'pi-result', getResultOptions(), '目前狀態');
 
   var filtered=piData.filter(function(d){
     return multiFilterPass('pi-bu', d.BU) &&
@@ -1447,6 +1460,15 @@ async function commitPiResult(el) {
 // ===== HEADCOUNT OVERVIEW =====
 // 資料來源：自動從 Apps Script 回傳的 headcount 陣列載入（doGet 已包含 Headcount Records 分頁）
 var hcRawData = [];
+var hcViewMode = 'current'; // 'current' = 目前缺額, 'past' = 過往 Headcount（已補實）
+
+function switchHcView(mode) {
+  hcViewMode = mode;
+  document.getElementById('hcViewCurrentBtn').classList.toggle('active', mode==='current');
+  document.getElementById('hcViewPastBtn').classList.toggle('active', mode==='past');
+  document.getElementById('hcSectionTitle').textContent = mode==='past' ? '過往 Headcount（已補實）' : '各單位缺額明細';
+  renderHeadcount();
+}
 function loadHeadcountData(records) {
   hcRawData = records || [];
   document.getElementById('hcEmptyState').style.display = hcRawData.length ? 'none' : '';
@@ -1487,44 +1509,51 @@ function renderHeadcount() {
   filtered.forEach(function(r){
     var div = String(r[divKey]||'').trim();
     var job = String(r[jobKey]||'').trim();
-    if (!groups[div]) groups[div] = {div:div, total:0, vacantTotal:0, jobs:{}};
+    if (!groups[div]) groups[div] = {div:div, total:0, vacantTotal:0, pastTotal:0, jobs:{}};
     if (!groups[div].jobs[job]) groups[div].jobs[job] = {job:job, total:0, rows:[]};
     groups[div].total++;
     groups[div].jobs[job].total++;
     var succ = String(r[succKey]||'').trim();
+    var grade = String(r[gradeKey]||'').trim();
     var isVacant = !succ;
+    var isPastFilled = !!succ && !!grade; // 過往 Headcount：遞補人員、職等都非空白
     if (isVacant) groups[div].vacantTotal++;
+    if (isPastFilled) groups[div].pastTotal++;
     groups[div].jobs[job].rows.push({
       raw: r,
       unit: [String(r[deptKey]||'').trim(), String(r[sectionKey]||'').trim()].filter(Boolean).join(' / '),
-      grade: String(r[gradeKey]||'').trim() || '—',
+      grade: grade || '—',
       duties: String(r[dutiesKey]||'').trim() || '—',
       reason: String(r[reasonKey]||'').trim() || '—',
       pred: String(r[predKey]||'').trim() || '—',
       succ: succ,
       memo: String(r[memoKey]||'').trim(),
-      vacant: isVacant
+      vacant: isVacant,
+      pastFilled: isPastFilled
     });
   });
 
-  var divArr = Object.values(groups).sort(function(a,b){return b.vacantTotal - a.vacantTotal;});
+  var isPastMode = hcViewMode === 'past';
+  var divArr = Object.values(groups).sort(function(a,b){
+    return isPastMode ? (b.pastTotal - a.pastTotal) : (b.vacantTotal - a.vacantTotal);
+  });
 
   document.getElementById('hcCards').innerHTML = divArr.map(function(g){
     var divColor = '#4F46E5';
     var jobArr = Object.values(g.jobs).sort(function(a,b){
-      var av = a.rows.filter(function(r){return r.vacant;}).length;
-      var bv = b.rows.filter(function(r){return r.vacant;}).length;
-      return bv - av;
+      var af = a.rows.filter(function(r){return isPastMode ? r.pastFilled : r.vacant;}).length;
+      var bf = b.rows.filter(function(r){return isPastMode ? r.pastFilled : r.vacant;}).length;
+      return bf - af;
     });
 
     var jobsHtml = jobArr.map(function(j){
-      var vacantRows = j.rows.filter(function(r){return r.vacant;});
-      var vacantInJob = vacantRows.length;
+      var displayRows = j.rows.filter(function(r){return isPastMode ? r.pastFilled : r.vacant;});
+      var countInJob = displayRows.length;
       var jc = '#4F46E5';
 
-      if (vacantInJob === 0) return ''; // 已補實的 Job Function 不顯示
+      if (countInJob === 0) return ''; // 沒有符合目前模式的資料就不顯示
 
-      var rowsHtml = vacantRows.map(function(rr){
+      var rowsHtml = displayRows.map(function(rr){
         var r = rr.raw;
         var idx = hcRawData.indexOf(r);
         return '<tr>'+
@@ -1533,7 +1562,9 @@ function renderHeadcount() {
           '<td style="padding:2px;">'+renderTableCellInput('Headcount Records', r, dutiesKey, idx)+'</td>'+
           '<td style="padding:2px;">'+renderTableCellInput('Headcount Records', r, reasonKey, idx)+'</td>'+
           '<td style="padding:2px;">'+renderTableCellInput('Headcount Records', r, gradeKey, idx)+'</td>'+
-          '<td style="padding:2px;">'+renderTableCellInput('Headcount Records', r, predKey, idx)+'</td>'+
+          (isPastMode
+            ? '<td style="padding:2px;">'+renderTableCellInput('Headcount Records', r, succKey, idx)+'</td>'
+            : '<td style="padding:2px;">'+renderTableCellInput('Headcount Records', r, predKey, idx)+'</td>')+
           '<td style="padding:2px;">'+renderTableCellInput('Headcount Records', r, memoKey, idx)+'</td>'+
         '</tr>';
       }).join('');
@@ -1541,7 +1572,7 @@ function renderHeadcount() {
       return '<div style="margin-bottom:10px;">'+
         '<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;">'+
           '<span style="font-size:12px;font-weight:600;">'+j.job+'</span>'+
-          '<span style="font-size:11px;font-weight:700;color:'+jc+';background:'+jc+'18;padding:1px 8px;border-radius:10px;">'+vacantInJob+' 缺額</span>'+
+          '<span style="font-size:11px;font-weight:700;color:'+jc+';background:'+jc+'18;padding:1px 8px;border-radius:10px;">'+countInJob+(isPastMode?' 已補實':' 缺額')+'</span>'+
         '</div>'+
         '<div style="overflow-x:auto;border:1px solid var(--border);border-radius:8px;">'+
           '<table style="width:100%;border-collapse:collapse;min-width:480px;">'+
@@ -1551,7 +1582,9 @@ function renderHeadcount() {
               '<th style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-align:left;padding:5px 6px;">Duties</th>'+
               '<th style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-align:left;padding:5px 6px;">原因</th>'+
               '<th style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-align:left;padding:5px 6px;">職等</th>'+
-              '<th style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-align:left;padding:5px 6px;">原任</th>'+
+              (isPastMode
+                ? '<th style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-align:left;padding:5px 6px;">遞補人員</th>'
+                : '<th style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-align:left;padding:5px 6px;">原任</th>')+
               '<th style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-align:left;padding:5px 6px;">備註</th>'+
             '</tr></thead>'+
             '<tbody>'+rowsHtml+'</tbody>'+
@@ -1560,15 +1593,16 @@ function renderHeadcount() {
       '</div>';
     }).join('');
 
+    var totalForDiv = isPastMode ? g.pastTotal : g.vacantTotal;
     return '<div class="mini-card" style="padding:18px 20px;border:1.5px solid '+divColor+'40;">'+
       '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;padding-bottom:12px;border-bottom:2px solid '+divColor+'30;">'+
         '<div style="font-size:19px;font-weight:800;color:var(--text-primary);">'+g.div+'</div>'+
         '<div style="display:flex;align-items:baseline;gap:6px;background:'+divColor+'15;padding:4px 12px;border-radius:10px;">'+
-          '<span style="font-size:30px;font-weight:800;color:'+divColor+';line-height:1;">'+g.vacantTotal+'</span>'+
-          '<span style="font-size:12px;font-weight:600;color:'+divColor+';">個缺額</span>'+
+          '<span style="font-size:30px;font-weight:800;color:'+divColor+';line-height:1;">'+totalForDiv+'</span>'+
+          '<span style="font-size:12px;font-weight:600;color:'+divColor+';">'+(isPastMode?'位已補實':'個缺額')+'</span>'+
         '</div>'+
       '</div>'+
-      (jobsHtml || '<div style="font-size:12px;color:var(--text-tertiary);text-align:center;padding:12px 0;">目前無缺額</div>')+
+      (jobsHtml || '<div style="font-size:12px;color:var(--text-tertiary);text-align:center;padding:12px 0;">'+(isPastMode?'目前無過往紀錄':'目前無缺額')+'</div>')+
     '</div>';
   }).join('');
 
@@ -1969,6 +2003,50 @@ function renderMultiFilterBar(containerId, filterId, options) {
   }).join('');
   el.innerHTML = html;
 }
+
+// 下拉式多選（給選項較多的篩選用，例如「目前狀態」，避免按鈕排一長排）
+var msDropdownOpenState = {};
+
+function toggleMsDropdownPanel(containerId) {
+  msDropdownOpenState[containerId] = !msDropdownOpenState[containerId];
+  var panel = document.getElementById(containerId+'-panel');
+  if (panel) panel.style.display = msDropdownOpenState[containerId] ? 'block' : 'none';
+}
+
+function renderMultiFilterDropdown(containerId, filterId, options, labelPrefix) {
+  var el = document.getElementById(containerId);
+  if (!el) return;
+  var state = ensureMultiFilterState(filterId, options);
+  var allSelected = state.selected.size >= state.known.size;
+  var summary = allSelected ? '全部' : (state.selected.size === 0 ? '未選擇' : state.selected.size + ' 項');
+  var isOpen = !!msDropdownOpenState[containerId];
+
+  var optionsHtml = options.map(function(o){
+    var checked = state.selected.has(o);
+    var oSafe = String(o).replace(/"/g,'&quot;');
+    return '<label class="ms-dropdown-option"><input type="checkbox" '+(checked?'checked':'')+' data-val="'+oSafe+'" onchange="toggleMultiFilterOption(\''+filterId+'\',this.getAttribute(\'data-val\'))"> '+o+'</label>';
+  }).join('');
+
+  el.className = 'ms-dropdown';
+  el.innerHTML =
+    '<button type="button" class="ms-dropdown-toggle" onclick="toggleMsDropdownPanel(\''+containerId+'\')">'+labelPrefix+'：'+summary+' <span class="ms-dropdown-caret">▾</span></button>'+
+    '<div class="ms-dropdown-panel" id="'+containerId+'-panel" style="display:'+(isOpen?'block':'none')+';">'+
+      '<button type="button" class="filter-selectall-btn" style="display:block;width:100%;text-align:left;margin-bottom:6px;" onclick="toggleMultiFilterAll(\''+filterId+'\')">'+(allSelected?'取消全選':'全選')+'</button>'+
+      optionsHtml+
+    '</div>';
+}
+
+document.addEventListener('click', function(e){
+  if (!e.target.closest('.ms-dropdown')) {
+    Object.keys(msDropdownOpenState).forEach(function(id){
+      if (msDropdownOpenState[id]) {
+        msDropdownOpenState[id] = false;
+        var panel = document.getElementById(id+'-panel');
+        if (panel) panel.style.display = 'none';
+      }
+    });
+  }
+});
 
 function toggleMultiFilterOption(filterId, val) {
   var state = multiFilterState[filterId];
