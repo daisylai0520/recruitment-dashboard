@@ -378,10 +378,10 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
       <div>
         <div class="metrics-col-label">電訪</div>
         <div class="metrics-inner">
-          <div class="metric" id="m-待排電訪">
-            <div class="metric-top"><div class="metric-dot" style="background:#F59E0B"></div><span class="metric-label">待排電訪</span></div>
-            <div class="metric-val" id="c-待排電訪">—</div>
-            <div id="list-待排電訪" style="margin-top:10px;display:flex;flex-direction:column;gap:6px;"></div>
+          <div class="metric" id="m-排電訪">
+            <div class="metric-top"><div class="metric-dot" style="background:#F59E0B"></div><span class="metric-label">排電訪</span></div>
+            <div class="metric-val" id="c-排電訪">—</div>
+            <div id="list-排電訪" style="margin-top:10px;display:flex;flex-direction:column;gap:6px;"></div>
           </div>
           <div class="metric" id="m-待電訪">
             <div class="metric-top"><div class="metric-dot" style="background:#10B981"></div><span class="metric-label">待電訪</span></div>
@@ -393,10 +393,10 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
       <div>
         <div class="metrics-col-label">面試</div>
         <div class="metrics-inner">
-          <div class="metric" id="m-待排面試">
-            <div class="metric-top"><div class="metric-dot" style="background:#3B82F6"></div><span class="metric-label">待排面試</span></div>
-            <div class="metric-val" id="c-待排面試">—</div>
-            <div id="list-待排面試" style="margin-top:10px;display:flex;flex-direction:column;gap:6px;"></div>
+          <div class="metric" id="m-排面試">
+            <div class="metric-top"><div class="metric-dot" style="background:#3B82F6"></div><span class="metric-label">排面試</span></div>
+            <div class="metric-val" id="c-排面試">—</div>
+            <div id="list-排面試" style="margin-top:10px;display:flex;flex-direction:column;gap:6px;"></div>
           </div>
           <div class="metric" id="m-待面試">
             <div class="metric-top"><div class="metric-dot" style="background:#8B5CF6"></div><span class="metric-label">待面試</span></div>
@@ -779,16 +779,16 @@ var activeFilter=null;
 var selectedCard=null;
 
 // Stage definitions
-var PHONE_STAGES = ['待確認主管邀約意願','待排電訪','待電訪'];
-var INTERVIEW_STAGES = ['待確認主管面試意願','待排面試','待面試'];
-var OFFER_STAGES = ['待確認主管錄取意願','待確認人選錄取意願','錄取'];
+var PHONE_STAGES = ['確認主管邀約意願','排電訪','待電訪'];
+var INTERVIEW_STAGES = ['確認主管面試意願','排面試','待面試'];
+var OFFER_STAGES = ['確認主管錄取意願','確認人選錄取意願','錄取'];
 var COLLAPSE_STAGES = ['未回覆','HR不邀約電訪','主管不邀約面試','婉拒電訪','婉拒面試','未錄取','婉拒錄取','已關閉履歷'];
 var ALL_ACTIVE_STAGES = PHONE_STAGES.concat(INTERVIEW_STAGES).concat(OFFER_STAGES);
 
 var STAGE_COLORS = {
-  '未回覆':'#9CA3AF','待排電訪':'#F59E0B','待確認主管邀約意願':'#FB923C','待電訪':'#10B981',
-  '待確認主管面試意願':'#60A5FA','待排面試':'#3B82F6','待面試':'#8B5CF6',
-  '待確認主管錄取意願':'#34D399','待確認人選錄取意願':'#059669','錄取':'#16A34A',
+  '未回覆':'#9CA3AF','排電訪':'#F59E0B','確認主管邀約意願':'#FB923C','待電訪':'#10B981',
+  '確認主管面試意願':'#60A5FA','排面試':'#3B82F6','待面試':'#8B5CF6',
+  '確認主管錄取意願':'#34D399','確認人選錄取意願':'#059669','錄取':'#16A34A',
   'HR不邀約電訪':'#9CA3AF','主管不邀約面試':'#9CA3AF','婉拒電訪':'#EF4444','婉拒面試':'#EF4444','未錄取':'#EF4444','婉拒錄取':'#EF4444','已關閉履歷':'#6B7280'
 };
 
@@ -843,7 +843,7 @@ function fmtDate(s) {
   return raw;
 }
 function getSortTs(d) {
-  var t=(d.Result==='待電訪'||d.Result==='待排電訪'||d.Result==='已電訪')?(d.Interview_date||d.PI_date||''):(d.Interview_date||'');
+  var t=(d.Result==='待電訪'||d.Result==='排電訪'||d.Result==='已電訪')?(d.Interview_date||d.PI_date||''):(d.Interview_date||'');
   if (!t) return Infinity;
   var dt=parseDateTime(t); return dt?dt.getTime():Infinity;
 }
@@ -953,48 +953,112 @@ function showToast(msg) {
 }
 
 // ---- fetch ----
-async function fetchData() {
+// ===== 分頁式載入：每個畫面只在真正被打開時，才去抓它需要的資料 =====
+var loadedResources = { core: false, headcount: false, salary: false, scheduling: false };
+
+function setSyncStatus(state, msg) {
   var dot=document.getElementById('syncDot'), txt=document.getElementById('syncText');
-  dot.className='sync-dot loading'; txt.textContent='資料載入中...';
+  if (dot) dot.className = 'sync-dot' + (state==='loading' ? ' loading' : state==='error' ? ' error' : '');
+  if (txt) txt.textContent = msg;
+}
+
+async function fetchCoreData() {
+  var res = await fetch(APPS_SCRIPT_URL + '?action=getCoreData');
+  if (!res.ok) throw new Error('HTTP '+res.status);
+  var json = await res.json();
+  allData=(json.candidates||[]).filter(function(d){return d.Name&&d.Result;});
+  piData=(json.piRecords||[]).filter(function(d){return d.Name;});
+  resultOptions=(json.resultOptions||[]).map(function(v){return String(v).trim();}).filter(Boolean);
+  positionOptions=(json.positionOptions||[]).map(function(v){return String(v).trim();}).filter(Boolean);
+  Object.assign(maintainHeaders, json.sheetHeaders || {});
+  loadedResources.core = true;
+}
+
+async function fetchHeadcountData() {
+  var res = await fetch(APPS_SCRIPT_URL + '?action=getHeadcountData');
+  if (!res.ok) throw new Error('HTTP '+res.status);
+  var json = await res.json();
+  headcountDropdownData = json.headcountDropdowns || {};
+  rebuildHeadcountDropdowns();
+  Object.assign(maintainHeaders, json.sheetHeaders || {});
+  loadHeadcountData(json.headcount||[]);
+  loadedResources.headcount = true;
+}
+
+async function fetchSalaryData() {
+  var res = await fetch(APPS_SCRIPT_URL + '?action=getSalaryData');
+  if (!res.ok) throw new Error('HTTP '+res.status);
+  var json = await res.json();
+  salaryData=(json.salaryRecords||[]).filter(function(d){return d.Company;});
+  Object.assign(maintainHeaders, json.sheetHeaders || {});
+  loadedResources.salary = true;
+}
+
+async function fetchSchedulingData() {
+  var res = await fetch(APPS_SCRIPT_URL + '?action=getSchedulingData');
+  if (!res.ok) throw new Error('HTTP '+res.status);
+  var json = await res.json();
+  scheduleData=(json.scheduleRecords||[]).filter(function(d){return d.Token;});
+  managerDirectoryData=(json.managerDirectory||[]).filter(function(d){return d.Name;});
+  loadedResources.scheduling = true;
+}
+
+var RESOURCE_FETCHERS = { core: fetchCoreData, headcount: fetchHeadcountData, salary: fetchSalaryData, scheduling: fetchSchedulingData };
+
+// 切換到某個畫面時呼叫：如果這個畫面需要的資料還沒載入過，才去抓；已經載入過就直接用現有的，不用整份重讀
+async function ensureResourceLoaded(resource) {
+  if (loadedResources[resource]) return;
+  setSyncStatus('loading', '載入中...');
   try {
-    var res=await fetch(APPS_SCRIPT_URL);
-    if (!res.ok) throw new Error('HTTP '+res.status);
-    var json=await res.json();
-    allData=(json.candidates||[]).filter(function(d){return d.Name&&d.Result;});
-    piData=(json.piRecords||[]).filter(function(d){return d.Name;});
-    salaryData=(json.salaryRecords||[]).filter(function(d){return d.Company;});
-    scheduleData=(json.scheduleRecords||[]).filter(function(d){return d.Token;});
-    managerDirectoryData=(json.managerDirectory||[]).filter(function(d){return d.Name;});
-    resultOptions=(json.resultOptions||[]).map(function(v){return String(v).trim();}).filter(Boolean);
-    positionOptions=(json.positionOptions||[]).map(function(v){return String(v).trim();}).filter(Boolean);
-    headcountDropdownData = json.headcountDropdowns || {};
-    rebuildHeadcountDropdowns();
-    loadHeadcountData(json.headcount||[]);
-    maintainHeaders = json.sheetHeaders || {};
-    dot.className='sync-dot';
+    await RESOURCE_FETCHERS[resource]();
     var now=new Date();
-    txt.textContent='已同步 '+String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
+    setSyncStatus('ok', '已同步 '+String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0'));
+  } catch(e) {
+    setSyncStatus('error', '載入失敗');
+    showToast('❌ 載入失敗：'+e.message);
+  }
+}
+
+// 重新整理／每次寫入動作後呼叫：只重新抓「目前已經載入過」的資源，不會把還沒打開過的畫面也一起讀進來
+async function fetchData() {
+  setSyncStatus('loading', '資料載入中...');
+  try {
+    var tasks = [fetchCoreData()];
+    if (loadedResources.headcount) tasks.push(fetchHeadcountData());
+    if (loadedResources.salary) tasks.push(fetchSalaryData());
+    if (loadedResources.scheduling) tasks.push(fetchSchedulingData());
+    await Promise.all(tasks);
+    var now=new Date();
+    setSyncStatus('ok', '已同步 '+String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0'));
     document.getElementById('errorBanner').style.display='none';
     initDateFilterSlots();
     renderAll();
   } catch(e) {
-    dot.className='sync-dot error'; txt.textContent='同步失敗';
+    setSyncStatus('error', '同步失敗');
     var eb=document.getElementById('errorBanner');
     eb.style.display='block'; eb.textContent='無法讀取資料：'+e.message;
   }
 }
 
+var TAB_RESOURCES = {
+  kanban:['core'], overview:['core'], trends:['core'], offers:['core','headcount'], pi:['core'],
+  hc:['headcount'], salary:['salary'], schedule:['core','scheduling'], maintain:['core']
+};
+
 function renderAll(){
-  renderKanban();
-  renderOverview();
-  renderPi();
+  if (loadedResources.core) {
+    renderKanban();
+    renderOverview();
+    renderPi();
+  }
   if (currentTab === 'maintain') {
     if (maintainSheet === 'Candidate Records') renderCandQuery();
-    else renderMaintain();
+    else if (loadedResources.headcount) renderMaintain();
   }
-  if (currentTab === 'schedule') renderSchedule();
-  if (currentTab === 'salary') renderSalaryScreen();
+  if (currentTab === 'schedule' && loadedResources.scheduling) renderSchedule();
+  if (currentTab === 'salary' && loadedResources.salary) renderSalaryScreen();
   if (currentTab === 'offers') renderOffers();
+  if (loadedResources.headcount) renderHeadcount();
 }
 
 // ---- role selection ----
@@ -1024,7 +1088,19 @@ function selectRole(role) {
     }
   }
 
-  fetchData();
+  fetchCoreData().then(function(){
+    var resources = TAB_RESOURCES[currentTab] || ['core'];
+    return Promise.all(resources.filter(function(r){return r!=='core';}).map(ensureResourceLoaded));
+  }).then(function(){
+    var now=new Date();
+    setSyncStatus('ok', '已同步 '+String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0'));
+    initDateFilterSlots();
+    renderAll();
+  }).catch(function(e){
+    setSyncStatus('error', '同步失敗');
+    var eb=document.getElementById('errorBanner');
+    eb.style.display='block'; eb.textContent='無法讀取資料：'+e.message;
+  });
 }
 
 function switchRole() {
@@ -1034,17 +1110,26 @@ function switchRole() {
 }
 
 // ---- tabs ----
-function switchTab(tab,el) {
+async function switchTab(tab,el) {
   currentTab=tab;
   document.querySelectorAll('.tab-bar:first-of-type > .tab').forEach(function(t){t.classList.remove('active');});
   el.classList.add('active');
   ['kanban','overview','pi','hc','maintain','trends','offers','schedule','salary'].forEach(function(v){
     document.getElementById('view-'+v).style.display=v===tab?'':'none';
   });
+
+  var resources = TAB_RESOURCES[tab] || [];
+  for (var i=0;i<resources.length;i++) { await ensureResourceLoaded(resources[i]); }
+  if (tab === 'maintain' && maintainSheet === 'Headcount Records') { await ensureResourceLoaded('headcount'); }
+
   if (tab === 'maintain') {
     if (maintainSheet === 'Candidate Records') { ensureNewCandidateFieldsRendered(); renderCandQuery(); }
     else renderMaintain();
   }
+  if (tab === 'kanban') renderKanban();
+  if (tab === 'overview') renderOverview();
+  if (tab === 'pi') renderPi();
+  if (tab === 'hc') renderHeadcount();
   if (tab === 'trends') renderTrends();
   if (tab === 'offers') renderOffers();
   if (tab === 'schedule') renderSchedule();
@@ -1100,7 +1185,7 @@ function renderKanban() {
       cands.sort(function(a,b){return getSortTs(a)-getSortTs(b);});
       var cards=cands.length===0?'<div class="kanban-empty">無人選</div>':
         cands.map(function(d){
-          var t=(stage==='待電訪'||stage==='待排電訪')?(d.Interview_date||d.PI_date||''):(d.Interview_date||'');
+          var t=(stage==='待電訪'||stage==='排電訪')?(d.Interview_date||d.PI_date||''):(d.Interview_date||'');
           var timeStr=fmtDate(t);
           var idx=allData.indexOf(d);
           return '<div class="kanban-card" data-idx="'+idx+'" data-stage="'+stage+'" onclick="handleCardClick(this)">'
@@ -1265,14 +1350,14 @@ function renderOverview() {
            (!search||String(d.Name||'').toLowerCase().includes(search)) &&
            dateFilterPass('overview', d);
   });
-  var activeStages=['待排電訪','待電訪','待排面試','待面試'];
+  var activeStages=['排電訪','待電訪','排面試','待面試'];
   document.getElementById('overviewSub').textContent='共 '+filtered.length+' 筆人選資料';
-  var timeCls={'待排電訪':'t-amber','待電訪':'t-teal','待排面試':'t-blue','待面試':'t-purple'};
-  var timeIcon={'待排電訪':'📅','待電訪':'📞','待排面試':'📅','待面試':'🗣️'};
-  var timeLabel={'待排電訪':'可排電訪時段','待電訪':'電訪時間','待排面試':'可排面試時段','待面試':'面試時間'};
+  var timeCls={'排電訪':'t-amber','待電訪':'t-teal','排面試':'t-blue','待面試':'t-purple'};
+  var timeIcon={'排電訪':'📅','待電訪':'📞','排面試':'📅','待面試':'🗣️'};
+  var timeLabel={'排電訪':'可排電訪時段','待電訪':'電訪時間','排面試':'可排面試時段','待面試':'面試時間'};
 
   function makeCard(d,stage,cls,icon,label){
-    var rawT=(stage==='待電訪'||stage==='待排電訪')?(d.Interview_date||d.PI_date||''):(d.Interview_date||'');
+    var rawT=(stage==='待電訪'||stage==='排電訪')?(d.Interview_date||d.PI_date||''):(d.Interview_date||'');
     var t=fmtDate(rawT);
     var th=t?'<div class="card-time '+(cls||'t-gray')+'"><span style="font-size:13px">'+(icon||'🕐')+'</span><div><div class="card-time-label">'+(label||'時間')+'</div><div style="font-size:11px;opacity:.85;margin-top:1px">'+t+'</div></div></div>':'<div class="card-time t-gray"><span style="font-size:13px">🕐</span><div><div class="card-time-label">尚未排定時間</div></div></div>';
     return '<div class="card"><div class="card-top"><div class="card-name">'+d.Name+'</div><div class="card-bu">'+d.BU+'</div></div><div class="card-pos">'+(d['Job Function']||'')+(d.Source?' · '+d.Source:'')+'</div>'+th+'</div>';
@@ -1287,11 +1372,11 @@ function renderOverview() {
     document.getElementById('list-'+stage).innerHTML = listHtml;
   });
 
-  var dp=filtered.filter(function(d){return (d.Result==='待電訪'||d.Result==='待排電訪')&&isDonePhone(d);});
+  var dp=filtered.filter(function(d){return (d.Result==='待電訪'||d.Result==='排電訪')&&isDonePhone(d);});
   dp.sort(function(a,b){return getSortTs(b)-getSortTs(a);});
   document.getElementById('cc-phone').textContent=dp.length+' 人';
   document.getElementById('cg-phone').innerHTML=dp.length===0?'<div class="empty">無資料</div>':'<div class="collapse-grid">'+dp.map(function(d){return makeCard(d,'待電訪','t-gray','📞','電訪時間');}).join('')+'</div>';
-  var di=filtered.filter(function(d){return (d.Result==='待面試'||d.Result==='待排面試')&&isDoneInterview(d);});
+  var di=filtered.filter(function(d){return (d.Result==='待面試'||d.Result==='排面試')&&isDoneInterview(d);});
   di.sort(function(a,b){return getSortTs(b)-getSortTs(a);});
   document.getElementById('cc-interview').textContent=di.length+' 人';
   document.getElementById('cg-interview').innerHTML=di.length===0?'<div class="empty">無資料</div>':'<div class="collapse-grid">'+di.map(function(d){return makeCard(d,'待面試','t-gray','🗣️','面試時間');}).join('')+'</div>';
@@ -1952,7 +2037,7 @@ var maintainBU = 'all';
 // salaryBU/salaryJob 已改用 multiFilterState（salary-bu / salary-job）
 
 // 備用清單：試算表尚未設定資料驗證、或資料還沒載入完成時使用
-var FALLBACK_RESULT_OPTIONS = ['未回覆','待排電訪','待電訪','待確認主管邀約電訪意願','待確認主管面試意願','待排面試','待面試','待確認主管錄取意願','待確認人選錄取意願','婉拒電訪','HR不邀約電訪','HR不邀約面試','主管不邀約面試','婉拒面試','錄取','未錄取','婉拒錄取','已面試，排複試','已關閉履歷','思考一下','???'];
+var FALLBACK_RESULT_OPTIONS = ['未回覆','排電訪','待電訪','確認主管邀約意願','確認主管面試意願','排面試','待面試','確認主管錄取意願','確認人選錄取意願','婉拒電訪','HR不邀約電訪','HR不邀約面試','主管不邀約面試','婉拒面試','錄取','未錄取','婉拒錄取','已面試，排複試','已關閉履歷','思考一下','???'];
 
 // Result 選項一律以 Google 試算表 Candidate Records 的「Result」欄位資料驗證規則為主，若讀不到才用備用清單
 // ============================================================
@@ -2174,7 +2259,7 @@ function fmtDateOnly(s) {
   return raw;
 }
 
-function switchMaintainSheet(sheetName, el) {
+async function switchMaintainSheet(sheetName, el) {
   maintainSheet = sheetName;
   maintainBU = 'all';
   document.querySelectorAll('#view-maintain .tab-bar .tab').forEach(function(t){t.classList.remove('active');});
@@ -2182,7 +2267,7 @@ function switchMaintainSheet(sheetName, el) {
   document.getElementById('maintainCandidateView').style.display = sheetName==='Candidate Records' ? '' : 'none';
   document.getElementById('maintainHcView').style.display = sheetName!=='Candidate Records' ? '' : 'none';
   if (sheetName === 'Candidate Records') { ensureNewCandidateFieldsRendered(); renderCandQuery(); }
-  else renderMaintain();
+  else { await ensureResourceLoaded('headcount'); renderMaintain(); }
 }
 
 function getMaintainRecords(sheetName) {
@@ -2265,7 +2350,10 @@ function renderCandQuery() {
     return '<div class="mini-card" style="padding:20px 22px;margin-bottom:16px;'+(isSelected?'border-color:var(--accent);box-shadow:0 0 0 2px var(--accent);':'')+'">'+
       '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px;">'+
         '<div style="font-size:16px;font-weight:700;">'+cand.Name+(isSelected?' <span style="font-size:11px;font-weight:600;color:var(--accent);">（已選取，將用於複製）</span>':'')+'</div>'+
-        '<button class="refresh-btn" style="margin-left:0;" onclick="selectCandForCopy('+cand._row+')">📌 選取以複製</button>'+
+        '<div style="display:flex;gap:8px;">'+
+          '<button class="refresh-btn" style="margin-left:0;" onclick="selectCandForCopy('+cand._row+')">📌 選取以複製</button>'+
+          '<button class="refresh-btn" style="margin-left:0;color:#EF4444;border-color:#EF4444;" onclick="deleteMaintainRow('+cand._row+')">🗑️ 刪除人選資料</button>'+
+        '</div>'+
       '</div>'+
       '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;">'+fieldsHtml+'</div>'+
       piFieldsHtml+
@@ -2871,16 +2959,19 @@ async function createInterviewRecord(row) {
 
 async function deleteMaintainRow(row) {
   if (!confirm('確定要刪除這一列嗎？此動作無法復原。')) return;
-  document.getElementById('maintainStatus').textContent = '刪除中...';
+  var statusEl = document.getElementById('maintainStatus');
+  if (statusEl) statusEl.textContent = '刪除中...';
+  showToast('刪除中...');
   try {
     var url = APPS_SCRIPT_URL + '?action=deleteRow&sheet=' + encodeURIComponent(maintainSheet) + '&row=' + encodeURIComponent(row);
     await fetch(url, {mode:'no-cors'});
     await fetchData();
     if (currentTab === 'maintain') { if (maintainSheet==='Candidate Records') renderCandQuery(); else renderMaintain(); }
-    document.getElementById('maintainStatus').textContent = '✓ 已刪除';
-    setTimeout(function(){document.getElementById('maintainStatus').textContent='';}, 2000);
+    if (statusEl) { statusEl.textContent = '✓ 已刪除'; setTimeout(function(){statusEl.textContent='';}, 2000); }
+    showToast('✓ 已刪除');
   } catch(e) {
-    document.getElementById('maintainStatus').textContent = '❌ 刪除失敗：'+e.message;
+    if (statusEl) statusEl.textContent = '❌ 刪除失敗：'+e.message;
+    showToast('❌ 刪除失敗：'+e.message);
   }
 }
 
