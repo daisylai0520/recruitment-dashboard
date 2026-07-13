@@ -1416,10 +1416,19 @@ function renderPi() {
     piHeaders = piHeaders.filter(function(h){ return BP_HIDDEN_PI_FIELDS.indexOf(h) < 0; });
   }
 
+  var PI_WIDE_FIELDS = ['工作/實習&過往經驗','求職狀態','現有待遇','期望待遇','其他資訊'];
+  function getPiColumnWidth(h) {
+    if (h.includes('Memo')) return '260px';
+    if (h.includes('HR Comment') || h.includes('HR comment')) return '90px';
+    if (PI_WIDE_FIELDS.indexOf(h) >= 0) return '240px';
+    return null;
+  }
+
   var theadEl = document.getElementById('piTableHead');
   if (theadEl) {
     theadEl.innerHTML = piHeaders.map(function(h){
-      return '<th'+(h.includes('Memo')||h.includes('Comment')?' style="min-width:200px"':'')+'>'+h+'</th>';
+      var w = getPiColumnWidth(h);
+      return '<th'+(w?' style="min-width:'+w+';width:'+w+';"':'')+'>'+h+'</th>';
     }).join('') + '<th>目前狀態</th>';
   }
 
@@ -1428,7 +1437,7 @@ function renderPi() {
   document.getElementById('piBody').innerHTML=filtered.map(function(d){
     var idx = piData.indexOf(d);
     var cellsHtml = piHeaders.map(function(h){
-      return '<td>'+renderTableCellInput('Phone Interview', d, h, idx)+'</td>';
+      return '<td style="padding:2px;vertical-align:top;">'+renderTableCellInput('Phone Interview', d, h, idx, getPiColumnWidth(h))+'</td>';
     }).join('');
     var resumeKey = findResumeCodeKey(d);
     var candMatch = allData.find(function(c){ return resumeKey && String(c[findResumeCodeKey(c)]||'')===String(d[resumeKey]||'') && d[resumeKey]; });
@@ -1486,7 +1495,7 @@ async function commitMaintainInputList(el) {
   }
 }
 
-function renderTableCellInput(sheetName, rec, field, idx) {
+function renderTableCellInput(sheetName, rec, field, idx, customWidth) {
   var rawVal = rec[field] !== undefined ? rec[field] : '';
   var col = (maintainHeaders[sheetName] || Object.keys(rec)).indexOf(field) + 1;
   var dropdowns = MAINTAIN_DROPDOWNS[sheetName] || {};
@@ -1494,16 +1503,50 @@ function renderTableCellInput(sheetName, rec, field, idx) {
   var isDateOnlyField = MAINTAIN_DATEONLY_FIELDS.indexOf(field) >= 0;
   var displayVal = isDateOnlyField ? fmtDateOnly(rawVal) : isDateField ? fmtDate(rawVal) : rawVal;
   var rawSafe = String(rawVal||'').replace(/"/g,'&quot;');
+  var widthStyle = customWidth ? ('width:'+customWidth+';min-width:'+customWidth+';') : 'min-width:60px;';
 
   if (dropdowns[field]) {
     var options = dropdowns[field]();
     return buildDropdownDatalistInput(sheetName, rec, field, col, idx, options,
-      'font-size:12px;padding:5px 6px;border:1px solid var(--border);border-radius:6px;background:var(--surface);max-width:170px;width:100%;box-sizing:border-box;');
+      'font-size:12px;padding:5px 6px;border:1px solid var(--border);border-radius:6px;background:var(--surface);'+(customWidth?('width:'+customWidth+';'):'max-width:170px;width:100%;')+'box-sizing:border-box;');
   }
-  return '<div contenteditable="true" data-sheet="'+sheetName+'" data-row="'+rec._row+'" data-col="'+col+'" data-field="'+field+'" data-idx="'+idx+'" data-raw="'+rawSafe+'" '+
-    'onfocus="enterMaintainEdit(this)" onblur="commitMaintainCell(this)" '+
-    'style="font-size:12px;padding:5px 7px;border-radius:6px;min-height:16px;cursor:text;min-width:60px;">'+
-    (displayVal||'').toString().replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</div>';
+
+  if (isDateField || isDateOnlyField) {
+    // 日期類欄位維持單行 contenteditable，才能套用日期格式清理邏輯
+    return '<div contenteditable="true" data-sheet="'+sheetName+'" data-row="'+rec._row+'" data-col="'+col+'" data-field="'+field+'" data-idx="'+idx+'" data-raw="'+rawSafe+'" '+
+      'onfocus="enterMaintainEdit(this)" onblur="commitMaintainCell(this)" '+
+      'style="font-size:12px;padding:5px 7px;border-radius:6px;min-height:16px;cursor:text;'+widthStyle+'">'+
+      (displayVal||'').toString().replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</div>';
+  }
+
+  // 一般文字欄位改用 textarea：支援分行、像 Excel 儲存格一樣可以換行顯示與編輯
+  var escapedForTextarea = String(rawVal||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  return '<textarea data-sheet="'+sheetName+'" data-row="'+rec._row+'" data-col="'+col+'" data-field="'+field+'" data-idx="'+idx+'" data-raw="'+rawSafe+'" '+
+    'onfocus="enterMaintainEditTA(this)" onblur="commitMaintainCellTA(this)" '+
+    'style="font-size:12px;padding:5px 7px;border:1px solid transparent;border-radius:6px;min-height:32px;cursor:text;font-family:inherit;resize:vertical;white-space:pre-wrap;word-break:break-word;'+widthStyle+'" '+
+    'onfocusin="this.style.borderColor=\'var(--border)\'" onfocusout="this.style.borderColor=\'transparent\'">'+escapedForTextarea+'</textarea>';
+}
+
+function enterMaintainEditTA(el) {
+  el.dataset.original = el.value;
+}
+
+async function commitMaintainCellTA(el) {
+  var newVal = el.value;
+  var original = el.dataset.original !== undefined ? el.dataset.original : (el.getAttribute('data-raw')||'');
+  if (newVal === original) return;
+
+  var sheet = el.getAttribute('data-sheet');
+  var row = el.getAttribute('data-row');
+  var col = el.getAttribute('data-col');
+  var field = el.getAttribute('data-field');
+  var idx = parseInt(el.getAttribute('data-idx'));
+
+  var ok = await saveMaintainField(sheet, row, col, field, idx, newVal);
+  if (ok) {
+    el.setAttribute('data-raw', newVal.replace(/"/g,'&quot;'));
+    el.dataset.original = newVal;
+  }
 }
 
 // Result（目前狀態）欄位其實存在 Candidate Records，Phone Interview 這邊只是鏡射顯示，
@@ -1679,12 +1722,16 @@ function renderHeadcount() {
     }).join('');
 
     var totalForDiv = isPastMode ? g.pastTotal : g.vacantTotal;
+    var divSafe = String(g.div||'').replace(/'/g,"\\'").replace(/"/g,'&quot;');
     return '<div class="mini-card" style="padding:18px 20px;border:1.5px solid '+divColor+'40;">'+
       '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;padding-bottom:12px;border-bottom:2px solid '+divColor+'30;">'+
         '<div style="font-size:19px;font-weight:800;color:var(--text-primary);">'+g.div+'</div>'+
-        '<div style="display:flex;align-items:baseline;gap:6px;background:'+divColor+'15;padding:4px 12px;border-radius:10px;">'+
-          '<span style="font-size:30px;font-weight:800;color:'+divColor+';line-height:1;">'+totalForDiv+'</span>'+
-          '<span style="font-size:12px;font-weight:600;color:'+divColor+';">'+(isPastMode?'位已補實':'個缺額')+'</span>'+
+        '<div style="display:flex;align-items:center;gap:8px;">'+
+          '<button class="refresh-btn" style="margin-left:0;" onclick="openHcNewRowModal(\''+divSafe+'\')">＋ 新增 Headcount</button>'+
+          '<div style="display:flex;align-items:baseline;gap:6px;background:'+divColor+'15;padding:4px 12px;border-radius:10px;">'+
+            '<span style="font-size:30px;font-weight:800;color:'+divColor+';line-height:1;">'+totalForDiv+'</span>'+
+            '<span style="font-size:12px;font-weight:600;color:'+divColor+';">'+(isPastMode?'位已補實':'個缺額')+'</span>'+
+          '</div>'+
         '</div>'+
       '</div>'+
       (jobsHtml || '<div style="font-size:12px;color:var(--text-tertiary);text-align:center;padding:12px 0;">'+(isPastMode?'目前無過往紀錄':'目前無缺額')+'</div>')+
@@ -2873,14 +2920,76 @@ function addMaintainRow() {
   document.getElementById('addRowModal').style.display = 'flex';
 }
 
+// Headcount Overview 各單位區塊的「＋ 新增 Headcount」：重用共用的 addRowModal，直接寫入 Headcount Records
+function openHcNewRowModal(divisionName) {
+  var headers = maintainHeaders['Headcount Records'] || [];
+  if (!headers.length) { showToast('找不到 Headcount Records 欄位資訊'); return; }
+  var dropdowns = MAINTAIN_DROPDOWNS['Headcount Records'] || {};
+  var divisionKey = headers.find(function(h){return h.trim()==='Division';}) || 'Division';
+
+  document.getElementById('addRowModalSub').textContent = '新增一筆 Headcount 至「'+divisionName+'」';
+  document.getElementById('addRowModalFields').innerHTML = headers.map(function(h){
+    var isDivision = h === divisionKey;
+    var isRequired = isDivision;
+    var label = h + (isRequired ? ' <span style="color:#EF4444;">*</span>' : '');
+    var prefillVal = isDivision ? divisionName : '';
+
+    if (dropdowns[h]) {
+      var options = dropdowns[h]();
+      return '<div><div class="modal-label" style="margin-bottom:4px;">'+label+'</div>'+buildFormDatalistInput('hc-new-row-input', h, options, prefillVal)+'</div>';
+    }
+    var valAttr = prefillVal ? ' value="'+String(prefillVal).replace(/"/g,'&quot;')+'"' : '';
+    return '<div><div class="modal-label" style="margin-bottom:4px;">'+label+'</div><input type="text" data-field="'+h+'" class="hc-new-row-input" style="width:100%;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;box-sizing:border-box;"'+valAttr+'></div>';
+  }).join('');
+
+  document.querySelector('#addRowModal .modal').classList.add('modal-wide');
+  document.getElementById('addRowModal').style.display = 'flex';
+  window._hcNewRowMode = true;
+}
+
+async function submitHcNewRow() {
+  var headers = maintainHeaders['Headcount Records'] || [];
+  var divisionKey = headers.find(function(h){return h.trim()==='Division';}) || 'Division';
+  var requiredFields = [divisionKey];
+  var values = {};
+  var missing = [];
+  document.querySelectorAll('#addRowModalFields .hc-new-row-input').forEach(function(inp){
+    var field = inp.getAttribute('data-field');
+    var val = inp.value.trim();
+    if (val && (MAINTAIN_DATE_FIELDS.indexOf(field) >= 0 || MAINTAIN_DATEONLY_FIELDS.indexOf(field) >= 0)) {
+      val = normalizeDateForSave(field, val);
+    }
+    values[field] = val;
+    if (requiredFields.indexOf(field) >= 0 && !val) missing.push(field);
+  });
+  if (missing.length) { showToast('請填寫必填欄位：'+missing.join('、')); return; }
+
+  var orderedValues = headers.map(function(h){ return values[h] || ''; });
+  window._hcNewRowMode = false;
+  closeAddRowModal();
+  showToast('新增中...');
+  try {
+    var url = APPS_SCRIPT_URL + '?action=addRow&sheet=' + encodeURIComponent('Headcount Records') +
+      '&values=' + encodeURIComponent(JSON.stringify(orderedValues));
+    await fetch(url, {mode:'no-cors'});
+    await fetchData();
+    if (currentTab === 'hc') renderHeadcount();
+    showToast('✓ 已新增 Headcount 資料');
+  } catch(e) {
+    showToast('❌ 新增失敗：'+e.message);
+  }
+}
+
 function closeAddRowModal() {
   document.getElementById('addRowModal').style.display = 'none';
   document.querySelector('#addRowModal .modal').classList.remove('modal-wide');
   window._kbNewCandidateMode = false;
+  window._hcNewRowMode = false;
 }
 
 function handleAddRowModalSubmit() {
   if (window._kbNewCandidateMode) submitKbNewCandidate();
+  else if (window._hcNewRowMode) submitHcNewRow();
   else submitAddRow();
 }
 
