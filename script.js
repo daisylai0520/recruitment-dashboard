@@ -317,7 +317,7 @@ function selectRole(role) {
     var match = onclickAttr.match(/switchTab\('(\w+)'/);
     if (match) {
       currentTab = match[1];
-      ['kanban','overview','pi','hc','maintain','trends','offers','schedule','salary'].forEach(function(v){
+      ['kanban','candidateSearch','overview','pi','hc','maintain','trends','offers','schedule','salary'].forEach(function(v){
         document.getElementById('view-'+v).style.display = v===currentTab ? '' : 'none';
       });
     }
@@ -380,7 +380,9 @@ function toggleCollapse(type){
 }
 
 // 依 電訪/面試/錄取 三個階段組出 Kanban 看板 HTML（Candidate Overview、Candidate Search 共用）
-function buildKanbanPhasesHtml(filtered) {
+// readOnly=true 時卡片點開後只能查看、不能編輯（給 Candidate Search 用）
+function buildKanbanPhasesHtml(filtered, readOnly) {
+  var clickFn = readOnly ? 'handleCardClickReadOnly' : 'handleCardClick';
   var phases=[
     {label:'電訪階段', cls:'phase-phone', stages:PHONE_STAGES},
     {label:'面試階段', cls:'phase-interview', stages:INTERVIEW_STAGES},
@@ -399,7 +401,7 @@ function buildKanbanPhasesHtml(filtered) {
           var t=(stage==='待電訪'||stage==='排電訪')?(d.Interview_date||d.PI_date||''):(d.Interview_date||'');
           var timeStr=fmtDate(t);
           var idx=allData.indexOf(d);
-          return '<div class="kanban-card" data-idx="'+idx+'" data-stage="'+stage+'" onclick="handleCardClick(this)">'
+          return '<div class="kanban-card" data-idx="'+idx+'" data-stage="'+stage+'" onclick="'+clickFn+'(this)">'
             +'<div class="kanban-card-row1">'
               +'<div class="kanban-card-name">'+d.Name+'</div>'
               +'<div class="kanban-card-right"><span class="kanban-card-pos '+jfClass(d['Job Function'])+'">'+(d['Job Function']||'')+'</span><span class="kanban-card-bu">'+d.BU+'</span></div>'
@@ -427,7 +429,25 @@ function renderKanban() {
   renderMultiFilterBar('kbBuBar', 'kb-bu', kbBuOptions);
   var kbJobOptions = [...new Set(allData.map(function(d){return String(d['Job Function']||'').trim();}))].filter(Boolean).sort();
   renderMultiFilterBar('kbJobBar', 'kb-job', kbJobOptions);
-  renderMultiFilterDropdown('kbResultBar', 'kb-result', getResultOptions(), '目前狀態');
+
+  // BP 角色的 Candidate Overview 畫面不顯示下拉選單（目前狀態、時間篩選），只保留單位／Job Function 按鈕篩選
+  var kbResultGroup = document.getElementById('kbResultGroup');
+  var kbResultDivider = document.getElementById('kbResultDivider');
+  var kbDateSlot = document.getElementById('kbDateFilterSlot');
+  var kbDateDivider = document.getElementById('kbDateDivider');
+  if (userRole === 'bp') {
+    delete multiFilterState['kb-result'];
+    delete dateFilterState['kanban'];
+    if (kbResultGroup) kbResultGroup.style.display = 'none';
+    if (kbResultDivider) kbResultDivider.style.display = 'none';
+    if (kbDateSlot) kbDateSlot.innerHTML = '';
+    if (kbDateDivider) kbDateDivider.style.display = 'none';
+  } else {
+    if (kbResultGroup) kbResultGroup.style.display = '';
+    if (kbResultDivider) kbResultDivider.style.display = '';
+    if (kbDateDivider) kbDateDivider.style.display = '';
+    renderMultiFilterDropdown('kbResultBar', 'kb-result', getResultOptions(), '目前狀態');
+  }
 
   var filtered=allData.filter(function(d){
     if(!multiFilterPass('kb-bu', d.BU)) return false;
@@ -504,7 +524,7 @@ function renderCandidateSearch() {
     return true;
   });
 
-  document.getElementById('csKanbanBoard').innerHTML = buildKanbanPhasesHtml(filtered);
+  document.getElementById('csKanbanBoard').innerHTML = buildKanbanPhasesHtml(filtered, true);
 }
 
 // ---- Modal ----
@@ -513,6 +533,39 @@ function handleCardClick(el) {
   var d = allData[idx];
   if (!d) return;
   openEditCandidateModal(d._row);
+}
+
+// Candidate Search 專用：卡片點開後僅供查看，不能編輯
+function handleCardClickReadOnly(el) {
+  var idx = parseInt(el.getAttribute('data-idx'));
+  var d = allData[idx];
+  if (!d) return;
+  openViewCandidateModal(d._row);
+}
+
+function renderReadOnlyField(rec, field) {
+  var rawVal = rec[field] !== undefined ? rec[field] : '';
+  var isDateField = MAINTAIN_DATE_FIELDS.indexOf(field) >= 0;
+  var isDateOnlyField = MAINTAIN_DATEONLY_FIELDS.indexOf(field) >= 0;
+  var displayVal = isDateOnlyField ? fmtDateOnly(rawVal) : isDateField ? fmtDate(rawVal) : rawVal;
+  var safe = (displayVal||'—').toString().replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  return '<div><div style="font-size:10px;font-weight:600;color:var(--text-tertiary);margin-bottom:4px;">'+field+'</div>'
+    +'<div style="font-size:13px;padding:6px 10px;border:1.5px solid var(--border);border-radius:8px;background:var(--bg);min-height:18px;white-space:pre-wrap;word-break:break-word;">'+safe+'</div></div>';
+}
+
+function openViewCandidateModal(row) {
+  var cand = allData.find(function(d){ return d._row === row; });
+  if (!cand) { showToast('找不到這位人選的資料'); return; }
+  var candHeaders = maintainHeaders['Candidate Records'] || Object.keys(cand).filter(function(k){return k!=='_row';});
+  document.getElementById('viewCandModalName').textContent = cand.Name || '人選資料';
+  document.getElementById('viewCandModalFields').innerHTML = candHeaders.map(function(h){
+    return renderReadOnlyField(cand, h);
+  }).join('');
+  document.getElementById('viewCandidateModal').style.display = 'flex';
+}
+
+function closeViewCandidateModal() {
+  document.getElementById('viewCandidateModal').style.display = 'none';
 }
 
 function openModal(row, name, pos, bu, currentStage) {
@@ -943,15 +996,15 @@ function renderHeadcount() {
         var r = rr.raw;
         var idx = hcRawData.indexOf(r);
         return '<tr>'+
-          '<td style="padding:2px;">'+renderTableCellInput('Headcount Records', r, deptKey, idx)+'</td>'+
-          '<td style="padding:2px;">'+renderTableCellInput('Headcount Records', r, sectionKey, idx)+'</td>'+
-          '<td style="padding:2px;">'+renderTableCellInput('Headcount Records', r, dutiesKey, idx)+'</td>'+
-          '<td style="padding:2px;">'+renderTableCellInput('Headcount Records', r, reasonKey, idx)+'</td>'+
-          '<td style="padding:2px;">'+renderTableCellInput('Headcount Records', r, gradeKey, idx)+'</td>'+
+          '<td style="padding:2px;">'+renderTableCellInput('Headcount Records', r, deptKey, idx, '100%')+'</td>'+
+          '<td style="padding:2px;">'+renderTableCellInput('Headcount Records', r, sectionKey, idx, '100%')+'</td>'+
+          '<td style="padding:2px;">'+renderTableCellInput('Headcount Records', r, dutiesKey, idx, '100%')+'</td>'+
+          '<td style="padding:2px;">'+renderTableCellInput('Headcount Records', r, reasonKey, idx, '100%')+'</td>'+
+          '<td style="padding:2px;">'+renderTableCellInput('Headcount Records', r, gradeKey, idx, '100%')+'</td>'+
           (isPastMode
-            ? '<td style="padding:2px;">'+renderTableCellInput('Headcount Records', r, succKey, idx)+'</td>'
-            : '<td style="padding:2px;">'+renderTableCellInput('Headcount Records', r, predKey, idx)+'</td>')+
-          '<td style="padding:2px;">'+renderTableCellInput('Headcount Records', r, memoKey, idx)+'</td>'+
+            ? '<td style="padding:2px;">'+renderTableCellInput('Headcount Records', r, succKey, idx, '100%')+'</td>'
+            : '<td style="padding:2px;">'+renderTableCellInput('Headcount Records', r, predKey, idx, '100%')+'</td>')+
+          '<td style="padding:2px;">'+renderTableCellInput('Headcount Records', r, memoKey, idx, '100%')+'</td>'+
         '</tr>';
       }).join('');
 
@@ -960,8 +1013,8 @@ function renderHeadcount() {
           '<span style="font-size:12px;font-weight:600;">'+j.job+'</span>'+
           '<span style="font-size:11px;font-weight:700;color:'+jc+';background:'+jc+'18;padding:1px 8px;border-radius:10px;">'+countInJob+(isPastMode?' 已補實':' 缺額')+'</span>'+
         '</div>'+
-        '<div style="overflow-x:auto;border:1px solid var(--border);border-radius:8px;">'+
-          '<table style="width:100%;border-collapse:collapse;min-width:480px;">'+
+        '<div style="border:1px solid var(--border);border-radius:8px;">'+
+          '<table style="width:100%;table-layout:fixed;border-collapse:collapse;">'+
             '<thead><tr style="background:var(--bg);">'+
               '<th style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-align:left;padding:5px 6px;">部門</th>'+
               '<th style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-align:left;padding:5px 6px;">單位</th>'+
