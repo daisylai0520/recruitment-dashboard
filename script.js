@@ -138,7 +138,8 @@ function triggerPageRerender(pageKey) {
     overview: renderOverview,
     pi: renderPi,
     hc: renderHeadcount,
-    offers: renderOffers
+    offers: renderOffers,
+    candidateSearch: renderCandidateSearch
   };
   if (renderMap[pageKey]) renderMap[pageKey]();
 }
@@ -146,14 +147,19 @@ function triggerPageRerender(pageKey) {
 function initDateFilterSlots() {
   var candFields = [
     {value:'invite_date', label:'invite_date'},
-    {value:'PI_date', label:'PI_date'},
+    {value:'PI_date', label:'Phone Interview_date'},
     {value:'Interview_date', label:'Interview_date'},
     {value:'Update_date', label:'Update_date'}
+  ];
+  var csFields = [
+    {value:'invite_date', label:'invite_date'},
+    {value:'Interview_date', label:'Interview_date'}
   ];
   var slots = {
     'kbDateFilterSlot': {key:'kanban', fields:candFields},
     'ovDateFilterSlot': {key:'overview', fields:candFields},
-    'piDateFilterSlot': {key:'pi', fields:[{value:'PI_date',label:'PI_date'}]},
+    'piDateFilterSlot': {key:'pi', fields:[{value:'PI_date',label:'Phone Interview_date'}]},
+    'csDateFilterSlot': {key:'candidateSearch', fields:csFields},
     'hcDateFilterSlot': {key:'hc', fields:[{value:'Update_date',label:'Update_date（缺額更新時間，依異動記錄推算暫不支援）'}], disabled:true}
   };
   Object.keys(slots).forEach(function(slotId){
@@ -269,13 +275,14 @@ async function fetchData() {
 }
 
 var TAB_RESOURCES = {
-  kanban:['core'], overview:['core'], trends:['core'], offers:['core','headcount'], pi:['core'],
+  kanban:['core'], candidateSearch:['core'], overview:['core'], trends:['core'], offers:['core','headcount'], pi:['core'],
   hc:['headcount'], salary:['salary'], schedule:['core','scheduling'], maintain:['core']
 };
 
 function renderAll(){
   if (loadedResources.core) {
     renderKanban();
+    renderCandidateSearch();
     renderOverview();
     renderPi();
   }
@@ -342,7 +349,7 @@ async function switchTab(tab,el) {
   currentTab=tab;
   document.querySelectorAll('.tab-bar:first-of-type > .tab').forEach(function(t){t.classList.remove('active');});
   el.classList.add('active');
-  ['kanban','overview','pi','hc','maintain','trends','offers','schedule','salary'].forEach(function(v){
+  ['kanban','candidateSearch','overview','pi','hc','maintain','trends','offers','schedule','salary'].forEach(function(v){
     document.getElementById('view-'+v).style.display=v===tab?'':'none';
   });
 
@@ -355,6 +362,7 @@ async function switchTab(tab,el) {
     else renderMaintain();
   }
   if (tab === 'kanban') renderKanban();
+  if (tab === 'candidateSearch') renderCandidateSearch();
   if (tab === 'overview') renderOverview();
   if (tab === 'pi') renderPi();
   if (tab === 'hc') renderHeadcount();
@@ -371,33 +379,8 @@ function toggleCollapse(type){
   body.classList.toggle('open'); arrow.classList.toggle('open');
 }
 
-// ---- KANBAN ----
-function renderKanban() {
-  var search=(document.getElementById('kbSearch')?document.getElementById('kbSearch').value:'').toLowerCase();
-  var now=new Date(); now.setHours(0,0,0,0);
-
-  var kbBuOptions = [...new Set(allData.map(function(d){return String(d.BU||'').trim();}))].filter(Boolean).sort();
-  renderMultiFilterBar('kbBuBar', 'kb-bu', kbBuOptions);
-  var kbJobOptions = [...new Set(allData.map(function(d){return String(d['Job Function']||'').trim();}))].filter(Boolean).sort();
-  renderMultiFilterBar('kbJobBar', 'kb-job', kbJobOptions);
-  renderMultiFilterDropdown('kbResultBar', 'kb-result', getResultOptions(), '目前狀態');
-
-  var filtered=allData.filter(function(d){
-    if(!multiFilterPass('kb-bu', d.BU)) return false;
-    if(!multiFilterPass('kb-job', d['Job Function'])) return false;
-    if(!multiFilterPass('kb-result', d.Result)) return false;
-    if(search&&!String(d.Name||'').toLowerCase().includes(search)) return false;
-    if(!dateFilterPass('kanban', d)) return false;
-    // 超過7天未回覆不顯示
-    if(d.Result==='未回覆') {
-      var inviteDate=parseDateTime(d.invite_date||d['invite date']||'');
-      if(!inviteDate) return false;
-      var diff=(now-inviteDate)/(1000*60*60*24);
-      if(diff>7) return false;
-    }
-    return true;
-  });
-
+// 依 電訪/面試/錄取 三個階段組出 Kanban 看板 HTML（Candidate Overview、Candidate Search 共用）
+function buildKanbanPhasesHtml(filtered) {
   var phases=[
     {label:'電訪階段', cls:'phase-phone', stages:PHONE_STAGES},
     {label:'面試階段', cls:'phase-interview', stages:INTERVIEW_STAGES},
@@ -432,7 +415,37 @@ function renderKanban() {
     boardHtml+='</div></div>';
     if(pi<phases.length-1) boardHtml+='<div class="kanban-phase-divider"></div>';
   });
-  document.getElementById('kanbanBoard').innerHTML=boardHtml;
+  return boardHtml;
+}
+
+// ---- KANBAN ----
+function renderKanban() {
+  var search=(document.getElementById('kbSearch')?document.getElementById('kbSearch').value:'').toLowerCase();
+  var now=new Date(); now.setHours(0,0,0,0);
+
+  var kbBuOptions = [...new Set(allData.map(function(d){return String(d.BU||'').trim();}))].filter(Boolean).sort();
+  renderMultiFilterBar('kbBuBar', 'kb-bu', kbBuOptions);
+  var kbJobOptions = [...new Set(allData.map(function(d){return String(d['Job Function']||'').trim();}))].filter(Boolean).sort();
+  renderMultiFilterBar('kbJobBar', 'kb-job', kbJobOptions);
+  renderMultiFilterDropdown('kbResultBar', 'kb-result', getResultOptions(), '目前狀態');
+
+  var filtered=allData.filter(function(d){
+    if(!multiFilterPass('kb-bu', d.BU)) return false;
+    if(!multiFilterPass('kb-job', d['Job Function'])) return false;
+    if(!multiFilterPass('kb-result', d.Result)) return false;
+    if(search&&!String(d.Name||'').toLowerCase().includes(search)) return false;
+    if(!dateFilterPass('kanban', d)) return false;
+    // 超過7天未回覆不顯示
+    if(d.Result==='未回覆') {
+      var inviteDate=parseDateTime(d.invite_date||d['invite date']||'');
+      if(!inviteDate) return false;
+      var diff=(now-inviteDate)/(1000*60*60*24);
+      if(diff>7) return false;
+    }
+    return true;
+  });
+
+  document.getElementById('kanbanBoard').innerHTML = buildKanbanPhasesHtml(filtered);
 
   // 折疊區
   // 折疊區：除了固定的「結束/不推進」分類，任何不屬於電訪/面試/錄取/結束這幾個既定分類的 Result 值
@@ -475,6 +488,23 @@ function renderKanban() {
   var convRate = convBase.length ? (convOffer.length/convBase.length*100) : 0;
   var convEl = document.getElementById('kbConversionRate');
   if (convEl) convEl.textContent = convBase.length ? convRate.toFixed(1)+'%' : '—';
+}
+
+// ---- CANDIDATE SEARCH ----
+// 搜尋 + 目前狀態篩選 + 時間篩選（僅 invite_date／Interview_date）＋ 電訪/面試/錄取階段 Kanban
+function renderCandidateSearch() {
+  var search=(document.getElementById('csSearch')?document.getElementById('csSearch').value:'').toLowerCase();
+
+  renderMultiFilterDropdown('csResultBar', 'cs-result', getResultOptions(), '目前狀態');
+
+  var filtered=allData.filter(function(d){
+    if(!multiFilterPass('cs-result', d.Result)) return false;
+    if(search&&!String(d.Name||'').toLowerCase().includes(search)) return false;
+    if(!dateFilterPass('candidateSearch', d)) return false;
+    return true;
+  });
+
+  document.getElementById('csKanbanBoard').innerHTML = buildKanbanPhasesHtml(filtered);
 }
 
 // ---- Modal ----
@@ -1461,7 +1491,9 @@ var MAINTAIN_DROPDOWNS = {
     '104_Position': function(){ return getPositionOptions(); },
     'Source': function(){ return [...new Set(allData.map(function(d){return String(d.Source||'').trim();}))].filter(Boolean).sort(); },
     'Inviter': function(){ return [...new Set(allData.map(function(d){return String(d.Inviter||'').trim();}))].filter(Boolean).sort(); },
-    'Result': function(){ return getResultOptions(); }
+    'Result': function(){ return getResultOptions(); },
+    '性別': function(){ return [...new Set(allData.map(function(d){return String(d['性別']||'').trim();}))].filter(Boolean).sort(); },
+    '最高學歷': function(){ return [...new Set(allData.map(function(d){return String(d['最高學歷']||'').trim();}))].filter(Boolean).sort(); }
   },
   'Headcount Records': {}
 };
@@ -1949,7 +1981,7 @@ function buildFormDatalistInput(className, field, options, prefillVal, extraAttr
 }
 
 function renderNewCandidateFields() {
-  var headers = maintainHeaders['Candidate Records'] || ['invite_date','BU','Job Function','104_Position','Name','履歷代碼','Source','Inviter','PI_date','Interview_date','Result','Update_date','Onboard date','Memo'];
+  var headers = maintainHeaders['Candidate Records'] || ['invite_date','BU','Job Function','104_Position','Name','性別','年齡','最高學歷','學校','科系','履歷代碼','Source','Inviter','PI_date','Interview_date','Result','Update_date','Onboard date','Memo'];
   var dropdowns = MAINTAIN_DROPDOWNS['Candidate Records'] || {};
   var requiredFields = ['Name','Result','invite_date'];
   var todayStr = getTodayDateStr();
@@ -2064,9 +2096,9 @@ async function submitNewCandidateForm() {
   }
 }
 
-// Recruitment Overview 畫面的「＋ 新增人選資料」：重用共用的 addRowModal，直接寫入 Candidate Records
+// Candidate Overview 畫面的「＋ 新增人選資料」：重用共用的 addRowModal，直接寫入 Candidate Records
 function openKbNewCandidateModal() {
-  var headers = maintainHeaders['Candidate Records'] || ['invite_date','BU','Job Function','104_Position','Name','履歷代碼','Source','Inviter','PI_date','Interview_date','Result','Update_date','Onboard date','Memo'];
+  var headers = maintainHeaders['Candidate Records'] || ['invite_date','BU','Job Function','104_Position','Name','性別','年齡','最高學歷','學校','科系','履歷代碼','Source','Inviter','PI_date','Interview_date','Result','Update_date','Onboard date','Memo'];
   var dropdowns = MAINTAIN_DROPDOWNS['Candidate Records'] || {};
   var requiredFields = ['Name','Result','invite_date'];
   var todayStr = getTodayDateStr();
@@ -2739,6 +2771,7 @@ function renderSchedule() {
 registerMultiFilterRerender('kb-bu', renderKanban);
 registerMultiFilterRerender('kb-job', renderKanban);
 registerMultiFilterRerender('kb-result', renderKanban);
+registerMultiFilterRerender('cs-result', renderCandidateSearch);
 registerMultiFilterRerender('ov-bu', renderOverview);
 registerMultiFilterRerender('ov-job', renderOverview);
 registerMultiFilterRerender('pi-bu', renderPi);

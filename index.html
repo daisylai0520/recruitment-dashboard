@@ -48,7 +48,8 @@
 
 <div class="container">
   <div class="tab-bar">
-    <div class="tab active" data-tab-role="both" onclick="switchTab('kanban',this)">Recruitment Overview</div>
+    <div class="tab active" data-tab-role="both" onclick="switchTab('kanban',this)">Candidate Overview</div>
+    <div class="tab" data-tab-role="both" onclick="switchTab('candidateSearch',this)">Candidate Search</div>
     <div class="tab" data-tab-role="both" onclick="switchTab('offers',this)">錄取名單</div>
     <div class="tab" data-tab-role="recruiter" onclick="switchTab('overview',this)">Recruitment Status</div>
     <div class="tab" data-tab-role="recruiter" onclick="switchTab('trends',this)">Trends</div>
@@ -69,7 +70,7 @@
         <div style="font-size:42px;font-weight:700;color:var(--accent);line-height:1.3;" id="kbConversionRate">—</div>
       </div>
     </div>
-    <div class="page-title">Recruitment Overview</div>
+    <div class="page-title">Candidate Overview</div>
     <div class="page-sub">點擊人選卡片可變更招募階段</div>
     <div style="display:flex;align-items:flex-end;gap:14px;margin-bottom:10px;flex-wrap:wrap;">
       <div class="search-wrap" style="width:280px;margin-bottom:0;">
@@ -102,6 +103,29 @@
 
     <!-- 折疊區 -->
     <div id="kanbanCollapse"></div>
+  </div>
+
+  <!-- ===== CANDIDATE SEARCH ===== -->
+  <div id="view-candidateSearch" style="display:none">
+    <div class="page-title">Candidate Search</div>
+    <div class="page-sub">搜尋人選並檢視電訪／面試／錄取階段狀態</div>
+    <div style="display:flex;align-items:flex-end;gap:14px;margin-bottom:10px;flex-wrap:wrap;">
+      <div class="search-wrap" style="width:280px;margin-bottom:0;">
+        <div class="search-label">搜尋</div>
+        <input class="search-input" type="text" id="csSearch" placeholder="姓名..." oninput="renderCandidateSearch()" style="width:100%;">
+      </div>
+    </div>
+    <div class="filter-bar" style="margin-bottom:20px;">
+      <div class="filter-group">
+        <div class="filter-group-label">目前狀態</div>
+        <div class="filter-btns" id="csResultBar"></div>
+      </div>
+      <div class="filter-divider"></div>
+      <div id="csDateFilterSlot"></div>
+    </div>
+    <div class="kanban-wrap">
+      <div class="kanban-board" id="csKanbanBoard"></div>
+    </div>
   </div>
 
   <!-- ===== OFFER LIST ===== -->

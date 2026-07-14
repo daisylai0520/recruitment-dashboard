@@ -28,7 +28,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
 .refresh-btn:hover{border-color:var(--accent);color:var(--accent);}
 
 /* LAYOUT */
-.container{max-width:1400px;margin:0 auto;padding:0 24px 40px;}
+.container{max-width:1680px;margin:0 auto;padding:0 20px 40px;}
 .tab-bar{display:flex;border-bottom:1px solid var(--border);margin-bottom:24px;padding-top:20px;}
 .tab{font-size:14px;font-weight:500;padding:10px 20px;cursor:pointer;color:var(--text-secondary);border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .15s;}
 .tab:hover{color:var(--accent);}
