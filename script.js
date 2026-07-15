@@ -1,6 +1,6 @@
 var APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby0h1OkoC_xNWeAAbuh4cBicbTl4B8g1KDtL-s2YK9f80TYjIyxQtdeu9RkWFQVtY3pnw/exec';
 var userRole = null;
-var allData=[], piData=[], salaryData=[], scheduleData=[], managerDirectoryData=[], resultOptions=[], positionOptions=[];
+var allData=[], salaryData=[], scheduleData=[], managerDirectoryData=[], resultOptions=[], positionOptions=[];
 var currentTab='kanban';
 // 舊的單選篩選狀態變數已改用 multiFilterState（見下方通用多選篩選元件），這裡保留 activeFilter 給 Recruitment Status 用
 var activeFilter=null;
@@ -136,7 +136,6 @@ function triggerPageRerender(pageKey) {
   var renderMap = {
     kanban: renderKanban,
     overview: renderOverview,
-    pi: renderPi,
     hc: renderHeadcount,
     offers: renderOffers,
     candidateSearch: renderCandidateSearch
@@ -158,7 +157,6 @@ function initDateFilterSlots() {
   var slots = {
     'kbDateFilterSlot': {key:'kanban', fields:candFields},
     'ovDateFilterSlot': {key:'overview', fields:candFields},
-    'piDateFilterSlot': {key:'pi', fields:[{value:'PI_date',label:'Phone Interview_date'}]},
     'csDateFilterSlot': {key:'candidateSearch', fields:csFields},
     'hcDateFilterSlot': {key:'hc', fields:[{value:'Update_date',label:'Update_date（缺額更新時間，依異動記錄推算暫不支援）'}], disabled:true}
   };
@@ -201,7 +199,6 @@ async function fetchCoreData() {
   if (!res.ok) throw new Error('HTTP '+res.status);
   var json = await res.json();
   allData=(json.candidates||[]).filter(function(d){return d.Name&&d.Result;});
-  piData=(json.piRecords||[]).filter(function(d){return d.Name;});
   resultOptions=(json.resultOptions||[]).map(function(v){return String(v).trim();}).filter(Boolean);
   positionOptions=(json.positionOptions||[]).map(function(v){return String(v).trim();}).filter(Boolean);
   Object.assign(maintainHeaders, json.sheetHeaders || {});
@@ -275,7 +272,7 @@ async function fetchData() {
 }
 
 var TAB_RESOURCES = {
-  kanban:['core'], candidateSearch:['core'], overview:['core'], trends:['core'], offers:['core','headcount'], pi:['core'],
+  kanban:['core'], candidateSearch:['core'], overview:['core'], trends:['core'], offers:['core','headcount'],
   hc:['headcount'], salary:['salary'], schedule:['core','scheduling'], maintain:['core']
 };
 
@@ -284,7 +281,6 @@ function renderAll(){
     renderKanban();
     renderCandidateSearch();
     renderOverview();
-    renderPi();
   }
   if (currentTab === 'maintain') {
     if (maintainSheet === 'Candidate Records') renderCandQuery();
@@ -317,7 +313,7 @@ function selectRole(role) {
     var match = onclickAttr.match(/switchTab\('(\w+)'/);
     if (match) {
       currentTab = match[1];
-      ['kanban','candidateSearch','overview','pi','hc','maintain','trends','offers','schedule','salary'].forEach(function(v){
+      ['kanban','candidateSearch','overview','hc','maintain','trends','offers','schedule','salary'].forEach(function(v){
         document.getElementById('view-'+v).style.display = v===currentTab ? '' : 'none';
       });
     }
@@ -349,7 +345,7 @@ async function switchTab(tab,el) {
   currentTab=tab;
   document.querySelectorAll('.tab-bar:first-of-type > .tab').forEach(function(t){t.classList.remove('active');});
   el.classList.add('active');
-  ['kanban','candidateSearch','overview','pi','hc','maintain','trends','offers','schedule','salary'].forEach(function(v){
+  ['kanban','candidateSearch','overview','hc','maintain','trends','offers','schedule','salary'].forEach(function(v){
     document.getElementById('view-'+v).style.display=v===tab?'':'none';
   });
 
@@ -364,7 +360,6 @@ async function switchTab(tab,el) {
   if (tab === 'kanban') renderKanban();
   if (tab === 'candidateSearch') renderCandidateSearch();
   if (tab === 'overview') renderOverview();
-  if (tab === 'pi') renderPi();
   if (tab === 'hc') renderHeadcount();
   if (tab === 'trends') renderTrends();
   if (tab === 'offers') renderOffers();
@@ -556,7 +551,7 @@ function renderReadOnlyField(rec, field) {
 function openViewCandidateModal(row) {
   var cand = allData.find(function(d){ return d._row === row; });
   if (!cand) { showToast('找不到這位人選的資料'); return; }
-  var candHeaders = maintainHeaders['Candidate Records'] || Object.keys(cand).filter(function(k){return k!=='_row';});
+  var candHeaders = filterCandHeadersForRole(maintainHeaders['Candidate Records'] || Object.keys(cand).filter(function(k){return k!=='_row';}));
   document.getElementById('viewCandModalName').textContent = cand.Name || '人選資料';
   document.getElementById('viewCandModalFields').innerHTML = candHeaders.map(function(h){
     return renderReadOnlyField(cand, h);
@@ -610,7 +605,7 @@ function openEditCandidateModal(row) {
   var cand = allData.find(function(d){ return d._row === row; });
   if (!cand) { showToast('找不到這位人選的資料'); return; }
   var idx = allData.indexOf(cand);
-  var candHeaders = maintainHeaders['Candidate Records'] || Object.keys(cand).filter(function(k){return k!=='_row';});
+  var candHeaders = filterCandHeadersForRole(maintainHeaders['Candidate Records'] || Object.keys(cand).filter(function(k){return k!=='_row';}));
   document.getElementById('editCandModalName').textContent = cand.Name || '編輯人選資料';
   document.getElementById('editCandModalFields').innerHTML = candHeaders.map(function(h){
     return renderQueryField('Candidate Records', cand, h, idx);
@@ -693,68 +688,16 @@ function renderOverview() {
   document.getElementById('cg-interview').innerHTML=di.length===0?'<div class="empty">無資料</div>':'<div class="collapse-grid">'+di.map(function(d){return makeCard(d,'待面試','t-gray','🗣️','面試時間');}).join('')+'</div>';
 }
 
-// ---- PI ----
-function renderPi() {
-  var search=(document.getElementById('piSearch')?document.getElementById('piSearch').value:'').toLowerCase();
-
-  var piBuOptions = [...new Set(piData.map(function(d){return String(d.BU||'').trim();}))].filter(Boolean).sort();
-  renderMultiFilterBar('piBuBar', 'pi-bu', piBuOptions);
-  var piJobOptions = [...new Set(piData.map(function(d){return String(d['Job Function']||'').trim();}))].filter(Boolean).sort();
-  renderMultiFilterBar('piJobBar', 'pi-job', piJobOptions);
-  renderMultiFilterDropdown('piResultBar', 'pi-result', getResultOptions(), '目前狀態');
-
-  var filtered=piData.filter(function(d){
-    return multiFilterPass('pi-bu', d.BU) &&
-           multiFilterPass('pi-job', d['Job Function']) &&
-           multiFilterPass('pi-result', d.Result) &&
-           (!search||String(d.Name||'').toLowerCase().includes(search)||String(d['Job Function']||'').toLowerCase().includes(search)) &&
-           dateFilterPass('pi', d);
-  });
-  filtered.sort(function(a,b){
-    var ta=parseDateTime(a.PI_date||''), tb=parseDateTime(b.PI_date||'');
-    var tsa=ta?ta.getTime():Infinity, tsb=tb?tb.getTime():Infinity;
-    return tsa-tsb;
-  });
-  document.getElementById('piSub').textContent='共 '+filtered.length+' 筆電訪記錄';
-
-  // Phone Interview 工作表的實際欄位（Result 是從 Candidate Records 對應過來的虛擬欄位，不含在裡面）
-  var piHeaders = (maintainHeaders['Phone Interview'] || (piData.length ? Object.keys(piData[0]).filter(function(k){return k!=='_row';}) : []))
-    .filter(function(h){ return h !== 'Result'; });
-
-  // BP 角色不需要看到這些較敏感/內部使用的欄位
-  var BP_HIDDEN_PI_FIELDS = ['離職原因','工作/實習&過往經驗','求職狀態','現有待遇','期望待遇','其他資訊','是否邀約'];
-  if (userRole === 'bp') {
-    piHeaders = piHeaders.filter(function(h){ return BP_HIDDEN_PI_FIELDS.indexOf(h) < 0; });
-  }
-
-  var PI_WIDE_FIELDS = ['工作/實習&過往經驗','求職狀態','現有待遇','期望待遇','其他資訊'];
-  function getPiColumnWidth(h) {
-    if (h.includes('Memo')) return '260px';
-    if (h.includes('HR Comment') || h.includes('HR comment')) return '90px';
-    if (PI_WIDE_FIELDS.indexOf(h) >= 0) return '240px';
-    return null;
-  }
-
-  var theadEl = document.getElementById('piTableHead');
-  if (theadEl) {
-    theadEl.innerHTML = piHeaders.map(function(h){
-      var w = getPiColumnWidth(h);
-      return '<th'+(w?' style="min-width:'+w+';width:'+w+';"':'')+'>'+h+'</th>';
-    }).join('') + '<th>目前狀態</th>';
-  }
-
-  if (!filtered.length){document.getElementById('piBody').innerHTML='<tr><td colspan="'+(piHeaders.length+1)+'" style="text-align:center;color:var(--text-tertiary);padding:24px">目前無電訪記錄</td></tr>';return;}
-
-  document.getElementById('piBody').innerHTML=filtered.map(function(d){
-    var idx = piData.indexOf(d);
-    var cellsHtml = piHeaders.map(function(h){
-      return '<td style="padding:2px;vertical-align:top;">'+renderTableCellInput('Phone Interview', d, h, idx, getPiColumnWidth(h))+'</td>';
-    }).join('');
-    var resumeKey = findResumeCodeKey(d);
-    var candMatch = allData.find(function(c){ return resumeKey && String(c[findResumeCodeKey(c)]||'')===String(d[resumeKey]||'') && d[resumeKey]; });
-    return '<tr>'+cellsHtml+'<td>'+renderPiResultCell(d, candMatch)+'</td></tr>';
-  }).join('');
+// 這些欄位原本只存在 Phone Interview 工作表、且不開放 BP 角色看到；欄位併入 Candidate Records 後，
+// 任何會把 Candidate Records 欄位顯示給人選看的地方（編輯/查看 modal、新增表單等）都要套用這個過濾，維持原本的權限規則
+var BP_HIDDEN_CAND_FIELDS = ['離職原因','工作/實習&過往經驗','求職狀態','現有待遇','期望待遇','其他資訊','是否邀約'];
+function filterCandHeadersForRole(headers) {
+  if (userRole !== 'bp') return headers;
+  return headers.filter(function(h){ return BP_HIDDEN_CAND_FIELDS.indexOf(h) < 0; });
 }
+
+// 這些欄位原本是 Phone Interview 工作表裡內容較長的文字欄位，併入 Candidate Records 後在查詢卡裡也給較寬的顯示空間
+var CAND_LONG_TEXT_FIELDS = ['工作/實習&過往經驗','求職狀態','現有待遇','期望待遇','其他資訊'];
 
 // 可重複使用的「表格用」欄位輸入元件：下拉選單用 select，其餘用可編輯文字格，統一走 commitMaintain* 寫回試算表
 // 共用元件：下拉選單 + 可手動輸入新值（用 input+datalist，而不是 select，這樣既能選也能自己打新的值）
@@ -857,42 +800,6 @@ async function commitMaintainCellTA(el) {
   if (ok) {
     el.setAttribute('data-raw', newVal.replace(/"/g,'&quot;'));
     el.dataset.original = newVal;
-  }
-}
-
-// Result（目前狀態）欄位其實存在 Candidate Records，Phone Interview 這邊只是鏡射顯示，
-// 所以編輯時走跟 Kanban 卡片一樣的 action=update，寫回對應的候選人那一列
-function renderPiResultCell(piRec, candMatch) {
-  var val = piRec.Result || '';
-  if (!candMatch) {
-    return '<span class="result-badge">'+(val||'—')+'</span>';
-  }
-  var options = getResultOptions();
-  var dlId = 'dl_' + (_dlIdCounter++);
-  var optHtml = options.map(function(o){ return '<option value="'+o.replace(/"/g,'&quot;')+'">'; }).join('');
-  var valSafe = String(val||'').replace(/"/g,'&quot;');
-  return '<input type="text" list="'+dlId+'" data-cand-row="'+candMatch._row+'" value="'+valSafe+'" data-raw="'+valSafe+'" onfocus="dlInputFocus(this)" onchange="commitPiResult(this)" onblur="commitPiResult(this)" '+
-    'style="font-size:12px;padding:5px 6px;border:1px solid var(--border);border-radius:6px;background:var(--surface);max-width:170px;width:100%;box-sizing:border-box;">'+
-    '<datalist id="'+dlId+'">'+optHtml+'</datalist>';
-}
-
-async function commitPiResult(el) {
-  dlInputRestoreIfEmpty(el);
-  var row = parseInt(el.getAttribute('data-cand-row'));
-  var newVal = el.value.trim();
-  var original = el.getAttribute('data-raw') || '';
-  if (!row || newVal === original) return;
-  showToast('更新中...');
-  try {
-    var url = APPS_SCRIPT_URL + '?action=update&row=' + encodeURIComponent(row) + '&result=' + encodeURIComponent(newVal);
-    await fetch(url, {mode:'no-cors'});
-    var d = allData.find(function(x){ return x._row === row; });
-    if (d) { d.Result = newVal; d.Update_date = getTodayDateStr(); }
-    showToast('✓ 已更新狀態');
-    await fetchData();
-    if (currentTab === 'pi') renderPi();
-  } catch(e) {
-    showToast('❌ 更新失敗：'+e.message);
   }
 }
 
@@ -1676,37 +1583,13 @@ function renderCandQuery() {
 
   container.innerHTML = matched.map(function(cand){
     var idx = allData.indexOf(cand);
-    var resumeKey = findResumeCodeKey(cand);
-    var resumeCode = cand[resumeKey];
-    var candHeaders = maintainHeaders['Candidate Records'] || Object.keys(cand).filter(function(k){return k!=='_row';});
+    var candHeaders = filterCandHeadersForRole(maintainHeaders['Candidate Records'] || Object.keys(cand).filter(function(k){return k!=='_row';}));
     var isSelected = selectedCandForCopy && selectedCandForCopy._row === cand._row;
 
-    // 找對應的 Phone Interview 記錄（依履歷代碼配對）
-    var piRec = piData.find(function(p){ return resumeCode && String(p[findResumeCodeKey(p)]||'')===String(resumeCode); });
-    var piIdx = piRec ? piData.indexOf(piRec) : -1;
-    var memoKey = piRec ? (Object.keys(piRec).find(function(k){return k.includes('Memo')||k.includes('文案');}) || 'Memo') : 'Memo';
-    var hrCommentKey = piRec ? (Object.keys(piRec).find(function(k){return k.includes('HR Comment')||k.includes('HR comment');}) || 'HR Comment') : 'HR Comment';
-
     var fieldsHtml = candHeaders.map(function(h){
-      var isWide = (h === '104_Position' || h.indexOf('Memo') >= 0);
+      var isWide = (h === '104_Position' || h.indexOf('Memo') >= 0 || h.indexOf('HR Comment') >= 0 || h.indexOf('HR comment') >= 0 || CAND_LONG_TEXT_FIELDS.indexOf(h) >= 0);
       return renderQueryField('Candidate Records', cand, h, idx, isWide ? 'span2' : false);
     }).join('');
-
-    var piFieldsHtml = '';
-    if (piRec) {
-      piFieldsHtml = '<div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--border);">'+
-        '<div style="font-size:12px;font-weight:600;color:var(--text-tertiary);letter-spacing:.06em;text-transform:uppercase;margin-bottom:10px;">📞 Phone Interview</div>'+
-        '<div style="display:grid;grid-template-columns:1fr;gap:10px;">'+
-          renderQueryField('Phone Interview', piRec, memoKey, piIdx, true) +
-          renderQueryField('Phone Interview', piRec, hrCommentKey, piIdx, true) +
-        '</div>'+
-      '</div>';
-    } else {
-      piFieldsHtml = '<div style="margin-top:14px;">'+
-        '<div style="font-size:12px;color:var(--text-tertiary);margin-bottom:8px;">此人選尚無 Phone Interview 記錄</div>'+
-        '<button class="refresh-btn" style="margin-left:0;" onclick="createInterviewRecord('+cand._row+')">＋ 建立電訪記錄</button>'+
-      '</div>';
-    }
 
     return '<div class="mini-card" style="padding:20px 22px;margin-bottom:16px;'+(isSelected?'border-color:var(--accent);box-shadow:0 0 0 2px var(--accent);':'')+'">'+
       '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px;">'+
@@ -1717,7 +1600,6 @@ function renderCandQuery() {
         '</div>'+
       '</div>'+
       '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,190px));gap:10px;">'+fieldsHtml+'</div>'+
-      piFieldsHtml+
     '</div>';
   }).join('');
 }
@@ -1953,7 +1835,7 @@ async function saveMaintainField(sheet, row, col, field, idx, newVal) {
     var url = APPS_SCRIPT_URL + '?action=editCell&sheet=' + encodeURIComponent(sheet) +
       '&row=' + encodeURIComponent(row) + '&col=' + encodeURIComponent(col) + '&value=' + encodeURIComponent(newVal);
     await fetch(url, {mode:'no-cors'});
-    var records = getMaintainRecords(sheet) === allData || sheet === 'Phone Interview' ? (sheet==='Phone Interview'?piData:allData) : getMaintainRecords(sheet);
+    var records = getMaintainRecords(sheet);
     var rec = records[idx];
     if (rec) {
       rec[field] = newVal;
@@ -2152,7 +2034,7 @@ async function submitNewCandidateForm() {
 
 // Candidate Overview 畫面的「＋ 新增人選資料」：重用共用的 addRowModal，直接寫入 Candidate Records
 function openKbNewCandidateModal() {
-  var headers = maintainHeaders['Candidate Records'] || ['invite_date','BU','Job Function','104_Position','Name','性別','年齡','最高學歷','學校','科系','履歷代碼','Source','Inviter','PI_date','Interview_date','Result','Update_date','Onboard date','Memo'];
+  var headers = filterCandHeadersForRole(maintainHeaders['Candidate Records'] || ['invite_date','BU','Job Function','104_Position','Name','性別','年齡','最高學歷','學校','科系','履歷代碼','Source','Inviter','PI_date','Interview_date','Result','Update_date','Onboard date','Memo']);
   var dropdowns = MAINTAIN_DROPDOWNS['Candidate Records'] || {};
   var requiredFields = ['Name','Result','invite_date'];
   var todayStr = getTodayDateStr();
@@ -2344,39 +2226,6 @@ async function submitAddRow() {
   } catch(e) {
     if (statusEl) statusEl.textContent = '❌ 新增失敗：'+e.message;
     showToast('❌ 新增失敗：'+e.message);
-  }
-}
-
-async function createInterviewRecord(row) {
-  var cand = allData.find(function(d){ return d._row === row; });
-  if (!cand) { showToast('找不到這位人選的資料'); return; }
-  var resumeKey = findResumeCodeKey(cand);
-  var resumeCode = cand[resumeKey];
-  if (!resumeCode) { showToast('此人選沒有履歷代碼，無法建立電訪記錄'); return; }
-
-  var piHeaders = maintainHeaders['Phone Interview'] || [];
-  if (!piHeaders.length) { showToast('找不到 Phone Interview 欄位資訊'); return; }
-
-  var resumeCodeKey = piHeaders.find(function(h){return h.includes('履歷代碼');}) || '履歷代碼';
-  var orderedValues = piHeaders.map(function(h){
-    if (h === resumeCodeKey) return resumeCode;
-    if (h === 'Name') return cand.Name || '';
-    if (h === 'BU') return cand.BU || '';
-    if (h === 'Job Function') return cand['Job Function'] || '';
-    return '';
-  });
-
-  showToast('建立中...');
-  try {
-    var url = APPS_SCRIPT_URL + '?action=addRow&sheet=' + encodeURIComponent('Phone Interview') +
-      '&values=' + encodeURIComponent(JSON.stringify(orderedValues));
-    await fetch(url, {mode:'no-cors'});
-    showToast('正在同步...');
-    await fetchData();
-    renderCandQuery();
-    showToast('✓ 已建立 '+(cand.Name||'')+' 的電訪記錄');
-  } catch(e) {
-    showToast('❌ 建立失敗：'+e.message);
   }
 }
 
@@ -2828,9 +2677,6 @@ registerMultiFilterRerender('kb-result', renderKanban);
 registerMultiFilterRerender('cs-result', renderCandidateSearch);
 registerMultiFilterRerender('ov-bu', renderOverview);
 registerMultiFilterRerender('ov-job', renderOverview);
-registerMultiFilterRerender('pi-bu', renderPi);
-registerMultiFilterRerender('pi-job', renderPi);
-registerMultiFilterRerender('pi-result', renderPi);
 registerMultiFilterRerender('cand-bu', renderCandQuery);
 registerMultiFilterRerender('cand-job', renderCandQuery);
 registerMultiFilterRerender('cand-result', renderCandQuery);

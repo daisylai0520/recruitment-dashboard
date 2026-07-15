@@ -53,7 +53,6 @@
     <div class="tab" data-tab-role="both" onclick="switchTab('offers',this)">錄取名單</div>
     <div class="tab" data-tab-role="recruiter" onclick="switchTab('overview',this)">Recruitment Status</div>
     <div class="tab" data-tab-role="recruiter" onclick="switchTab('trends',this)">Trends</div>
-    <div class="tab" data-tab-role="both" onclick="switchTab('pi',this)">Phone Interview Record</div>
     <div class="tab" data-tab-role="both" onclick="switchTab('hc',this)">Headcount Overview</div>
     <div class="tab" data-tab-role="both" onclick="switchTab('schedule',this)">面試時間協調</div>
     <div class="tab" data-tab-role="both" onclick="switchTab('salary',this)">Market Salary Records</div>
@@ -262,42 +261,6 @@
         <div style="margin-top:8px;"><span style="font-size:11px;color:var(--accent);cursor:pointer;text-decoration:underline;" onclick="toggleTrendDetail('result')">查看明細表格</span></div>
         <div class="table-wrap" id="trendResultDetail" style="display:none;margin-top:10px;"><table class="pi-table"><thead><tr id="trendResultTableHead"></tr></thead><tbody id="trendResultTableBody"></tbody></table></div>
       </div>
-    </div>
-  </div>
-
-  <!-- ===== PHONE INTERVIEW ===== -->
-  <div id="view-pi" style="display:none">
-    <div class="page-title">Phone Interview Record</div>
-    <div class="page-sub" id="piSub">載入中...</div>
-    <div class="search-wrap" style="margin-bottom:10px;width:280px;">
-      <div class="search-label">搜尋</div>
-      <input class="search-input" type="text" id="piSearch" placeholder="姓名、職缺..." oninput="renderPi()" style="width:100%;">
-    </div>
-    <div class="filter-bar">
-      <div class="filter-group">
-        <div class="filter-group-label">單位</div>
-        <div class="filter-btns" id="piBuBar"></div>
-      </div>
-      <div class="filter-divider"></div>
-      <div class="filter-group">
-        <div class="filter-group-label">Job Function</div>
-        <div class="filter-btns" id="piJobBar"></div>
-      </div>
-      <div class="filter-divider"></div>
-      <div class="filter-group">
-        <div class="filter-group-label">目前狀態</div>
-        <div class="filter-btns" id="piResultBar"></div>
-      </div>
-      <div class="filter-divider"></div>
-      <div id="piDateFilterSlot"></div>
-    </div>
-    <div class="table-wrap">
-      <table class="pi-table">
-        <thead>
-          <tr id="piTableHead"><th>姓名</th><th>職缺</th><th>電訪時間</th><th style="min-width:200px">Memo</th><th>是否邀約</th><th>目前狀態</th></tr>
-        </thead>
-        <tbody id="piBody"></tbody>
-      </table>
     </div>
   </div>
 
