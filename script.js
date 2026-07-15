@@ -1688,7 +1688,8 @@ function renderCandQuery() {
     var hrCommentKey = piRec ? (Object.keys(piRec).find(function(k){return k.includes('HR Comment')||k.includes('HR comment');}) || 'HR Comment') : 'HR Comment';
 
     var fieldsHtml = candHeaders.map(function(h){
-      return renderQueryField('Candidate Records', cand, h, idx);
+      var isWide = (h === '104_Position' || h.indexOf('Memo') >= 0);
+      return renderQueryField('Candidate Records', cand, h, idx, isWide ? 'span2' : false);
     }).join('');
 
     var piFieldsHtml = '';
@@ -1715,7 +1716,7 @@ function renderCandQuery() {
           '<button class="refresh-btn" style="margin-left:0;color:#EF4444;border-color:#EF4444;" onclick="deleteMaintainRow('+cand._row+')">🗑️ 刪除人選資料</button>'+
         '</div>'+
       '</div>'+
-      '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;">'+fieldsHtml+'</div>'+
+      '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,190px));gap:10px;">'+fieldsHtml+'</div>'+
       piFieldsHtml+
     '</div>';
   }).join('');
@@ -1729,7 +1730,7 @@ function renderQueryField(sheetName, rec, field, idx, fullWidth) {
   var isDateOnlyField = MAINTAIN_DATEONLY_FIELDS.indexOf(field) >= 0;
   var displayVal = isDateOnlyField ? fmtDateOnly(rawVal) : isDateField ? fmtDate(rawVal) : rawVal;
   var rawSafe = String(rawVal||'').replace(/"/g,'&quot;');
-  var wrapStyle = fullWidth ? 'grid-column:1/-1;' : '';
+  var wrapStyle = fullWidth === 'span2' ? 'grid-column:span 2;' : fullWidth ? 'grid-column:1/-1;' : '';
 
   var inputHtml;
   if (dropdowns[field]) {

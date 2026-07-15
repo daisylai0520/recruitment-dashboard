@@ -393,11 +393,6 @@
     <div class="page-title">資料維護</div>
     <div class="page-sub" id="maintainPageSub">可直接編輯資料</div>
 
-    <div class="tab-bar" style="margin-bottom:16px;padding-top:0;">
-      <div class="tab active" onclick="switchMaintainSheet('Candidate Records',this)">Candidate Records</div>
-      <div class="tab" onclick="switchMaintainSheet('Headcount Records',this)">Headcount Records</div>
-    </div>
-
     <!-- ===== Candidate Records：查詢卡模式 ===== -->
     <div id="maintainCandidateView">
       <div style="display:flex;align-items:flex-end;gap:14px;margin-bottom:16px;flex-wrap:wrap;">
@@ -436,32 +431,6 @@
           <button class="refresh-btn" style="margin-left:0;" onclick="applyCopyToNewCandidateForm()">📄 複製人選資料（先在上方點選要複製的人選）</button>
           <button class="btn-cancel" onclick="clearNewCandidateForm()">清空表單</button>
         </div>
-      </div>
-    </div>
-
-
-    <!-- ===== Headcount Records：表格模式 ===== -->
-    <div id="maintainHcView" style="display:none">
-      <div class="filter-bar">
-        <div class="filter-group">
-          <div class="filter-group-label" id="maintainBuLabel">單位</div>
-          <div class="filter-btns" id="maintainBuBar"><button class="bu-btn active" onclick="maintainFilter('bu','all',this)">全部單位</button></div>
-        </div>
-        <div class="filter-divider"></div>
-        <div class="search-wrap">
-          <div class="search-label">搜尋</div>
-          <input class="search-input" type="text" id="maintainSearch" placeholder="搜尋全部欄位..." oninput="renderMaintain()" style="width:240px;">
-        </div>
-      </div>
-      <div style="margin-bottom:14px;display:flex;align-items:center;gap:10px;">
-        <button class="refresh-btn" style="margin-left:0;" onclick="addMaintainRow()">＋ 新增一列</button>
-        <span id="maintainStatus" style="font-size:12px;color:var(--text-tertiary);"></span>
-      </div>
-      <div class="table-wrap" style="max-height:640px;overflow-y:auto;position:relative;">
-        <table class="pi-table" id="maintainTable">
-          <thead id="maintainTableHead" style="position:sticky;top:0;z-index:5;"></thead>
-          <tbody id="maintainTableBody"></tbody>
-        </table>
       </div>
     </div>
   </div>
