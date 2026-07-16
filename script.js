@@ -8,6 +8,8 @@ var selectedCard=null;
 
 // Stage definitions
 var PHONE_STAGES = ['確認主管邀約意願','排電訪','待電訪'];
+// Candidate Overview 不顯示「確認主管邀約意願」欄；Candidate Search 保留完整流程。
+var CANDIDATE_OVERVIEW_PHONE_STAGES = PHONE_STAGES.filter(function(stage){ return stage !== '確認主管邀約意願'; });
 var INTERVIEW_STAGES = ['確認主管面試意願','排面試','待面試'];
 var OFFER_STAGES = ['確認主管錄取意願','確認人選錄取意願','錄取'];
 var COLLAPSE_STAGES = ['未回覆','HR不邀約電訪','主管不邀約面試','婉拒電訪','婉拒面試','未錄取','婉拒錄取','已關閉履歷'];
@@ -384,10 +386,10 @@ function toggleCollapse(type){
 
 // 依 電訪/面試/錄取 三個階段組出 Kanban 看板 HTML（Candidate Overview、Candidate Search 共用）
 // readOnly=true 時卡片點開後只能查看、不能編輯（給 Candidate Search 用）
-function buildKanbanPhasesHtml(filtered, readOnly) {
+function buildKanbanPhasesHtml(filtered, readOnly, hideManagerInvitationStage) {
   var clickFn = readOnly ? 'handleCardClickReadOnly' : 'handleCardClick';
   var phases=[
-    {label:'電訪階段', cls:'phase-phone', stages:PHONE_STAGES},
+    {label:'電訪階段', cls:'phase-phone', stages:hideManagerInvitationStage ? CANDIDATE_OVERVIEW_PHONE_STAGES : PHONE_STAGES},
     {label:'面試階段', cls:'phase-interview', stages:INTERVIEW_STAGES},
     {label:'錄取階段', cls:'phase-offer', stages:OFFER_STAGES}
   ];
@@ -468,7 +470,7 @@ function renderKanban() {
     return true;
   });
 
-  document.getElementById('kanbanBoard').innerHTML = buildKanbanPhasesHtml(filtered);
+  document.getElementById('kanbanBoard').innerHTML = buildKanbanPhasesHtml(filtered, false, true);
 
   // 折疊區
   // 折疊區：除了固定的「結束/不推進」分類，任何不屬於電訪/面試/錄取/結束這幾個既定分類的 Result 值
@@ -1472,8 +1474,12 @@ var MAINTAIN_DROPDOWNS = {
   'Headcount Records': {}
 };
 
-var MAINTAIN_DATE_FIELDS = ['invite_date','invite date','PI_date','Interview_date','Update_date','Update date','Onboard date'];
-var MAINTAIN_DATEONLY_FIELDS = ['invite_date','invite date','Update_date','Update date','Onboard date'];
+var MAINTAIN_DATE_FIELDS = ['invite_date','invite date','PI_date','Interview_date','Phone Interview Scheduled','Interview Scheduled','Update_date','Update date','Onboard date'];
+var MAINTAIN_DATEONLY_FIELDS = ['invite_date','invite date','Phone Interview Scheduled','Interview Scheduled','Update_date','Update date','Onboard date'];
+var SCHEDULED_DATE_FIELD_MAP = {
+  'PI_date': 'Phone Interview Scheduled',
+  'Interview_date': 'Interview Scheduled'
+};
 
 // 將使用者輸入的日期字串正規化為儲存格式；輸入僅「6/30」時自動補上今年年份
 function normalizeDateForSave(field, raw) {
@@ -1866,6 +1872,19 @@ async function saveMaintainField(sheet, row, col, field, idx, newVal) {
           updEl.setAttribute('data-raw', todayStr);
           if (updEl.tagName === 'SELECT' || updEl.tagName === 'INPUT' || updEl.tagName === 'TEXTAREA') updEl.value = todayStr;
           else updEl.textContent = fmtDateOnly(todayStr);
+        }
+      }
+      // 更新面試日期時，同步帶入該次排程的更新日期；Apps Script 也會寫入試算表，
+      // 此處同時更新記憶體資料與畫面，使用者不需要重新整理。
+      var scheduledFieldName = sheet === 'Candidate Records' ? SCHEDULED_DATE_FIELD_MAP[field] : null;
+      if (scheduledFieldName) {
+        var scheduledToday = getTodayDateStr();
+        rec[scheduledFieldName] = scheduledToday;
+        var scheduledEl = document.querySelector('[data-sheet="'+sheet+'"][data-row="'+row+'"][data-field="'+scheduledFieldName+'"]');
+        if (scheduledEl) {
+          scheduledEl.setAttribute('data-raw', scheduledToday);
+          if (scheduledEl.tagName === 'SELECT' || scheduledEl.tagName === 'INPUT' || scheduledEl.tagName === 'TEXTAREA') scheduledEl.value = scheduledToday;
+          else scheduledEl.textContent = fmtDateOnly(scheduledToday);
         }
       }
     }
