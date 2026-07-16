@@ -138,7 +138,8 @@ function triggerPageRerender(pageKey) {
     overview: renderOverview,
     hc: renderHeadcount,
     offers: renderOffers,
-    candidateSearch: renderCandidateSearch
+    candidateSearch: renderCandidateSearch,
+    candidateMaintenance: renderCandQuery
   };
   if (renderMap[pageKey]) renderMap[pageKey]();
 }
@@ -158,6 +159,7 @@ function initDateFilterSlots() {
     'kbDateFilterSlot': {key:'kanban', fields:candFields},
     'ovDateFilterSlot': {key:'overview', fields:candFields},
     'csDateFilterSlot': {key:'candidateSearch', fields:csFields},
+    'candDateFilterSlot': {key:'candidateMaintenance', fields:candFields},
     'hcDateFilterSlot': {key:'hc', fields:[{value:'Update_date',label:'Update_date（缺額更新時間，依異動記錄推算暫不支援）'}], disabled:true}
   };
   Object.keys(slots).forEach(function(slotId){
@@ -301,11 +303,13 @@ function selectRole(role) {
   // 依角色顯示/隱藏 tab
   document.querySelectorAll('.tab[data-tab-role]').forEach(function(t){
     var r = t.getAttribute('data-tab-role');
-    t.style.display = (r === 'both' || r === role) ? '' : 'none';
+    t.style.display = r.split(',').indexOf(role) >= 0 ? '' : 'none';
   });
 
   // 每次選擇身分都重設到第一個 tab，避免殘留前一個角色的畫面狀態
-  var firstTab = document.querySelector('.tab[data-tab-role]');
+  var firstTab = Array.prototype.find.call(document.querySelectorAll('.tab[data-tab-role]'), function(t){
+    return t.getAttribute('data-tab-role').split(',').indexOf(role) >= 0;
+  });
   document.querySelectorAll('.tab').forEach(function(t){t.classList.remove('active');});
   if (firstTab) {
     firstTab.classList.add('active');
@@ -790,6 +794,11 @@ async function commitMaintainCellTA(el) {
   var original = el.dataset.original !== undefined ? el.dataset.original : (el.getAttribute('data-raw')||'');
   if (newVal === original) return;
 
+  var field0 = el.getAttribute('data-field');
+  var isDateField = MAINTAIN_DATE_FIELDS.indexOf(field0) >= 0;
+  var isDateOnlyField = MAINTAIN_DATEONLY_FIELDS.indexOf(field0) >= 0;
+  if (newVal && (isDateField || isDateOnlyField)) newVal = normalizeDateForSave(field0, newVal);
+
   var sheet = el.getAttribute('data-sheet');
   var row = el.getAttribute('data-row');
   var col = el.getAttribute('data-col');
@@ -800,6 +809,7 @@ async function commitMaintainCellTA(el) {
   if (ok) {
     el.setAttribute('data-raw', newVal.replace(/"/g,'&quot;'));
     el.dataset.original = newVal;
+    el.value = isDateOnlyField ? fmtDateOnly(newVal) : isDateField ? fmtDate(newVal) : newVal;
   }
 }
 
@@ -1558,6 +1568,8 @@ function isMultiFilterNarrowed(filterId) {
 function renderCandQuery() {
   var search = (document.getElementById('candQuerySearch').value || '').trim().toLowerCase();
   var container = document.getElementById('candQueryResults');
+  var hasDateFilter = dateFilterState.candidateMaintenance &&
+    (dateFilterState.candidateMaintenance.start || dateFilterState.candidateMaintenance.end);
 
   var candBuOptions = [...new Set(allData.map(function(d){return String(d.BU||'').trim();}))].filter(Boolean).sort();
   renderMultiFilterBar('candBuBar', 'cand-bu', candBuOptions);
@@ -1565,7 +1577,7 @@ function renderCandQuery() {
   renderMultiFilterBar('candJobBar', 'cand-job', candJobOptions);
   renderMultiFilterDropdown('candResultBar', 'cand-result', getResultOptions(), '目前狀態');
 
-  if (!search && !isMultiFilterNarrowed('cand-bu') && !isMultiFilterNarrowed('cand-job') && !isMultiFilterNarrowed('cand-result')) {
+  if (!search && !isMultiFilterNarrowed('cand-bu') && !isMultiFilterNarrowed('cand-job') && !isMultiFilterNarrowed('cand-result') && !hasDateFilter) {
     container.innerHTML = '<div class="empty" style="padding:30px 0;text-align:center;">請輸入姓名或履歷代碼查詢，或使用上方篩選條件顯示人選</div>';
     return;
   }
@@ -1573,7 +1585,7 @@ function renderCandQuery() {
   var matched = allData.filter(function(d){
     var resumeKey = findResumeCodeKey(d);
     var textMatch = !search || String(d.Name||'').toLowerCase().includes(search) || String(d[resumeKey]||'').toLowerCase().includes(search);
-    return textMatch && multiFilterPass('cand-bu', d.BU) && multiFilterPass('cand-job', d['Job Function']) && multiFilterPass('cand-result', d.Result);
+    return textMatch && multiFilterPass('cand-bu', d.BU) && multiFilterPass('cand-job', d['Job Function']) && multiFilterPass('cand-result', d.Result) && dateFilterPass('candidateMaintenance', d);
   });
 
   if (!matched.length) {
@@ -1587,7 +1599,8 @@ function renderCandQuery() {
     var isSelected = selectedCandForCopy && selectedCandForCopy._row === cand._row;
 
     var fieldsHtml = candHeaders.map(function(h){
-      var isWide = (h === '104_Position' || h.indexOf('Memo') >= 0 || h.indexOf('HR Comment') >= 0 || h.indexOf('HR comment') >= 0 || CAND_LONG_TEXT_FIELDS.indexOf(h) >= 0);
+      // 資料維護頁採緊湊欄寬，僅職缺名稱與備註保留較大的編輯空間。
+      var isWide = (h === '104_Position' || h.indexOf('Memo') >= 0);
       return renderQueryField('Candidate Records', cand, h, idx, isWide ? 'span2' : false);
     }).join('');
 
@@ -1599,7 +1612,7 @@ function renderCandQuery() {
           '<button class="refresh-btn" style="margin-left:0;color:#EF4444;border-color:#EF4444;" onclick="deleteMaintainRow('+cand._row+')">🗑️ 刪除人選資料</button>'+
         '</div>'+
       '</div>'+
-      '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,190px));gap:10px;">'+fieldsHtml+'</div>'+
+      '<div class="maintain-candidate-grid">'+fieldsHtml+'</div>'+
     '</div>';
   }).join('');
 }
@@ -1622,12 +1635,12 @@ function renderQueryField(sheetName, rec, field, idx, fullWidth) {
   } else if (fullWidth) {
     inputHtml = '<textarea data-sheet="'+sheetName+'" data-row="'+rec._row+'" data-col="'+col+'" data-field="'+field+'" data-idx="'+idx+'" data-raw="'+rawSafe+'" '+
       'onfocus="this.dataset.original=this.value" onblur="commitMaintainTextarea(this)" rows="2" '+
-      'style="width:100%;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;box-sizing:border-box;resize:vertical;font-family:inherit;">'+(rawVal||'')+'</textarea>';
+      'style="width:100%;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;box-sizing:border-box;resize:vertical;font-family:inherit;white-space:pre-wrap;word-break:break-word;">'+(rawVal||'')+'</textarea>';
   } else {
-    inputHtml = '<div contenteditable="true" data-sheet="'+sheetName+'" data-row="'+rec._row+'" data-col="'+col+'" data-field="'+field+'" data-idx="'+idx+'" data-raw="'+rawSafe+'" '+
-      'onfocus="enterMaintainEdit(this)" onblur="commitMaintainCell(this)" '+
-      'style="font-size:13px;padding:6px 10px;border:1.5px solid var(--border);border-radius:8px;background:var(--surface);min-height:18px;cursor:text;">'+
-      (displayVal||'').toString().replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</div>';
+    inputHtml = '<textarea data-sheet="'+sheetName+'" data-row="'+rec._row+'" data-col="'+col+'" data-field="'+field+'" data-idx="'+idx+'" data-raw="'+rawSafe+'" '+
+      'onfocus="enterMaintainEditTA(this)" onblur="commitMaintainCellTA(this)" rows="2" '+
+      'style="width:100%;font-size:13px;padding:6px 8px;border:1.5px solid var(--border);border-radius:8px;background:var(--surface);min-height:36px;box-sizing:border-box;resize:vertical;font-family:inherit;white-space:pre-wrap;word-break:break-word;">'+
+      (displayVal||'').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</textarea>';
   }
 
   return '<div style="'+wrapStyle+'"><div style="font-size:10px;font-weight:600;color:var(--text-tertiary);margin-bottom:4px;">'+field+'</div>'+inputHtml+'</div>';
@@ -1847,7 +1860,8 @@ async function saveMaintainField(sheet, row, col, field, idx, newVal) {
         var updEl = document.querySelector('[data-sheet="'+sheet+'"][data-row="'+row+'"][data-field="'+updateFieldName+'"]');
         if (updEl) {
           updEl.setAttribute('data-raw', todayStr);
-          if (updEl.tagName === 'SELECT') updEl.value = todayStr; else updEl.textContent = fmtDateOnly(todayStr);
+          if (updEl.tagName === 'SELECT' || updEl.tagName === 'INPUT' || updEl.tagName === 'TEXTAREA') updEl.value = todayStr;
+          else updEl.textContent = fmtDateOnly(todayStr);
         }
       }
     }
@@ -1927,8 +1941,9 @@ function renderNewCandidateFields() {
     var label = h + (isRequired ? ' <span style="color:#EF4444;">*</span>' : '');
     var isInviteDate = (h === 'invite_date' || h === 'invite date');
     var isMemo = h.indexOf('Memo') >= 0;
+    var isPosition = h === '104_Position';
     var isNameOrResume = (h === 'Name' || h.indexOf('履歷代碼') >= 0);
-    var spanStyle = isMemo ? 'grid-column:1/-1;' : '';
+    var spanStyle = isMemo ? 'grid-column:1/-1;' : (isPosition ? 'grid-column:span 2;' : '');
     var dupAttr = isNameOrResume ? ' oninput="checkNewCandDuplicate()"' : '';
     var prefillVal = isInviteDate ? todayStr : '';
 
