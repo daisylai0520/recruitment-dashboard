@@ -297,6 +297,8 @@ function renderAll(){
 // ---- role selection ----
 function selectRole(role) {
   userRole = role;
+  // 切換身分時回到頁首，確保上方分頁導覽會立即出現在視窗中。
+  window.scrollTo(0, 0);
   document.getElementById('roleScreen').style.display = 'none';
   document.getElementById('mainAppWrapper').style.display = '';
 
@@ -340,6 +342,7 @@ function selectRole(role) {
 
 function switchRole() {
   userRole = null;
+  window.scrollTo(0, 0);
   document.getElementById('mainAppWrapper').style.display = 'none';
   document.getElementById('roleScreen').style.display = 'flex';
 }
@@ -347,6 +350,7 @@ function switchRole() {
 // ---- tabs ----
 async function switchTab(tab,el) {
   currentTab=tab;
+  window.scrollTo(0, 0);
   document.querySelectorAll('.tab-bar:first-of-type > .tab').forEach(function(t){t.classList.remove('active');});
   el.classList.add('active');
   ['kanban','candidateSearch','overview','hc','maintain','trends','offers','schedule','salary'].forEach(function(v){
