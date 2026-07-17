@@ -18,9 +18,6 @@
       <div style="font-size:13px;color:var(--text-secondary);margin-top:4px;">請選擇您的身分</div>
     </div>
     <div style="display:flex;gap:16px;justify-content:center;flex-wrap:wrap;">
-      <button onclick="selectRole('manager')" style="width:180px;padding:28px 20px;border:1.5px solid var(--border);border-radius:14px;background:var(--surface);cursor:pointer;transition:all .15s;" onmouseover="this.style.borderColor='#4F46E5';this.style.boxShadow='0 4px 16px rgba(79,70,229,.12)'" onmouseout="this.style.borderColor='#E8EAED';this.style.boxShadow='none'">
-        <div style="font-size:16px;font-weight:600;color:var(--text-primary);">我是管理者</div>
-      </button>
       <button onclick="selectRole('recruiter')" style="width:180px;padding:28px 20px;border:1.5px solid var(--border);border-radius:14px;background:var(--surface);cursor:pointer;transition:all .15s;" onmouseover="this.style.borderColor='#4F46E5';this.style.boxShadow='0 4px 16px rgba(79,70,229,.12)'" onmouseout="this.style.borderColor='#E8EAED';this.style.boxShadow='none'">
         <div style="font-size:16px;font-weight:600;color:var(--text-primary);">我是 Recruiter</div>
       </button>
@@ -29,6 +26,7 @@
       </button>
     </div>
   </div>
+  <button onclick="selectRole('manager')" style="position:absolute;left:16px;bottom:16px;padding:5px 10px;font-size:11px;color:var(--text-tertiary);border:1px solid var(--border);border-radius:8px;background:var(--surface);cursor:pointer;">我是管理者</button>
 </div>
 
 <div id="mainAppWrapper" style="display:none;">
@@ -257,31 +255,35 @@
 
     <div class="metrics-inner" style="grid-template-columns:repeat(auto-fit,minmax(140px,1fr));margin-bottom:20px;">
       <div class="metric" id="m-tr-invited">
-        <div class="metric-top"><div class="metric-dot" style="background:#4F46E5"></div><span class="metric-label">邀約人數</span></div>
+        <div class="metric-top"><div class="metric-dot" style="background:#4F46E5"></div><span class="metric-label">邀約</span></div>
         <div class="metric-val" id="c-tr-invited">—</div>
       </div>
       <div class="metric" id="m-tr-noreply">
-        <div class="metric-top"><div class="metric-dot" style="background:#F59E0B"></div><span class="metric-label">邀約未回覆人數</span></div>
+        <div class="metric-top"><div class="metric-dot" style="background:#F59E0B"></div><span class="metric-label">邀約未回覆</span></div>
         <div class="metric-val" id="c-tr-noreply">—</div>
       </div>
+      <div class="metric" id="m-tr-noanswer">
+        <div class="metric-top"><div class="metric-dot" style="background:#6366F1"></div><span class="metric-label">已致電未接</span></div>
+        <div class="metric-val" id="c-tr-noanswer">—</div>
+      </div>
       <div class="metric" id="m-tr-pi">
-        <div class="metric-top"><div class="metric-dot" style="background:#10B981"></div><span class="metric-label">電訪人數</span></div>
+        <div class="metric-top"><div class="metric-dot" style="background:#10B981"></div><span class="metric-label">電訪</span></div>
         <div class="metric-val" id="c-tr-pi">—</div>
       </div>
       <div class="metric" id="m-tr-declinepi">
-        <div class="metric-top"><div class="metric-dot" style="background:#EC4899"></div><span class="metric-label">婉拒電訪人數</span></div>
+        <div class="metric-top"><div class="metric-dot" style="background:#EC4899"></div><span class="metric-label">婉拒電訪</span></div>
         <div class="metric-val" id="c-tr-declinepi">—</div>
       </div>
       <div class="metric" id="m-tr-othermgr">
-        <div class="metric-top"><div class="metric-dot" style="background:#F97316"></div><span class="metric-label">其他主管/近期已邀約人數</span></div>
+        <div class="metric-top"><div class="metric-dot" style="background:#F97316"></div><span class="metric-label">其他主管/近期已邀約</span></div>
         <div class="metric-val" id="c-tr-othermgr">—</div>
       </div>
       <div class="metric" id="m-tr-waitpi">
-        <div class="metric-top"><div class="metric-dot" style="background:#14B8A6"></div><span class="metric-label">待電訪人數</span></div>
+        <div class="metric-top"><div class="metric-dot" style="background:#14B8A6"></div><span class="metric-label">待電訪</span></div>
         <div class="metric-val" id="c-tr-waitpi">—</div>
       </div>
       <div class="metric" id="m-tr-interview">
-        <div class="metric-top"><div class="metric-dot" style="background:#3B82F6"></div><span class="metric-label">面試人數</span></div>
+        <div class="metric-top"><div class="metric-dot" style="background:#3B82F6"></div><span class="metric-label">面試</span></div>
         <div class="metric-val" id="c-tr-interview">—</div>
       </div>
     </div>

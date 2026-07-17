@@ -1292,6 +1292,7 @@ function renderTrends() {
   // ---- 統計字卡 ----
   document.getElementById('c-tr-invited').textContent = trendData.filter(function(d){ return !!(d.invite_date || d['invite date']); }).length;
   document.getElementById('c-tr-noreply').textContent = trendData.filter(function(d){ return d.Result === '104已邀約未回覆'; }).length;
+  document.getElementById('c-tr-noanswer').textContent = trendData.filter(function(d){ return d.Result === '已致電未接'; }).length;
   document.getElementById('c-tr-pi').textContent = trendData.filter(function(d){ return !!d.PI_date; }).length;
   document.getElementById('c-tr-declinepi').textContent = trendData.filter(function(d){ return d.Result === '婉拒電訪' || d.Result === '已關閉履歷'; }).length;
   document.getElementById('c-tr-othermgr').textContent = trendData.filter(function(d){ return d.Result === '其他主管/近期已邀約'; }).length;
