@@ -656,7 +656,7 @@ async function changeStage(newStage) {
     console.log('Response status:', res.status, res.type);
     showToast('✓ 已更新：'+card.name+' → '+newStage);
     var d=allData.find(function(x){return x._row===card.row;});
-    if(d) { d.Result=newStage; d.Update_date = getTodayDateStr(); }
+    if(d) { d.Result=newStage; d['Result Update_date'] = getTodayDateStr(); }
     renderAll();
   } catch(e) {
     showToast('❌ 更新失敗：'+e.message);
@@ -1334,14 +1334,14 @@ function renderTrends() {
   renderTrendCard('funnel');
   drawTrendTable('trendFunnelTableHead','trendFunnelTableBody', weekLabels, funnelSeries);
 
-  // ---- 每週 Result 狀態統計（依 Update_date，最近8週）----
+  // ---- 每週 Result 狀態統計（依 Result Update_date，最近8週）----
   var allStages = [...new Set(trendData.map(function(d){return d.Result;}))].filter(Boolean);
   var resultSeries = allStages.map(function(stage, si){
     var data = weeks.map(function(we){
       var ws = new Date(we); ws.setDate(ws.getDate()-6);
       return trendData.filter(function(rec){
         if (rec.Result !== stage) return false;
-        var ud = parseDateTime(rec.Update_date || rec['Update date'] || '');
+        var ud = parseDateTime(rec['Result Update_date'] || rec.Update_date || rec['Update date'] || '');
         if (!ud) return false;
         ud.setHours(0,0,0,0);
         return ud >= ws && ud <= we;
@@ -1522,8 +1522,8 @@ var MAINTAIN_DROPDOWNS = {
   'Headcount Records': {}
 };
 
-var MAINTAIN_DATE_FIELDS = ['invite_date','invite date','PI_date','Interview_date','Phone Interview Scheduled','Interview Scheduled','Update_date','Update date','Onboard date'];
-var MAINTAIN_DATEONLY_FIELDS = ['invite_date','invite date','Phone Interview Scheduled','Interview Scheduled','Update_date','Update date','Onboard date'];
+var MAINTAIN_DATE_FIELDS = ['invite_date','invite date','PI_date','Interview_date','Phone Interview Scheduled','Interview Scheduled','Result Update_date','Update_date','Update date','Onboard date'];
+var MAINTAIN_DATEONLY_FIELDS = ['invite_date','invite date','Phone Interview Scheduled','Interview Scheduled','Result Update_date','Update_date','Update date','Onboard date'];
 var SCHEDULED_DATE_FIELD_MAP = {
   'PI_date': 'Phone Interview Scheduled',
   'Interview_date': 'Interview Scheduled'
@@ -1920,8 +1920,8 @@ async function saveMaintainField(sheet, row, col, field, idx, newVal) {
     var rec = records[idx];
     if (rec) {
       rec[field] = newVal;
-      // 跟後端一致：Candidate Records / Market Salary Records 只要有任何欄位被改動，畫面上也立即帶出今天的 Update_date
-      var updateFieldName = sheet === 'Candidate Records' ? 'Update_date' : (sheet === 'Market Salary Records' ? 'Update date' : null);
+      // 跟後端一致：Candidate Records / Market Salary Records 只要有任何欄位被改動，畫面上也立即帶出今天的更新日期
+      var updateFieldName = sheet === 'Candidate Records' ? 'Result Update_date' : (sheet === 'Market Salary Records' ? 'Update date' : null);
       if (updateFieldName && field !== updateFieldName) {
         var todayStr = getTodayDateStr();
         rec[updateFieldName] = todayStr;
@@ -1994,7 +1994,7 @@ function getTodayDateStr() {
 }
 
 // 複製人選資料時，這些欄位需清空（流程紀錄類欄位／104_Position 依需求不複製）；Name、履歷代碼會一起複製
-var COPY_CLEAR_FIELDS = ['PI_date','Interview_date','Result','Update_date','Update date','Onboard date','Memo'];
+var COPY_CLEAR_FIELDS = ['PI_date','Interview_date','Result','Result Update_date','Update_date','Update date','Onboard date','Memo'];
 
 var selectedCandForCopy = null;
 
@@ -2012,7 +2012,7 @@ function buildFormDatalistInput(className, field, options, prefillVal, extraAttr
 }
 
 function renderNewCandidateFields() {
-  var headers = maintainHeaders['Candidate Records'] || ['invite_date','BU','Job Function','104_Position','Name','性別','年齡','最高學歷','學校','科系','履歷代碼','Source','Inviter','PI_date','Interview_date','Result','Update_date','Onboard date','Memo'];
+  var headers = maintainHeaders['Candidate Records'] || ['invite_date','BU','Job Function','104_Position','Name','性別','年齡','最高學歷','學校','科系','履歷代碼','Source','Inviter','PI_date','Interview_date','Result','Result Update_date','Onboard date','Memo'];
   var dropdowns = MAINTAIN_DROPDOWNS['Candidate Records'] || {};
   var requiredFields = ['Name','Result','invite_date'];
   var todayStr = getTodayDateStr();
@@ -2143,7 +2143,7 @@ async function submitNewCandidateForm() {
 
 // Candidate Overview 畫面的「＋ 新增人選資料」：重用共用的 addRowModal，直接寫入 Candidate Records
 function openKbNewCandidateModal() {
-  var headers = filterCandHeadersForRole(maintainHeaders['Candidate Records'] || ['invite_date','BU','Job Function','104_Position','Name','性別','年齡','最高學歷','學校','科系','履歷代碼','Source','Inviter','PI_date','Interview_date','Result','Update_date','Onboard date','Memo']);
+  var headers = filterCandHeadersForRole(maintainHeaders['Candidate Records'] || ['invite_date','BU','Job Function','104_Position','Name','性別','年齡','最高學歷','學校','科系','履歷代碼','Source','Inviter','PI_date','Interview_date','Result','Result Update_date','Onboard date','Memo']);
   var dropdowns = MAINTAIN_DROPDOWNS['Candidate Records'] || {};
   var requiredFields = ['Name','Result','invite_date'];
   var todayStr = getTodayDateStr();
