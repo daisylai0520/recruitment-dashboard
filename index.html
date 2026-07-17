@@ -253,42 +253,52 @@
       <div id="trDateFilterSlot"></div>
     </div>
 
+    <div class="page-sub" style="margin-top:-10px;margin-bottom:14px;font-size:11px;">點字卡、或明細表格中的數字，可查看符合條件的實際人選名單</div>
+
     <div class="metrics-inner" style="grid-template-columns:repeat(auto-fit,minmax(140px,1fr));margin-bottom:20px;">
-      <div class="metric" id="m-tr-invited">
+      <div class="metric" id="m-tr-invited" style="cursor:pointer;" onclick="showTrendStatDrilldown('tr-invited')">
         <div class="metric-top"><div class="metric-dot" style="background:#4F46E5"></div><span class="metric-label">邀約</span></div>
         <div class="metric-val" id="c-tr-invited">—</div>
       </div>
-      <div class="metric" id="m-tr-noreply">
+      <div class="metric" id="m-tr-noreply" style="cursor:pointer;" onclick="showTrendStatDrilldown('tr-noreply')">
         <div class="metric-top"><div class="metric-dot" style="background:#F59E0B"></div><span class="metric-label">邀約未回覆</span></div>
         <div class="metric-val" id="c-tr-noreply">—</div>
       </div>
-      <div class="metric" id="m-tr-noanswer">
+      <div class="metric" id="m-tr-noanswer" style="cursor:pointer;" onclick="showTrendStatDrilldown('tr-noanswer')">
         <div class="metric-top"><div class="metric-dot" style="background:#6366F1"></div><span class="metric-label">已致電未接</span></div>
         <div class="metric-val" id="c-tr-noanswer">—</div>
       </div>
-      <div class="metric" id="m-tr-pi">
+      <div class="metric" id="m-tr-pi" style="cursor:pointer;" onclick="showTrendStatDrilldown('tr-pi')">
         <div class="metric-top"><div class="metric-dot" style="background:#10B981"></div><span class="metric-label">電訪</span></div>
         <div class="metric-val" id="c-tr-pi">—</div>
       </div>
-      <div class="metric" id="m-tr-declinepi">
+      <div class="metric" id="m-tr-declinepi" style="cursor:pointer;" onclick="showTrendStatDrilldown('tr-declinepi')">
         <div class="metric-top"><div class="metric-dot" style="background:#EC4899"></div><span class="metric-label">婉拒電訪</span></div>
         <div class="metric-val" id="c-tr-declinepi">—</div>
       </div>
-      <div class="metric" id="m-tr-othermgr">
+      <div class="metric" id="m-tr-othermgr" style="cursor:pointer;" onclick="showTrendStatDrilldown('tr-othermgr')">
         <div class="metric-top"><div class="metric-dot" style="background:#F97316"></div><span class="metric-label">其他主管/近期已邀約</span></div>
         <div class="metric-val" id="c-tr-othermgr">—</div>
       </div>
-      <div class="metric" id="m-tr-waitpi">
+      <div class="metric" id="m-tr-waitpi" style="cursor:pointer;" onclick="showTrendStatDrilldown('tr-waitpi')">
         <div class="metric-top"><div class="metric-dot" style="background:#14B8A6"></div><span class="metric-label">待電訪</span></div>
         <div class="metric-val" id="c-tr-waitpi">—</div>
       </div>
-      <div class="metric" id="m-tr-interview">
+      <div class="metric" id="m-tr-interview" style="cursor:pointer;" onclick="showTrendStatDrilldown('tr-interview')">
         <div class="metric-top"><div class="metric-dot" style="background:#3B82F6"></div><span class="metric-label">面試</span></div>
         <div class="metric-val" id="c-tr-interview">—</div>
       </div>
     </div>
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+      <div class="cal-outer" id="trendCard-hc">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+          <div style="font-size:14px;font-weight:600;">各單位 Headcount（缺額）</div>
+        </div>
+        <div style="font-size:11px;color:var(--text-secondary);margin-bottom:10px;">依目前單位／Job Function 篩選統計</div>
+        <div id="trendHcChart" style="overflow-x:auto;"></div>
+      </div>
+
       <div class="cal-outer" id="trendCard-funnel">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
           <div style="font-size:14px;font-weight:600;">每週邀約／電訪／面試人數</div>
@@ -302,20 +312,20 @@
         <div style="margin-top:8px;"><span style="font-size:11px;color:var(--accent);cursor:pointer;text-decoration:underline;" onclick="toggleTrendDetail('funnel')">查看明細表格</span></div>
         <div class="table-wrap" id="trendFunnelDetail" style="display:none;margin-top:10px;"><table class="pi-table"><thead><tr id="trendFunnelTableHead"></tr></thead><tbody id="trendFunnelTableBody"></tbody></table></div>
       </div>
+    </div>
 
-      <div class="cal-outer" id="trendCard-result">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
-          <div style="font-size:14px;font-weight:600;">每週招募狀態統計</div>
-          <div class="trend-toggle-group" data-card="result">
-            <button class="pos-btn active" onclick="setTrendChartType('result','line',this)" style="font-size:11px;padding:3px 10px;">折線</button>
-            <button class="pos-btn" onclick="setTrendChartType('result','bar',this)" style="font-size:11px;padding:3px 10px;">長條</button>
-          </div>
+    <div class="cal-outer" id="trendCard-result" style="margin-top:16px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+        <div style="font-size:14px;font-weight:600;">每週招募狀態統計</div>
+        <div class="trend-toggle-group" data-card="result">
+          <button class="pos-btn" onclick="setTrendChartType('result','line',this)" style="font-size:11px;padding:3px 10px;">折線</button>
+          <button class="pos-btn active" onclick="setTrendChartType('result','bar',this)" style="font-size:11px;padding:3px 10px;">長條</button>
         </div>
-        <div style="font-size:11px;color:var(--text-secondary);margin-bottom:10px;">依 Result Update_date · 最近 8 週</div>
-        <div id="trendResultChart" style="overflow-x:auto;"></div>
-        <div style="margin-top:8px;"><span style="font-size:11px;color:var(--accent);cursor:pointer;text-decoration:underline;" onclick="toggleTrendDetail('result')">查看明細表格</span></div>
-        <div class="table-wrap" id="trendResultDetail" style="display:none;margin-top:10px;"><table class="pi-table"><thead><tr id="trendResultTableHead"></tr></thead><tbody id="trendResultTableBody"></tbody></table></div>
       </div>
+      <div style="font-size:11px;color:var(--text-secondary);margin-bottom:10px;">邀約／邀約未回覆／已致電未接／電訪／婉拒電訪／其他主管近期已邀約／待電訪／面試 · 最近 8 週</div>
+      <div id="trendResultChart" style="overflow-x:auto;"></div>
+      <div style="margin-top:8px;"><span style="font-size:11px;color:var(--accent);cursor:pointer;text-decoration:underline;" onclick="toggleTrendDetail('result')">查看明細表格</span></div>
+      <div class="table-wrap" id="trendResultDetail" style="display:none;margin-top:10px;"><table class="pi-table"><thead><tr id="trendResultTableHead"></tr></thead><tbody id="trendResultTableBody"></tbody></table></div>
     </div>
   </div>
 
@@ -517,6 +527,17 @@
       <button class="btn-cancel" onclick="closeMemoModal()">取消</button>
       <button class="lock-btn" style="width:auto;margin-top:0;padding:8px 18px;" onclick="saveMemo()">儲存</button>
     </div>
+  </div>
+</div>
+
+<!-- TREND DRILLDOWN MODAL -->
+<div id="trendDrilldownModal" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeTrendDrilldown()">
+  <div class="modal" style="max-width:520px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+      <div class="modal-title" id="trendDrilldownTitle" style="margin-bottom:0;">—</div>
+      <span style="cursor:pointer;font-size:18px;color:var(--text-tertiary);" onclick="closeTrendDrilldown()">✕</span>
+    </div>
+    <div id="trendDrilldownList" style="max-height:60vh;overflow-y:auto;display:flex;flex-direction:column;gap:8px;"></div>
   </div>
 </div>
 

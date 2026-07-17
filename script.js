@@ -288,7 +288,7 @@ async function fetchData() {
 }
 
 var TAB_RESOURCES = {
-  kanban:['core'], candidateSearch:['core'], overview:['core'], trends:['core'], offers:['core','headcount'],
+  kanban:['core'], candidateSearch:['core'], overview:['core'], trends:['core','headcount'], offers:['core','headcount'],
   hc:['headcount'], salary:['salary'], schedule:['core','scheduling'], maintain:['core']
 };
 
@@ -772,6 +772,10 @@ async function commitMaintainInputList(el) {
     if (sheet === 'Candidate Records' && field === 'Inviter') {
       await autoSyncBUFromInviter(newVal, row);
     }
+    // 104_Position 更新後，自動擷取【】內文字同步到 Job Function 欄位（僅 Candidate Records）
+    if (sheet === 'Candidate Records' && field === '104_Position') {
+      await autoSyncJobFunctionFromPosition(newVal, row);
+    }
   }
 }
 
@@ -789,6 +793,23 @@ async function autoSyncBUFromInviter(inviterName, row) {
     buEl.value = bu;
     var d = allData.find(function(x){ return String(x._row) === String(row); });
     if (d) d.BU = bu;
+  }
+}
+
+// 依 104_Position 裡的【】文字，若跟目前 Job Function 不同就一併更新畫面與試算表
+async function autoSyncJobFunctionFromPosition(positionVal, row) {
+  var jf = extractJobFunctionFromPosition(positionVal);
+  if (!jf) return;
+  var jfEl = document.querySelector('[data-field="Job Function"][data-row="'+row+'"]');
+  if (!jfEl || jfEl.value === jf) return;
+  var jfCol = jfEl.getAttribute('data-col');
+  var jfIdx = parseInt(jfEl.getAttribute('data-idx'));
+  var ok = await saveMaintainField('Candidate Records', row, jfCol, 'Job Function', jfIdx, jf);
+  if (ok) {
+    jfEl.setAttribute('data-raw', jf.replace(/"/g,'&quot;'));
+    jfEl.value = jf;
+    var d = allData.find(function(x){ return String(x._row) === String(row); });
+    if (d) d['Job Function'] = jf;
   }
 }
 
@@ -1152,7 +1173,7 @@ function getOfferGradeLevel(name) {
 
 // ===== TRENDS =====
 var TREND_COLORS = ['#F59E0B','#10B981','#3B82F6','#8B5CF6','#EC4899','#14B8A6','#F97316','#6366F1','#84CC16','#06B6D4','#EF4444','#A855F7','#22C55E','#0EA5E9'];
-var trendChartType = { funnel:'line', result:'line' };
+var trendChartType = { funnel:'line', result:'bar' };
 var WEEKDAY_CN = ['日','一','二','三','四','五','六'];
 function fmtTrendWeekLabel(d) {
   return (d.getMonth()+1)+'/'+d.getDate()+'('+WEEKDAY_CN[d.getDay()]+')';
@@ -1250,11 +1271,15 @@ function drawBarChartInner(containerId, labels, series, maxVal) {
   document.getElementById(containerId).innerHTML = svg + legend;
 }
 
-function drawTrendTable(headId, bodyId, labels, series) {
+function drawTrendTable(headId, bodyId, labels, series, stashKey) {
   document.getElementById(headId).innerHTML = '<th>項目</th>' + labels.map(function(l){return '<th style="text-align:center">'+l+'</th>';}).join('');
+  if (stashKey) trendTableStash[stashKey] = series;
   var rows = series.map(function(s, si){
-    var cells = s.data.map(function(v){
-      return '<td style="text-align:center;'+(v>0?'font-weight:600;color:'+TREND_COLORS[si%TREND_COLORS.length]+';':'color:var(--text-tertiary);')+'">'+v+'</td>';
+    var cells = s.data.map(function(v, wi){
+      var hasRecords = !!(s.records && s.records[wi] && s.records[wi].length);
+      var style = 'text-align:center;' + (v>0?'font-weight:600;color:'+TREND_COLORS[si%TREND_COLORS.length]+';':'color:var(--text-tertiary);') + (hasRecords ? 'cursor:pointer;text-decoration:underline dotted;' : '');
+      var onclickAttr = hasRecords ? ' onclick="drillTrendTableCell(\''+stashKey+'\','+si+','+wi+')"' : '';
+      return '<td style="'+style+'"'+onclickAttr+'>'+v+'</td>';
     }).join('');
     return '<tr><td style="font-weight:600;white-space:nowrap"><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:'+TREND_COLORS[si%TREND_COLORS.length]+';margin-right:6px;"></span>'+s.name+'</td>'+cells+'</tr>';
   }).join('');
@@ -1266,6 +1291,16 @@ function drawTrendTable(headId, bodyId, labels, series) {
   document.getElementById(bodyId).innerHTML = rows;
 }
 
+// stashKey -> 該次渲染用的 series（含每格明細 records），供表格點擊鑽取用
+var trendTableStash = {};
+function drillTrendTableCell(stashKey, si, wi) {
+  var series = trendTableStash[stashKey];
+  if (!series) return;
+  var s = series[si];
+  if (!s || !s.records) return;
+  showTrendDrilldown(s.name, s.records[wi] || []);
+}
+
 function renderTrendCard(card) {
   var c = trendCache[card];
   if (!c) return;
@@ -1273,9 +1308,142 @@ function renderTrendCard(card) {
   drawChart(chartId, trendChartType[card], c.labels, c.series, c.maxVal);
 }
 
-function renderTrends() {
-  var today = new Date(); today.setHours(0,0,0,0);
+// ---- 週次區間內、依日期欄位（可能有多種欄位名稱）比對的明細清單 ----
+function countByDateFields(data, weeks, fields) {
+  return weeks.map(function(we){
+    var ws = new Date(we); ws.setDate(ws.getDate()-6);
+    return data.filter(function(rec){
+      var raw = '';
+      for (var i=0;i<fields.length;i++){ if (rec[fields[i]]) { raw = rec[fields[i]]; break; } }
+      var dt = parseDateTime(raw);
+      if (!dt) return false;
+      dt.setHours(0,0,0,0);
+      return dt >= ws && dt <= we;
+    });
+  });
+}
+// ---- 週次區間內、依 Result 是否符合＋Result Update_date 比對的明細清單 ----
+function countByStage(data, weeks, matchFn) {
+  return weeks.map(function(we){
+    var ws = new Date(we); ws.setDate(ws.getDate()-6);
+    return data.filter(function(rec){
+      if (!matchFn(rec.Result)) return false;
+      var ud = parseDateTime(rec['Result Update_date'] || rec.Update_date || rec['Update date'] || '');
+      if (!ud) return false;
+      ud.setHours(0,0,0,0);
+      return ud >= ws && ud <= we;
+    });
+  });
+}
+function makeTrendSeries(name, recordsPerWeek) {
+  return { name: name, data: recordsPerWeek.map(function(r){return r.length;}), records: recordsPerWeek };
+}
 
+// 每週邀約／電訪／面試人數
+function computeFunnelMetrics(data, weeks) {
+  return [
+    makeTrendSeries('邀約', countByDateFields(data, weeks, ['invite_date','invite date'])),
+    makeTrendSeries('電訪', countByDateFields(data, weeks, ['PI_date'])),
+    makeTrendSeries('面試', countByDateFields(data, weeks, ['Interview_date']))
+  ];
+}
+// 每週招募狀態統計（固定 8 大類，跟畫面上方字卡口徑一致）
+function computeResultMetrics(data, weeks) {
+  return [
+    makeTrendSeries('邀約', countByDateFields(data, weeks, ['invite_date','invite date'])),
+    makeTrendSeries('邀約未回覆', countByStage(data, weeks, function(r){return r === '104已邀約未回覆';})),
+    makeTrendSeries('已致電未接', countByStage(data, weeks, function(r){return r === '已致電未接';})),
+    makeTrendSeries('電訪', countByDateFields(data, weeks, ['PI_date'])),
+    makeTrendSeries('婉拒電訪', countByStage(data, weeks, function(r){return r === '婉拒電訪' || r === '已關閉履歷';})),
+    makeTrendSeries('其他主管/近期已邀約', countByStage(data, weeks, function(r){return r === '其他主管/近期已邀約';})),
+    makeTrendSeries('待電訪', countByStage(data, weeks, function(r){return r === '待電訪';})),
+    makeTrendSeries('面試', countByDateFields(data, weeks, ['Interview_date']))
+  ];
+}
+
+// 單位／Job Function 若narrowed到2個以上，兩張圖要分開顯示各自數據、不加總；
+// 優先以單位分（若單位narrowed到多選），否則以 Job Function 分
+function getTrendBreakdownField() {
+  var buState = multiFilterState['tr-bu'];
+  if (buState && isMultiFilterNarrowed('tr-bu') && buState.selected.size >= 2) return 'BU';
+  var jobState = multiFilterState['tr-job'];
+  if (jobState && isMultiFilterNarrowed('tr-job') && jobState.selected.size >= 2) return 'Job Function';
+  return null;
+}
+function getTrendGroups(data, field) {
+  if (!field) return [{label:null, data:data}];
+  var vals = [...new Set(data.map(function(d){return String(d[field]||'').trim();}))].filter(Boolean).sort();
+  return vals.map(function(v){
+    return {label:v, data: data.filter(function(d){return String(d[field]||'').trim()===v;})};
+  });
+}
+function computeBreakdownSeries(groups, computeFn, weeks) {
+  var out = [];
+  groups.forEach(function(g){
+    computeFn(g.data, weeks).forEach(function(s){
+      out.push(makeTrendSeries(g.label ? (g.label+'－'+s.name) : s.name, s.records));
+    });
+  });
+  return out;
+}
+
+// ---- 統計字卡：定義與畫面計算數字共用同一組條件，點字卡也用同一組條件做鑽取 ----
+var TREND_STAT_DEFS = [
+  {id:'tr-invited', label:'邀約', test:function(d){return !!(d.invite_date || d['invite date']);}},
+  {id:'tr-noreply', label:'邀約未回覆', test:function(d){return d.Result === '104已邀約未回覆';}},
+  {id:'tr-noanswer', label:'已致電未接', test:function(d){return d.Result === '已致電未接';}},
+  {id:'tr-pi', label:'電訪', test:function(d){return !!d.PI_date;}},
+  {id:'tr-declinepi', label:'婉拒電訪', test:function(d){return d.Result === '婉拒電訪' || d.Result === '已關閉履歷';}},
+  {id:'tr-othermgr', label:'其他主管/近期已邀約', test:function(d){return d.Result === '其他主管/近期已邀約';}},
+  {id:'tr-waitpi', label:'待電訪', test:function(d){return d.Result === '待電訪';}},
+  {id:'tr-interview', label:'面試', test:function(d){return !!d.Interview_date;}}
+];
+var lastTrendData = [];
+function showTrendStatDrilldown(defId) {
+  var def = TREND_STAT_DEFS.find(function(x){return x.id===defId;});
+  if (!def) return;
+  showTrendDrilldown(def.label, lastTrendData.filter(def.test));
+}
+function showTrendDrilldown(title, records) {
+  document.getElementById('trendDrilldownTitle').textContent = title + '（共 '+records.length+' 人）';
+  var listEl = document.getElementById('trendDrilldownList');
+  listEl.innerHTML = records.length === 0 ? '<div class="empty" style="padding:16px 0;">目前無資料</div>' :
+    records.map(function(d){
+      return '<div class="mini-card"><div class="mini-card-top"><div class="mini-card-name">'+(d.Name||'')+'</div><div class="mini-card-bu">'+(d.BU||'')+'</div></div>'+
+        '<div class="mini-card-pos">'+(d['Job Function']||'')+(d.Source?' · '+d.Source:'')+'</div>'+
+        '<div style="font-size:11px;color:var(--text-secondary);margin-top:2px;">目前狀態：'+(d.Result||'—')+'</div></div>';
+    }).join('');
+  document.getElementById('trendDrilldownModal').style.display = 'flex';
+}
+function closeTrendDrilldown() {
+  document.getElementById('trendDrilldownModal').style.display = 'none';
+}
+
+// 各單位 Headcount（缺額）長條圖：依目前 tr-bu／tr-job 篩選統計 Headcount Records 裡尚未遞補的缺額數
+function renderTrendHcChart() {
+  var el = document.getElementById('trendHcChart');
+  if (!el) return;
+  if (!hcRawData || !hcRawData.length) { el.innerHTML = '<div class="empty" style="padding:30px 0;text-align:center;">尚無 Headcount 資料</div>'; return; }
+  var divKey = Object.keys(hcRawData[0]).find(function(k){return k.trim()==='Division';}) || 'Division';
+  var jobKey = Object.keys(hcRawData[0]).find(function(k){return k.trim()==='Job Function';}) || 'Job Function';
+  var succKey = Object.keys(hcRawData[0]).find(function(k){return k.includes('Successor')||k.trim()==='遞補人員';}) || 'Successor';
+  var counts = {};
+  hcRawData.forEach(function(r){
+    var div = String(r[divKey]||'').trim();
+    if (!div) return;
+    if (!multiFilterPass('tr-bu', div)) return;
+    if (!multiFilterPass('tr-job', r[jobKey])) return;
+    var succ = String(r[succKey]||'').trim();
+    if (succ) return; // 只算尚未遞補的缺額
+    counts[div] = (counts[div]||0) + 1;
+  });
+  var arr = Object.keys(counts).map(function(k){return {label:k, count:counts[k]};}).sort(function(a,b){return b.count-a.count;});
+  if (!arr.length) { el.innerHTML = '<div class="empty" style="padding:30px 0;text-align:center;">目前無缺額資料</div>'; return; }
+  var maxVal = Math.ceil(Math.max.apply(null, arr.map(function(a){return a.count;}))*1.2) || 1;
+  drawChart('trendHcChart', 'bar', arr.map(function(a){return a.label;}), [{name:'缺額', data:arr.map(function(a){return a.count;})}], maxVal);
+}
+
+function renderTrends() {
   var trBuOptions = [...new Set(allData.map(function(d){return String(d.BU||'').trim();}))].filter(Boolean).sort();
   renderMultiFilterBar('trBuBar', 'tr-bu', trBuOptions);
   var trJobOptions = [...new Set(allData.map(function(d){return String(d['Job Function']||'').trim();}))].filter(Boolean).sort();
@@ -1288,83 +1456,43 @@ function renderTrends() {
            multiFilterPass('tr-result', d.Result) &&
            dateFilterPass('trends', d);
   });
+  lastTrendData = trendData;
 
   // ---- 統計字卡 ----
-  document.getElementById('c-tr-invited').textContent = trendData.filter(function(d){ return !!(d.invite_date || d['invite date']); }).length;
-  document.getElementById('c-tr-noreply').textContent = trendData.filter(function(d){ return d.Result === '104已邀約未回覆'; }).length;
-  document.getElementById('c-tr-noanswer').textContent = trendData.filter(function(d){ return d.Result === '已致電未接'; }).length;
-  document.getElementById('c-tr-pi').textContent = trendData.filter(function(d){ return !!d.PI_date; }).length;
-  document.getElementById('c-tr-declinepi').textContent = trendData.filter(function(d){ return d.Result === '婉拒電訪' || d.Result === '已關閉履歷'; }).length;
-  document.getElementById('c-tr-othermgr').textContent = trendData.filter(function(d){ return d.Result === '其他主管/近期已邀約'; }).length;
-  document.getElementById('c-tr-waitpi').textContent = trendData.filter(function(d){ return d.Result === '待電訪'; }).length;
-  document.getElementById('c-tr-interview').textContent = trendData.filter(function(d){ return !!d.Interview_date; }).length;
+  TREND_STAT_DEFS.forEach(function(def){
+    document.getElementById('c-'+def.id).textContent = trendData.filter(def.test).length;
+  });
+
+  // ---- 各單位 Headcount（缺額）----
+  renderTrendHcChart();
 
   // ---- 週次（最近8週，週日期加上星期）----
+  var today = new Date(); today.setHours(0,0,0,0);
   var weeks = [];
   for (var w=7;w>=0;w--) { var we=getWeekEnd(today); we.setDate(we.getDate()-w*7); weeks.push(we); }
   var weekLabels = weeks.map(fmtTrendWeekLabel);
 
+  // 單位／Job Function 若narrowed到多選，兩張圖都改為分開顯示各自數據，不加總
+  var breakdownField = getTrendBreakdownField();
+  var trendGroups = getTrendGroups(trendData, breakdownField);
+
   // ---- 每週邀約／電訪／面試人數（合併圖表＋表格）----
-  var inviteCounts = weeks.map(function(we){
-    var ws = new Date(we); ws.setDate(ws.getDate()-6);
-    return trendData.filter(function(rec){
-      var iv = parseDateTime(rec.invite_date || rec['invite date'] || '');
-      if (!iv) return false;
-      iv.setHours(0,0,0,0);
-      return iv >= ws && iv <= we;
-    }).length;
-  });
-  var piCounts = weeks.map(function(we){
-    var ws = new Date(we); ws.setDate(ws.getDate()-6);
-    return trendData.filter(function(rec){
-      var pd = parseDateTime(rec.PI_date || '');
-      if (!pd) return false;
-      pd.setHours(0,0,0,0);
-      return pd >= ws && pd <= we;
-    }).length;
-  });
-  var interviewCounts = weeks.map(function(we){
-    var ws = new Date(we); ws.setDate(ws.getDate()-6);
-    return trendData.filter(function(rec){
-      var id = parseDateTime(rec.Interview_date || '');
-      if (!id) return false;
-      id.setHours(0,0,0,0);
-      return id >= ws && id <= we;
-    }).length;
-  });
-  var funnelSeries = [
-    {name:'邀約人數', data:inviteCounts},
-    {name:'電訪人數', data:piCounts},
-    {name:'面試人數', data:interviewCounts}
-  ];
+  var funnelSeries = breakdownField ? computeBreakdownSeries(trendGroups, computeFunnelMetrics, weeks) : computeFunnelMetrics(trendData, weeks);
   var funnelMax = 1;
   funnelSeries.forEach(function(s){ s.data.forEach(function(v){ if(v>funnelMax) funnelMax=v; }); });
   funnelMax = Math.ceil(funnelMax*1.2);
   trendCache.funnel = { labels: weekLabels, series: funnelSeries, maxVal: funnelMax };
   renderTrendCard('funnel');
-  drawTrendTable('trendFunnelTableHead','trendFunnelTableBody', weekLabels, funnelSeries);
+  drawTrendTable('trendFunnelTableHead','trendFunnelTableBody', weekLabels, funnelSeries, 'funnel');
 
-  // ---- 每週 Result 狀態統計（依 Result Update_date，最近8週）----
-  var allStages = [...new Set(trendData.map(function(d){return d.Result;}))].filter(Boolean);
-  var resultSeries = allStages.map(function(stage, si){
-    var data = weeks.map(function(we){
-      var ws = new Date(we); ws.setDate(ws.getDate()-6);
-      return trendData.filter(function(rec){
-        if (rec.Result !== stage) return false;
-        var ud = parseDateTime(rec['Result Update_date'] || rec.Update_date || rec['Update date'] || '');
-        if (!ud) return false;
-        ud.setHours(0,0,0,0);
-        return ud >= ws && ud <= we;
-      }).length;
-    });
-    return {name: stage, data: data};
-  });
+  // ---- 每週招募狀態統計（固定8大類，依 Result Update_date／各自日期欄位，最近8週）----
+  var resultSeries = breakdownField ? computeBreakdownSeries(trendGroups, computeResultMetrics, weeks) : computeResultMetrics(trendData, weeks);
   var resultMax = 1;
   resultSeries.forEach(function(s){ s.data.forEach(function(v){ if(v>resultMax) resultMax=v; }); });
   resultMax = Math.ceil(resultMax*1.2);
   trendCache.result = { labels: weekLabels, series: resultSeries, maxVal: resultMax };
   renderTrendCard('result');
-  drawTrendTable('trendResultTableHead','trendResultTableBody', weekLabels, resultSeries);
+  drawTrendTable('trendResultTableHead','trendResultTableBody', weekLabels, resultSeries, 'result');
 }
 
 // ===== 資料維護 =====
@@ -2040,12 +2168,15 @@ function renderNewCandidateFields() {
 
     // Inviter 有填寫時，依 Manager Information 工作表的姓名比對自動帶入 BU
     var inviterAttr = (h === 'Inviter') ? ' oninput="handleInviterInputChange(this)" onchange="handleInviterInputChange(this)"' : '';
+    // 104_Position 有填寫時，自動擷取【】內文字帶入 Job Function
+    var positionAttr = isPosition ? ' oninput="handlePositionInputChange(this)" onchange="handlePositionInputChange(this)"' : '';
+    var extraAttr = inviterAttr + positionAttr;
 
     if (dropdowns[h]) {
       var options = dropdowns[h]();
-      return '<div style="'+spanStyle+'"><div class="modal-label" style="margin-bottom:4px;">'+label+'</div>'+buildFormDatalistInput('new-cand-input', h, options, prefillVal, inviterAttr)+'</div>';
+      return '<div style="'+spanStyle+'"><div class="modal-label" style="margin-bottom:4px;">'+label+'</div>'+buildFormDatalistInput('new-cand-input', h, options, prefillVal, extraAttr)+'</div>';
     }
-    return '<div style="'+spanStyle+'"><div class="modal-label" style="margin-bottom:4px;">'+label+'</div><input type="text" class="new-cand-input" data-field="'+h+'" value="'+prefillVal+'"'+dupAttr+inviterAttr+' style="width:100%;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;box-sizing:border-box;"></div>';
+    return '<div style="'+spanStyle+'"><div class="modal-label" style="margin-bottom:4px;">'+label+'</div><input type="text" class="new-cand-input" data-field="'+h+'" value="'+prefillVal+'"'+dupAttr+extraAttr+' style="width:100%;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;box-sizing:border-box;"></div>';
   }).join('');
 
   document.getElementById('newCandDupWarning').style.display = 'none';
@@ -2059,6 +2190,20 @@ function handleInviterInputChange(el) {
   if (!container) return;
   var buInput = container.querySelector('[data-field="BU"]');
   if (buInput) buInput.value = bu;
+}
+
+// 104_Position 欄位有值時，自動擷取【】內的文字帶入同一張表單的 Job Function 欄位
+function extractJobFunctionFromPosition(positionVal) {
+  var m = String(positionVal||'').match(/【([^】]+)】/);
+  return m ? m[1].trim() : '';
+}
+function handlePositionInputChange(el) {
+  var jf = extractJobFunctionFromPosition(el.value);
+  if (!jf) return;
+  var container = el.closest('#newCandFields') || el.closest('#addRowModalFields');
+  if (!container) return;
+  var jfInput = container.querySelector('[data-field="Job Function"]');
+  if (jfInput) jfInput.value = jf;
 }
 
 // 輸入姓名或履歷代碼時，即時檢查這位人選是否已經有紀錄，避免重複建檔
@@ -2168,13 +2313,16 @@ function openKbNewCandidateModal() {
     var prefillVal = isInviteDate ? todayStr : '';
     // Inviter 有填寫時，依 Manager Information 工作表的姓名比對自動帶入 BU
     var inviterAttr = (h === 'Inviter') ? ' oninput="handleInviterInputChange(this)" onchange="handleInviterInputChange(this)"' : '';
+    // 104_Position 有填寫時，自動擷取【】內文字帶入 Job Function
+    var positionAttr = (h === '104_Position') ? ' oninput="handlePositionInputChange(this)" onchange="handlePositionInputChange(this)"' : '';
+    var extraAttr = inviterAttr + positionAttr;
 
     if (dropdowns[h]) {
       var options = dropdowns[h]();
-      return '<div style="'+spanStyle+'"><div class="modal-label" style="margin-bottom:4px;">'+label+'</div>'+buildFormDatalistInput('kb-new-cand-input', h, options, prefillVal, inviterAttr)+'</div>';
+      return '<div style="'+spanStyle+'"><div class="modal-label" style="margin-bottom:4px;">'+label+'</div>'+buildFormDatalistInput('kb-new-cand-input', h, options, prefillVal, extraAttr)+'</div>';
     }
     var valAttr = prefillVal ? ' value="'+prefillVal+'"' : '';
-    return '<div style="'+spanStyle+'"><div class="modal-label" style="margin-bottom:4px;">'+label+'</div><input type="text" data-field="'+h+'" class="kb-new-cand-input"'+inviterAttr+' style="width:100%;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;box-sizing:border-box;"'+valAttr+'></div>';
+    return '<div style="'+spanStyle+'"><div class="modal-label" style="margin-bottom:4px;">'+label+'</div><input type="text" data-field="'+h+'" class="kb-new-cand-input"'+extraAttr+' style="width:100%;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;box-sizing:border-box;"'+valAttr+'></div>';
   }).join('');
 
   document.querySelector('#addRowModal .modal').classList.add('modal-wide');
