@@ -1,6 +1,6 @@
 var APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby0h1OkoC_xNWeAAbuh4cBicbTl4B8g1KDtL-s2YK9f80TYjIyxQtdeu9RkWFQVtY3pnw/exec';
 var userRole = null;
-var allData=[], salaryData=[], scheduleData=[], managerDirectoryData=[], resultOptions=[], positionOptions=[];
+var allData=[], salaryData=[], scheduleData=[], managerDirectoryData=[], managerInfoData=[], resultOptions=[], positionOptions=[];
 var currentTab='kanban';
 // 舊的單選篩選狀態變數已改用 multiFilterState（見下方通用多選篩選元件），這裡保留 activeFilter 給 Recruitment Status 用
 var activeFilter=null;
@@ -141,7 +141,8 @@ function triggerPageRerender(pageKey) {
     hc: renderHeadcount,
     offers: renderOffers,
     candidateSearch: renderCandidateSearch,
-    candidateMaintenance: renderCandQuery
+    candidateMaintenance: renderCandQuery,
+    trends: renderTrends
   };
   if (renderMap[pageKey]) renderMap[pageKey]();
 }
@@ -162,6 +163,7 @@ function initDateFilterSlots() {
     'ovDateFilterSlot': {key:'overview', fields:candFields},
     'csDateFilterSlot': {key:'candidateSearch', fields:csFields},
     'candDateFilterSlot': {key:'candidateMaintenance', fields:candFields},
+    'trDateFilterSlot': {key:'trends', fields:candFields},
     'hcDateFilterSlot': {key:'hc', fields:[{value:'Update_date',label:'Update_date（缺額更新時間，依異動記錄推算暫不支援）'}], disabled:true}
   };
   Object.keys(slots).forEach(function(slotId){
@@ -205,8 +207,18 @@ async function fetchCoreData() {
   allData=(json.candidates||[]).filter(function(d){return d.Name&&d.Result;});
   resultOptions=(json.resultOptions||[]).map(function(v){return String(v).trim();}).filter(Boolean);
   positionOptions=(json.positionOptions||[]).map(function(v){return String(v).trim();}).filter(Boolean);
+  managerInfoData=(json.managerInfo||[]).filter(function(d){return d.Name;});
   Object.assign(maintainHeaders, json.sheetHeaders || {});
   loadedResources.core = true;
+}
+
+// Manager Information 工作表（單位／Job Function／Name／Email）依姓名比對出「單位」，
+// 供資料維護畫面填寫 Inviter 時自動帶入 BU 使用
+function findBUByInviterName(name) {
+  var target = String(name||'').trim().toLowerCase();
+  if (!target) return '';
+  var match = managerInfoData.find(function(m){ return String(m.Name||'').trim().toLowerCase() === target; });
+  return match ? (match.BU || '') : '';
 }
 
 async function fetchHeadcountData() {
@@ -756,6 +768,27 @@ async function commitMaintainInputList(el) {
   if (ok) {
     el.setAttribute('data-raw', newVal.replace(/"/g,'&quot;'));
     el.value = newVal;
+    // Inviter 更新後，依 Manager Information 自動同步 BU 欄位（僅 Candidate Records）
+    if (sheet === 'Candidate Records' && field === 'Inviter') {
+      await autoSyncBUFromInviter(newVal, row);
+    }
+  }
+}
+
+// 依 Inviter 姓名查出對應單位，若跟目前 BU 不同就一併更新畫面與試算表
+async function autoSyncBUFromInviter(inviterName, row) {
+  var bu = findBUByInviterName(inviterName);
+  if (!bu) return;
+  var buEl = document.querySelector('[data-field="BU"][data-row="'+row+'"]');
+  if (!buEl || buEl.value === bu) return;
+  var buCol = buEl.getAttribute('data-col');
+  var buIdx = parseInt(buEl.getAttribute('data-idx'));
+  var ok = await saveMaintainField('Candidate Records', row, buCol, 'BU', buIdx, bu);
+  if (ok) {
+    buEl.setAttribute('data-raw', bu.replace(/"/g,'&quot;'));
+    buEl.value = bu;
+    var d = allData.find(function(x){ return String(x._row) === String(row); });
+    if (d) d.BU = bu;
   }
 }
 
@@ -1241,6 +1274,17 @@ function renderTrendCard(card) {
 function renderTrends() {
   var today = new Date(); today.setHours(0,0,0,0);
 
+  var trBuOptions = [...new Set(allData.map(function(d){return String(d.BU||'').trim();}))].filter(Boolean).sort();
+  renderMultiFilterBar('trBuBar', 'tr-bu', trBuOptions);
+  var trJobOptions = [...new Set(allData.map(function(d){return String(d['Job Function']||'').trim();}))].filter(Boolean).sort();
+  renderMultiFilterBar('trJobBar', 'tr-job', trJobOptions);
+
+  var trendData = allData.filter(function(d){
+    return multiFilterPass('tr-bu', d.BU) &&
+           multiFilterPass('tr-job', d['Job Function']) &&
+           dateFilterPass('trends', d);
+  });
+
   // ---- 週次（最近8週，週日期加上星期）----
   var weeks = [];
   for (var w=7;w>=0;w--) { var we=getWeekEnd(today); we.setDate(we.getDate()-w*7); weeks.push(we); }
@@ -1249,7 +1293,7 @@ function renderTrends() {
   // ---- 每週邀約／電訪／面試人數（合併圖表＋表格）----
   var inviteCounts = weeks.map(function(we){
     var ws = new Date(we); ws.setDate(ws.getDate()-6);
-    return allData.filter(function(rec){
+    return trendData.filter(function(rec){
       var iv = parseDateTime(rec.invite_date || rec['invite date'] || '');
       if (!iv) return false;
       iv.setHours(0,0,0,0);
@@ -1258,7 +1302,7 @@ function renderTrends() {
   });
   var piCounts = weeks.map(function(we){
     var ws = new Date(we); ws.setDate(ws.getDate()-6);
-    return allData.filter(function(rec){
+    return trendData.filter(function(rec){
       var pd = parseDateTime(rec.PI_date || '');
       if (!pd) return false;
       pd.setHours(0,0,0,0);
@@ -1267,7 +1311,7 @@ function renderTrends() {
   });
   var interviewCounts = weeks.map(function(we){
     var ws = new Date(we); ws.setDate(ws.getDate()-6);
-    return allData.filter(function(rec){
+    return trendData.filter(function(rec){
       var id = parseDateTime(rec.Interview_date || '');
       if (!id) return false;
       id.setHours(0,0,0,0);
@@ -1287,11 +1331,11 @@ function renderTrends() {
   drawTrendTable('trendFunnelTableHead','trendFunnelTableBody', weekLabels, funnelSeries);
 
   // ---- 每週 Result 狀態統計（依 Update_date，最近8週）----
-  var allStages = [...new Set(allData.map(function(d){return d.Result;}))].filter(Boolean);
+  var allStages = [...new Set(trendData.map(function(d){return d.Result;}))].filter(Boolean);
   var resultSeries = allStages.map(function(stage, si){
     var data = weeks.map(function(we){
       var ws = new Date(we); ws.setDate(ws.getDate()-6);
-      return allData.filter(function(rec){
+      return trendData.filter(function(rec){
         if (rec.Result !== stage) return false;
         var ud = parseDateTime(rec.Update_date || rec['Update date'] || '');
         if (!ud) return false;
@@ -1546,6 +1590,15 @@ function fmtDateOnly(s) {
   return raw;
 }
 
+// 資料維護畫面專用：時間欄位一律統一顯示成 YYYY/MM/DD HH:MM，不保留「整天／上午／中午／下午／時間區間」等原始文字。
+// 換算規則跟系統排序邏輯（parseDateTime）一致：上午→08:00、中午→12:00、下午→13:00、整天／看不出時間→00:00
+function fmtDateTimeStrict(s) {
+  if (!s) return '';
+  var d = parseDateTime(s);
+  if (!d) return String(s).trim();
+  return d.getFullYear()+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+String(d.getDate()).padStart(2,'0')+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+}
+
 async function switchMaintainSheet(sheetName, el) {
   maintainSheet = sheetName;
   maintainBU = 'all';
@@ -1611,7 +1664,8 @@ function renderCandQuery() {
     var fieldsHtml = candHeaders.map(function(h){
       // 資料維護頁採緊湊欄寬，僅職缺名稱與備註保留較大的編輯空間。
       var isWide = (h === '104_Position' || h.indexOf('Memo') >= 0);
-      return renderQueryField('Candidate Records', cand, h, idx, isWide ? 'span2' : false);
+      // 資料維護頁的時間欄位一律統一顯示成 YYYY/MM/DD HH:MM
+      return renderQueryField('Candidate Records', cand, h, idx, isWide ? 'span2' : false, true);
     }).join('');
 
     return '<div class="mini-card" style="padding:20px 22px;margin-bottom:16px;'+(isSelected?'border-color:var(--accent);box-shadow:0 0 0 2px var(--accent);':'')+'">'+
@@ -1627,13 +1681,13 @@ function renderCandQuery() {
   }).join('');
 }
 
-function renderQueryField(sheetName, rec, field, idx, fullWidth) {
+function renderQueryField(sheetName, rec, field, idx, fullWidth, strictDateFormat) {
   var rawVal = rec[field] !== undefined ? rec[field] : '';
   var col = (maintainHeaders[sheetName] || Object.keys(rec)).indexOf(field) + 1;
   var dropdowns = MAINTAIN_DROPDOWNS[sheetName] || {};
   var isDateField = MAINTAIN_DATE_FIELDS.indexOf(field) >= 0;
   var isDateOnlyField = MAINTAIN_DATEONLY_FIELDS.indexOf(field) >= 0;
-  var displayVal = isDateOnlyField ? fmtDateOnly(rawVal) : isDateField ? fmtDate(rawVal) : rawVal;
+  var displayVal = isDateOnlyField ? fmtDateOnly(rawVal) : isDateField ? (strictDateFormat ? fmtDateTimeStrict(rawVal) : fmtDate(rawVal)) : rawVal;
   var rawSafe = String(rawVal||'').replace(/"/g,'&quot;');
   var wrapStyle = fullWidth === 'span2' ? 'grid-column:span 2;' : fullWidth ? 'grid-column:1/-1;' : '';
 
@@ -1970,14 +2024,27 @@ function renderNewCandidateFields() {
     var dupAttr = isNameOrResume ? ' oninput="checkNewCandDuplicate()"' : '';
     var prefillVal = isInviteDate ? todayStr : '';
 
+    // Inviter 有填寫時，依 Manager Information 工作表的姓名比對自動帶入 BU
+    var inviterAttr = (h === 'Inviter') ? ' oninput="handleInviterInputChange(this)" onchange="handleInviterInputChange(this)"' : '';
+
     if (dropdowns[h]) {
       var options = dropdowns[h]();
-      return '<div style="'+spanStyle+'"><div class="modal-label" style="margin-bottom:4px;">'+label+'</div>'+buildFormDatalistInput('new-cand-input', h, options, prefillVal)+'</div>';
+      return '<div style="'+spanStyle+'"><div class="modal-label" style="margin-bottom:4px;">'+label+'</div>'+buildFormDatalistInput('new-cand-input', h, options, prefillVal, inviterAttr)+'</div>';
     }
-    return '<div style="'+spanStyle+'"><div class="modal-label" style="margin-bottom:4px;">'+label+'</div><input type="text" class="new-cand-input" data-field="'+h+'" value="'+prefillVal+'"'+dupAttr+' style="width:100%;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;box-sizing:border-box;"></div>';
+    return '<div style="'+spanStyle+'"><div class="modal-label" style="margin-bottom:4px;">'+label+'</div><input type="text" class="new-cand-input" data-field="'+h+'" value="'+prefillVal+'"'+dupAttr+inviterAttr+' style="width:100%;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;box-sizing:border-box;"></div>';
   }).join('');
 
   document.getElementById('newCandDupWarning').style.display = 'none';
+}
+
+// Manager Information 比對：Inviter 欄位有值時，自動把對應的「單位」帶入同一張表單的 BU 欄位
+function handleInviterInputChange(el) {
+  var bu = findBUByInviterName(el.value);
+  if (!bu) return;
+  var container = el.closest('#newCandFields') || el.closest('#addRowModalFields');
+  if (!container) return;
+  var buInput = container.querySelector('[data-field="BU"]');
+  if (buInput) buInput.value = bu;
 }
 
 // 輸入姓名或履歷代碼時，即時檢查這位人選是否已經有紀錄，避免重複建檔
@@ -2085,13 +2152,15 @@ function openKbNewCandidateModal() {
     var isMemo = h.indexOf('Memo') >= 0;
     var spanStyle = isMemo ? 'grid-column:1/-1;' : '';
     var prefillVal = isInviteDate ? todayStr : '';
+    // Inviter 有填寫時，依 Manager Information 工作表的姓名比對自動帶入 BU
+    var inviterAttr = (h === 'Inviter') ? ' oninput="handleInviterInputChange(this)" onchange="handleInviterInputChange(this)"' : '';
 
     if (dropdowns[h]) {
       var options = dropdowns[h]();
-      return '<div style="'+spanStyle+'"><div class="modal-label" style="margin-bottom:4px;">'+label+'</div>'+buildFormDatalistInput('kb-new-cand-input', h, options, prefillVal)+'</div>';
+      return '<div style="'+spanStyle+'"><div class="modal-label" style="margin-bottom:4px;">'+label+'</div>'+buildFormDatalistInput('kb-new-cand-input', h, options, prefillVal, inviterAttr)+'</div>';
     }
     var valAttr = prefillVal ? ' value="'+prefillVal+'"' : '';
-    return '<div style="'+spanStyle+'"><div class="modal-label" style="margin-bottom:4px;">'+label+'</div><input type="text" data-field="'+h+'" class="kb-new-cand-input" style="width:100%;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;box-sizing:border-box;"'+valAttr+'></div>';
+    return '<div style="'+spanStyle+'"><div class="modal-label" style="margin-bottom:4px;">'+label+'</div><input type="text" data-field="'+h+'" class="kb-new-cand-input"'+inviterAttr+' style="width:100%;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;box-sizing:border-box;"'+valAttr+'></div>';
   }).join('');
 
   document.querySelector('#addRowModal .modal').classList.add('modal-wide');
@@ -2715,6 +2784,8 @@ registerMultiFilterRerender('kb-result', renderKanban);
 registerMultiFilterRerender('cs-result', renderCandidateSearch);
 registerMultiFilterRerender('ov-bu', renderOverview);
 registerMultiFilterRerender('ov-job', renderOverview);
+registerMultiFilterRerender('tr-bu', renderTrends);
+registerMultiFilterRerender('tr-job', renderTrends);
 registerMultiFilterRerender('cand-bu', renderCandQuery);
 registerMultiFilterRerender('cand-job', renderCandQuery);
 registerMultiFilterRerender('cand-result', renderCandQuery);
