@@ -1209,6 +1209,7 @@ function drawLineChartInner(containerId, labels, series, maxVal) {
     svg += '<polyline points="'+pts+'" fill="none" stroke="'+color+'" stroke-width="2"/>';
     s.data.forEach(function(v,i){
       svg += '<circle cx="'+xPos(i)+'" cy="'+yPos(v)+'" r="3" fill="'+color+'"><title>'+s.name+': '+v+'</title></circle>';
+      if (v > 0) svg += '<text x="'+xPos(i)+'" y="'+(yPos(v)-6)+'" font-size="9" fill="'+color+'" text-anchor="middle" font-weight="600">'+v+'</text>';
     });
   });
   svg += '</svg>';
@@ -1238,6 +1239,7 @@ function drawBarChartInner(containerId, labels, series, maxVal) {
       var bx = groupX + si*barW + barW*0.3;
       var by = padT+plotH-bh;
       svg += '<rect x="'+bx+'" y="'+by+'" width="'+(barW*0.8)+'" height="'+bh+'" fill="'+TREND_COLORS[si%TREND_COLORS.length]+'" rx="2"><title>'+s.name+': '+v+'</title></rect>';
+      if (v > 0) svg += '<text x="'+(bx+barW*0.4)+'" y="'+(by-4)+'" font-size="9" fill="'+TREND_COLORS[si%TREND_COLORS.length]+'" text-anchor="middle" font-weight="600">'+v+'</text>';
     });
     svg += '<text x="'+(groupX+groupW/2)+'" y="'+(chartH-padB+16)+'" font-size="9" fill="#6B7280" text-anchor="middle">'+lbl+'</text>';
   });
@@ -1278,10 +1280,12 @@ function renderTrends() {
   renderMultiFilterBar('trBuBar', 'tr-bu', trBuOptions);
   var trJobOptions = [...new Set(allData.map(function(d){return String(d['Job Function']||'').trim();}))].filter(Boolean).sort();
   renderMultiFilterBar('trJobBar', 'tr-job', trJobOptions);
+  renderMultiFilterDropdown('trResultBar', 'tr-result', getResultOptions(), '目前狀態');
 
   var trendData = allData.filter(function(d){
     return multiFilterPass('tr-bu', d.BU) &&
            multiFilterPass('tr-job', d['Job Function']) &&
+           multiFilterPass('tr-result', d.Result) &&
            dateFilterPass('trends', d);
   });
 
@@ -2786,6 +2790,7 @@ registerMultiFilterRerender('ov-bu', renderOverview);
 registerMultiFilterRerender('ov-job', renderOverview);
 registerMultiFilterRerender('tr-bu', renderTrends);
 registerMultiFilterRerender('tr-job', renderTrends);
+registerMultiFilterRerender('tr-result', renderTrends);
 registerMultiFilterRerender('cand-bu', renderCandQuery);
 registerMultiFilterRerender('cand-job', renderCandQuery);
 registerMultiFilterRerender('cand-result', renderCandQuery);
