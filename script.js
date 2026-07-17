@@ -1289,6 +1289,15 @@ function renderTrends() {
            dateFilterPass('trends', d);
   });
 
+  // ---- 統計字卡 ----
+  document.getElementById('c-tr-invited').textContent = trendData.filter(function(d){ return !!(d.invite_date || d['invite date']); }).length;
+  document.getElementById('c-tr-noreply').textContent = trendData.filter(function(d){ return d.Result === '104已邀約未回覆'; }).length;
+  document.getElementById('c-tr-pi').textContent = trendData.filter(function(d){ return !!d.PI_date; }).length;
+  document.getElementById('c-tr-declinepi').textContent = trendData.filter(function(d){ return d.Result === '婉拒電訪' || d.Result === '已關閉履歷'; }).length;
+  document.getElementById('c-tr-othermgr').textContent = trendData.filter(function(d){ return d.Result === '其他主管/近期已邀約'; }).length;
+  document.getElementById('c-tr-waitpi').textContent = trendData.filter(function(d){ return d.Result === '待電訪'; }).length;
+  document.getElementById('c-tr-interview').textContent = trendData.filter(function(d){ return !!d.Interview_date; }).length;
+
   // ---- 週次（最近8週，週日期加上星期）----
   var weeks = [];
   for (var w=7;w>=0;w--) { var we=getWeekEnd(today); we.setDate(we.getDate()-w*7); weeks.push(we); }
