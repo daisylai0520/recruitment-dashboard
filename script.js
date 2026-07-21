@@ -297,6 +297,7 @@ var TAB_RESOURCES = {
 function renderAll(){
   if (loadedResources.core) {
     renderKanban();
+    renderKbCandSearch();
     renderCandidateSearch();
     renderOverview();
   }
@@ -446,7 +447,7 @@ async function switchTab(tab,el) {
     if (maintainSheet === 'Candidate Records') { ensureNewCandidateFieldsRendered(); renderCandQuery(); }
     else renderMaintain();
   }
-  if (tab === 'kanban') renderKanban();
+  if (tab === 'kanban') { renderKanban(); renderKbCandSearch(); }
   if (tab === 'candidateSearch') renderCandidateSearch();
   if (tab === 'overview') renderOverview();
   if (tab === 'hc') renderHeadcount();
@@ -3205,10 +3206,14 @@ function doExportCandidates() {
   closeExportCandModal();
 }
 
-registerMultiFilterRerender('exp-bu', updateExportPreview);
-registerMultiFilterRerender('exp-job', updateExportPreview);
-registerMultiFilterRerender('exp-inviter', updateExportPreview);
-registerMultiFilterRerender('exp-result', updateExportPreview);
+function refreshExportFilters() {
+  renderExportModalFilters();
+  updateExportPreview();
+}
+registerMultiFilterRerender('exp-bu', refreshExportFilters);
+registerMultiFilterRerender('exp-job', refreshExportFilters);
+registerMultiFilterRerender('exp-inviter', refreshExportFilters);
+registerMultiFilterRerender('exp-result', refreshExportFilters);
 
 setInterval(fetchData,5*60*1000);
 
