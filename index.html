@@ -266,35 +266,48 @@
 
     <div class="page-sub" style="margin-top:-10px;margin-bottom:14px;font-size:11px;">點字卡、或明細表格中的數字，可查看符合條件的實際人選名單</div>
 
-    <div class="metrics-inner" style="grid-template-columns:repeat(auto-fit,minmax(140px,1fr));margin-bottom:20px;">
+    <div class="metrics-grouped" style="margin-bottom:20px;">
       <div class="metric" id="m-tr-invited" style="cursor:pointer;" onclick="showTrendStatDrilldown('tr-invited')">
         <div class="metric-top"><div class="metric-dot" style="background:#4F46E5"></div><span class="metric-label">邀約</span></div>
         <div class="metric-val" id="c-tr-invited">—</div>
       </div>
-      <div class="metric" id="m-tr-noreply" style="cursor:pointer;" onclick="showTrendStatDrilldown('tr-noreply')">
-        <div class="metric-top"><div class="metric-dot" style="background:#F59E0B"></div><span class="metric-label">邀約未回覆</span></div>
-        <div class="metric-val" id="c-tr-noreply">—</div>
+
+      <div class="metric-group">
+        <div class="metric-group-label">未連繫上</div>
+        <div class="metric-group-items">
+          <div class="metric metric-sm" id="m-tr-noreply" style="cursor:pointer;" onclick="showTrendStatDrilldown('tr-noreply')">
+            <div class="metric-top"><div class="metric-dot" style="background:#F59E0B"></div><span class="metric-label">邀約未回覆</span></div>
+            <div class="metric-val" id="c-tr-noreply">—</div>
+          </div>
+          <div class="metric metric-sm" id="m-tr-noanswer" style="cursor:pointer;" onclick="showTrendStatDrilldown('tr-noanswer')">
+            <div class="metric-top"><div class="metric-dot" style="background:#6366F1"></div><span class="metric-label">已致電未接</span></div>
+            <div class="metric-val" id="c-tr-noanswer">—</div>
+          </div>
+          <div class="metric metric-sm" id="m-tr-othermgr" style="cursor:pointer;" onclick="showTrendStatDrilldown('tr-othermgr')">
+            <div class="metric-top"><div class="metric-dot" style="background:#F97316"></div><span class="metric-label">其他主管/近期已邀約</span></div>
+            <div class="metric-val" id="c-tr-othermgr">—</div>
+          </div>
+        </div>
       </div>
-      <div class="metric" id="m-tr-noanswer" style="cursor:pointer;" onclick="showTrendStatDrilldown('tr-noanswer')">
-        <div class="metric-top"><div class="metric-dot" style="background:#6366F1"></div><span class="metric-label">已致電未接</span></div>
-        <div class="metric-val" id="c-tr-noanswer">—</div>
+
+      <div class="metric-group">
+        <div class="metric-group-label">已連繫上</div>
+        <div class="metric-group-items">
+          <div class="metric metric-sm" id="m-tr-pi" style="cursor:pointer;" onclick="showTrendStatDrilldown('tr-pi')">
+            <div class="metric-top"><div class="metric-dot" style="background:#10B981"></div><span class="metric-label">電訪</span></div>
+            <div class="metric-val" id="c-tr-pi">—</div>
+          </div>
+          <div class="metric metric-sm" id="m-tr-waitpi" style="cursor:pointer;" onclick="showTrendStatDrilldown('tr-waitpi')">
+            <div class="metric-top"><div class="metric-dot" style="background:#14B8A6"></div><span class="metric-label">待電訪</span></div>
+            <div class="metric-val" id="c-tr-waitpi">—</div>
+          </div>
+          <div class="metric metric-sm" id="m-tr-declinepi" style="cursor:pointer;" onclick="showTrendStatDrilldown('tr-declinepi')">
+            <div class="metric-top"><div class="metric-dot" style="background:#EC4899"></div><span class="metric-label">婉拒電訪</span></div>
+            <div class="metric-val" id="c-tr-declinepi">—</div>
+          </div>
+        </div>
       </div>
-      <div class="metric" id="m-tr-pi" style="cursor:pointer;" onclick="showTrendStatDrilldown('tr-pi')">
-        <div class="metric-top"><div class="metric-dot" style="background:#10B981"></div><span class="metric-label">電訪</span></div>
-        <div class="metric-val" id="c-tr-pi">—</div>
-      </div>
-      <div class="metric" id="m-tr-declinepi" style="cursor:pointer;" onclick="showTrendStatDrilldown('tr-declinepi')">
-        <div class="metric-top"><div class="metric-dot" style="background:#EC4899"></div><span class="metric-label">婉拒電訪</span></div>
-        <div class="metric-val" id="c-tr-declinepi">—</div>
-      </div>
-      <div class="metric" id="m-tr-othermgr" style="cursor:pointer;" onclick="showTrendStatDrilldown('tr-othermgr')">
-        <div class="metric-top"><div class="metric-dot" style="background:#F97316"></div><span class="metric-label">其他主管/近期已邀約</span></div>
-        <div class="metric-val" id="c-tr-othermgr">—</div>
-      </div>
-      <div class="metric" id="m-tr-waitpi" style="cursor:pointer;" onclick="showTrendStatDrilldown('tr-waitpi')">
-        <div class="metric-top"><div class="metric-dot" style="background:#14B8A6"></div><span class="metric-label">待電訪</span></div>
-        <div class="metric-val" id="c-tr-waitpi">—</div>
-      </div>
+
       <div class="metric" id="m-tr-interview" style="cursor:pointer;" onclick="showTrendStatDrilldown('tr-interview')">
         <div class="metric-top"><div class="metric-dot" style="background:#3B82F6"></div><span class="metric-label">面試</span></div>
         <div class="metric-val" id="c-tr-interview">—</div>

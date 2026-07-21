@@ -144,6 +144,15 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
 .metric-val{font-size:26px;font-weight:600;line-height:1;}
 .metric-sub{font-size:11px;color:var(--text-tertiary);margin-top:4px;}
 
+/* Recruitment Status：分組統計字卡（邀約／未連繫上／已連繫上／面試） */
+.metrics-grouped{display:flex;align-items:stretch;gap:14px;flex-wrap:wrap;}
+.metrics-grouped>.metric{flex:1;min-width:150px;display:flex;flex-direction:column;justify-content:center;}
+.metric-group{flex:2.2;min-width:280px;background:var(--bg);border:1.5px solid var(--border);border-radius:14px;padding:14px;}
+.metric-group-label{font-size:13px;font-weight:700;color:var(--text-primary);margin-bottom:10px;}
+.metric-group-items{display:flex;flex-direction:column;gap:8px;}
+.metric-sm{padding:10px 14px;}
+.metric-sm .metric-val{font-size:22px;}
+
 /* STAGES */
 .stages-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
 .stage-col{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 18px;}
