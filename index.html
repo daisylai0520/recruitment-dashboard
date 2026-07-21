@@ -71,12 +71,8 @@
       </div>
     </div>
     <div class="page-title">Candidate Overview</div>
-    <div class="page-sub">點擊人選卡片可變更招募階段</div>
+    <div class="page-sub">點擊人選卡片可變更人選資料</div>
     <div style="display:flex;align-items:flex-end;gap:14px;margin-bottom:10px;flex-wrap:wrap;">
-      <div class="search-wrap" style="width:280px;margin-bottom:0;">
-        <div class="search-label">搜尋</div>
-        <input class="search-input" type="text" id="kbSearch" placeholder="姓名..." oninput="renderKanban()" style="width:100%;">
-      </div>
       <button class="refresh-btn" style="margin-left:0;" onclick="openKbNewCandidateModal()">＋ 新增人選資料</button>
     </div>
     <div class="filter-bar" style="margin-bottom:20px;">
@@ -101,8 +97,22 @@
       <div class="kanban-board" id="kanbanBoard"></div>
     </div>
 
-    <!-- 折疊區 -->
-    <div id="kanbanCollapse"></div>
+    <div style="margin-top:28px;">
+      <div class="search-wrap" style="width:280px;">
+        <div class="search-label">搜尋</div>
+        <input class="search-input" type="text" id="kbSearch" placeholder="姓名..." oninput="renderKanban()" style="width:100%;">
+      </div>
+    </div>
+
+    <!-- 搜尋人選（比照資料維護畫面：輸入姓名或履歷代碼，顯示完整可編輯人選資料卡） -->
+    <div style="margin-top:20px;">
+      <div style="font-size:14px;font-weight:700;margin-bottom:10px;">搜尋人選資料</div>
+      <div class="search-wrap" style="width:280px;">
+        <div class="search-label">搜尋姓名或履歷代碼</div>
+        <input class="search-input" type="text" id="kbCandSearch" placeholder="輸入姓名或履歷代碼..." oninput="renderKbCandSearch()" style="width:100%;">
+      </div>
+      <div id="kbCandSearchResults" style="margin-top:14px;"></div>
+    </div>
   </div>
 
   <!-- ===== CANDIDATE SEARCH ===== -->
@@ -510,6 +520,14 @@
     <div class="modal-title">新增一列</div>
     <div class="modal-sub" id="addRowModalSub">請填寫必要欄位</div>
     <div id="addRowModalFields"></div>
+    <div id="kbNewCandDupWarning" style="display:none;font-size:12px;background:var(--amber-bg);color:var(--amber-text);padding:8px 10px;border-radius:8px;margin-bottom:10px;"></div>
+    <div id="kbNewCandCopyRow" style="display:none;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
+      <div id="kbNewCandSelectedHint" style="font-size:12px;color:var(--accent);"></div>
+      <div style="display:flex;gap:8px;">
+        <button class="refresh-btn" style="margin-left:0;" onclick="applyCopyToNewCandidateForm()">📄 複製人選資料（先在下方搜尋人選點選要複製的人選）</button>
+        <button class="btn-cancel" onclick="clearKbNewCandidateForm()">清空表單</button>
+      </div>
+    </div>
     <div class="modal-actions">
       <button class="btn-cancel" onclick="closeAddRowModal()">取消</button>
       <button class="lock-btn" style="width:auto;margin-top:0;padding:8px 18px;" onclick="handleAddRowModalSubmit()">新增</button>

@@ -339,6 +339,11 @@ function selectRole(role) {
     }
   }
 
+  // 每次選擇身分都重新開始一份分頁瀏覽歷史（上一步／下一步）
+  tabHistoryStack = [currentTab];
+  tabHistoryIndex = 0;
+  initTabHistoryNav();
+
   fetchCoreData().then(function(){
     var resources = TAB_RESOURCES[currentTab] || ['core'];
     return Promise.all(resources.filter(function(r){return r!=='core';}).map(ensureResourceLoaded));
@@ -361,12 +366,72 @@ function switchRole() {
   document.getElementById('roleScreen').style.display = 'flex';
 }
 
+// ---- 分頁瀏覽歷史（上一步／下一步）----
+var tabHistoryStack = [];
+var tabHistoryIndex = -1;
+
+function findTabNavEl(tab) {
+  return Array.prototype.find.call(document.querySelectorAll('.tab-bar:first-of-type > .tab'), function(t){
+    var oc = t.getAttribute('onclick') || '';
+    return oc.indexOf("switchTab('"+tab+"'") >= 0;
+  });
+}
+
+function updateTabHistoryButtons() {
+  document.querySelectorAll('.tab-history-back').forEach(function(b){ b.disabled = tabHistoryIndex <= 0; });
+  document.querySelectorAll('.tab-history-forward').forEach(function(b){ b.disabled = tabHistoryIndex >= tabHistoryStack.length - 1; });
+}
+
+async function goToHistoryTab() {
+  var tab = tabHistoryStack[tabHistoryIndex];
+  if (!tab) return;
+  var el = findTabNavEl(tab);
+  window._navigatingTabHistory = true;
+  await switchTab(tab, el);
+  window._navigatingTabHistory = false;
+  updateTabHistoryButtons();
+}
+function goTabHistoryBack() {
+  if (tabHistoryIndex <= 0) return;
+  tabHistoryIndex--;
+  goToHistoryTab();
+}
+function goTabHistoryForward() {
+  if (tabHistoryIndex >= tabHistoryStack.length - 1) return;
+  tabHistoryIndex++;
+  goToHistoryTab();
+}
+
+// 在每個畫面的大標題下方插入「上一步／下一步」導覽按鈕（只插入一次，避免重複）
+function initTabHistoryNav() {
+  document.querySelectorAll('[id^="view-"] .page-title').forEach(function(titleEl){
+    var next = titleEl.nextElementSibling;
+    if (next && next.classList && next.classList.contains('tab-history-nav')) return;
+    var nav = document.createElement('div');
+    nav.className = 'tab-history-nav';
+    nav.style.cssText = 'display:flex;gap:8px;margin:8px 0 4px;';
+    nav.innerHTML =
+      '<button class="btn-cancel tab-history-back" style="padding:4px 12px;font-size:12px;" onclick="goTabHistoryBack()">← 上一步</button>'+
+      '<button class="btn-cancel tab-history-forward" style="padding:4px 12px;font-size:12px;" onclick="goTabHistoryForward()">下一步 →</button>';
+    titleEl.insertAdjacentElement('afterend', nav);
+  });
+  updateTabHistoryButtons();
+}
+
 // ---- tabs ----
 async function switchTab(tab,el) {
+  // 記錄瀏覽歷史；若是透過上一步／下一步觸發，就不要再往歷史紀錄裡新增，也不要砍掉「未來」的紀錄
+  if (!window._navigatingTabHistory) {
+    tabHistoryStack = tabHistoryStack.slice(0, tabHistoryIndex + 1);
+    tabHistoryStack.push(tab);
+    tabHistoryIndex = tabHistoryStack.length - 1;
+    updateTabHistoryButtons();
+  }
+
   currentTab=tab;
   window.scrollTo(0, 0);
   document.querySelectorAll('.tab-bar:first-of-type > .tab').forEach(function(t){t.classList.remove('active');});
-  el.classList.add('active');
+  if (el) el.classList.add('active');
   ['kanban','candidateSearch','overview','hc','maintain','trends','offers','schedule','salary'].forEach(function(v){
     document.getElementById('view-'+v).style.display=v===tab?'':'none';
   });
@@ -447,24 +512,8 @@ function renderKanban() {
   var kbJobOptions = [...new Set(allData.map(function(d){return String(d['Job Function']||'').trim();}))].filter(Boolean).sort();
   renderMultiFilterBar('kbJobBar', 'kb-job', kbJobOptions);
 
-  // BP 角色的 Candidate Overview 畫面不顯示下拉選單（目前狀態、時間篩選），只保留單位／Job Function 按鈕篩選
-  var kbResultGroup = document.getElementById('kbResultGroup');
-  var kbResultDivider = document.getElementById('kbResultDivider');
-  var kbDateSlot = document.getElementById('kbDateFilterSlot');
-  var kbDateDivider = document.getElementById('kbDateDivider');
-  if (userRole === 'bp') {
-    delete multiFilterState['kb-result'];
-    delete dateFilterState['kanban'];
-    if (kbResultGroup) kbResultGroup.style.display = 'none';
-    if (kbResultDivider) kbResultDivider.style.display = 'none';
-    if (kbDateSlot) kbDateSlot.innerHTML = '';
-    if (kbDateDivider) kbDateDivider.style.display = 'none';
-  } else {
-    if (kbResultGroup) kbResultGroup.style.display = '';
-    if (kbResultDivider) kbResultDivider.style.display = '';
-    if (kbDateDivider) kbDateDivider.style.display = '';
-    renderMultiFilterDropdown('kbResultBar', 'kb-result', getResultOptions(), '目前狀態');
-  }
+  // 目前狀態／時間篩選：BP 角色現在也一併顯示
+  renderMultiFilterDropdown('kbResultBar', 'kb-result', getResultOptions(), '目前狀態');
 
   var filtered=allData.filter(function(d){
     if(!multiFilterPass('kb-bu', d.BU)) return false;
@@ -483,36 +532,6 @@ function renderKanban() {
   });
 
   document.getElementById('kanbanBoard').innerHTML = buildKanbanPhasesHtml(filtered, false, true);
-
-  // 折疊區
-  // 折疊區：除了固定的「結束/不推進」分類，任何不屬於電訪/面試/錄取/結束這幾個既定分類的 Result 值
-  // （例如試算表裡新增、但還沒被歸類進上面陣列的狀態）也要能顯示出來，不然這些人選會直接從畫面上消失
-  var knownKbStages = PHONE_STAGES.concat(INTERVIEW_STAGES, OFFER_STAGES, COLLAPSE_STAGES);
-  var otherKbStages = [...new Set(filtered.map(function(d){ return String(d.Result||'').trim(); }))]
-    .filter(function(s){ return s && knownKbStages.indexOf(s) < 0; });
-  var collapseStagesToShow = COLLAPSE_STAGES.concat(otherKbStages);
-
-  var collapseHtml='';
-  collapseStagesToShow.forEach(function(stage){
-    var cands=filtered.filter(function(d){return d.Result===stage;});
-    if(!cands.length) return;
-    var color=STAGE_COLORS[stage]||'#9CA3AF';
-    collapseHtml+='<div class="collapse-section">'
-      +'<div class="collapse-hdr" onclick="this.nextElementSibling.classList.toggle(\'open\');this.querySelector(\'.collapse-arrow\').classList.toggle(\'open\')">'
-      +'<div class="collapse-hdr-left"><div style="width:10px;height:10px;border-radius:2px;background:'+color+'"></div><span>'+stage+'</span><span class="collapse-count">'+cands.length+' 人</span></div>'
-      +'<span class="collapse-arrow">▼</span>'
-      +'</div>'
-      +'<div class="collapse-body">'
-      +'<div class="collapse-grid">'+cands.map(function(d){
-        var cidx=allData.indexOf(d);
-        return '<div class="mini-card" style="cursor:pointer" data-idx="'+cidx+'" data-stage="'+stage+'" onclick="handleCardClick(this)">'
-          +'<div class="mini-card-top"><div class="mini-card-name">'+d.Name+'</div><div class="mini-card-bu">'+d.BU+'</div></div>'
-          +'<div class="mini-card-pos">'+(d['Job Function']||'')+'</div>'
-          +'<div style="font-size:10px;color:var(--text-tertiary);margin-top:4px">點擊更改狀態</div>'
-          +'</div>';
-      }).join('')+'</div></div></div>';
-  });
-  document.getElementById('kanbanCollapse').innerHTML=collapseHtml;
 
   // ---- 轉換率計算 ----
   // 分母：所有狀態非「HR不邀約電訪」的人選；分子：狀態為「錄取」的人選
@@ -1655,10 +1674,21 @@ var MAINTAIN_DROPDOWNS = {
     'Inviter': function(){ return [...new Set(allData.map(function(d){return String(d.Inviter||'').trim();}))].filter(Boolean).sort(); },
     'Result': function(){ return getResultOptions(); },
     '性別': function(){ return [...new Set(allData.map(function(d){return String(d['性別']||'').trim();}))].filter(Boolean).sort(); },
-    '最高學歷': function(){ return [...new Set(allData.map(function(d){return String(d['最高學歷']||'').trim();}))].filter(Boolean).sort(); }
+    '最高學歷': function(){ return [...new Set(allData.map(function(d){return String(d['最高學歷']||'').trim();}))].filter(Boolean).sort(); },
+    '負責HR': function(){ return [...new Set(allData.map(function(d){return String(d['負責HR']||'').trim();}))].filter(Boolean).sort(); }
   },
   'Headcount Records': {}
 };
+
+// 負責HR：因為目前沒有登入機制，改用瀏覽器 localStorage 記住「這台瀏覽器最近一次填寫的負責HR」，
+// 讓同一位 HR 只要打過一次名字，之後新增人選時就會自動帶入，不用每次重打
+var LAST_HR_STORAGE_KEY = 'wt_recruitment_last_hr';
+function getLastUsedHR() {
+  try { return localStorage.getItem(LAST_HR_STORAGE_KEY) || ''; } catch(e) { return ''; }
+}
+function saveLastUsedHR(name) {
+  try { if (name) localStorage.setItem(LAST_HR_STORAGE_KEY, name); } catch(e) {}
+}
 
 var MAINTAIN_DATE_FIELDS = ['invite_date','invite date','PI_date','Interview_date','Phone Interview Scheduled','Interview Scheduled','Result Update_date','Update_date','Update date','Onboard date'];
 var MAINTAIN_DATEONLY_FIELDS = ['invite_date','invite date','Phone Interview Scheduled','Interview Scheduled','Result Update_date','Update_date','Update date','Onboard date'];
@@ -1770,7 +1800,16 @@ function isMultiFilterNarrowed(filterId) {
   return state.selected.size < state.known.size;
 }
 
+// 若目前正有資料維護的欄位在編輯中（游標還focus在某個儲存格），就先不要重新整個畫面重繪，
+// 避免打到一半的內容被蓋掉、儲存格也跟著改變長寬。等使用者點開/離開該欄位後，下一次觸發時會照常重繪。
+function isMaintainCellFocused(sheetName) {
+  var ae = document.activeElement;
+  if (!ae || !ae.getAttribute || !ae.hasAttribute('data-row')) return false;
+  return sheetName ? ae.getAttribute('data-sheet') === sheetName : true;
+}
+
 function renderCandQuery() {
+  if (isMaintainCellFocused('Candidate Records')) return;
   var search = (document.getElementById('candQuerySearch').value || '').trim().toLowerCase();
   var container = document.getElementById('candQueryResults');
   var hasDateFilter = dateFilterState.candidateMaintenance &&
@@ -1798,15 +1837,21 @@ function renderCandQuery() {
     return;
   }
 
-  container.innerHTML = matched.map(function(cand){
+  container.innerHTML = buildCandQueryCardsHtml(matched);
+}
+
+// 完整可編輯人選資料卡（含選取以複製／刪除按鈕）：資料維護的查詢結果、
+// 以及 Candidate Overview 的「搜尋人選資料」都共用這一份卡片渲染邏輯
+function buildCandQueryCardsHtml(matched) {
+  return matched.map(function(cand){
     var idx = allData.indexOf(cand);
     var candHeaders = filterCandHeadersForRole(maintainHeaders['Candidate Records'] || Object.keys(cand).filter(function(k){return k!=='_row';}));
     var isSelected = selectedCandForCopy && selectedCandForCopy._row === cand._row;
 
     var fieldsHtml = candHeaders.map(function(h){
-      // 資料維護頁採緊湊欄寬，僅職缺名稱與備註保留較大的編輯空間。
+      // 採緊湊欄寬，僅職缺名稱與備註保留較大的編輯空間。
       var isWide = (h === '104_Position' || h.indexOf('Memo') >= 0);
-      // 資料維護頁的時間欄位一律統一顯示成 YYYY/MM/DD HH:MM
+      // 時間欄位一律統一顯示成 YYYY/MM/DD HH:MM
       return renderQueryField('Candidate Records', cand, h, idx, isWide ? 'span2' : false, true);
     }).join('');
 
@@ -1821,6 +1866,26 @@ function renderCandQuery() {
       '<div class="maintain-candidate-grid">'+fieldsHtml+'</div>'+
     '</div>';
   }).join('');
+}
+
+// Candidate Overview 畫面的「搜尋人選資料」：比照資料維護的搜尋，輸入姓名或履歷代碼即顯示完整可編輯資料卡
+function renderKbCandSearch() {
+  if (isMaintainCellFocused('Candidate Records')) return;
+  var search = (document.getElementById('kbCandSearch').value || '').trim().toLowerCase();
+  var container = document.getElementById('kbCandSearchResults');
+  if (!search) {
+    container.innerHTML = '<div class="empty" style="padding:30px 0;text-align:center;">請輸入姓名或履歷代碼查詢人選</div>';
+    return;
+  }
+  var matched = allData.filter(function(d){
+    var resumeKey = findResumeCodeKey(d);
+    return String(d.Name||'').toLowerCase().includes(search) || String(d[resumeKey]||'').toLowerCase().includes(search);
+  });
+  if (!matched.length) {
+    container.innerHTML = '<div class="empty" style="padding:30px 0;text-align:center;">找不到符合的人選</div>';
+    return;
+  }
+  container.innerHTML = buildCandQueryCardsHtml(matched);
 }
 
 function renderQueryField(sheetName, rec, field, idx, fullWidth, strictDateFormat) {
@@ -1868,6 +1933,7 @@ function maintainFilter(type, val, el) {
 }
 
 function renderMaintain() {
+  if (isMaintainCellFocused(maintainSheet)) return;
   var allRecords = getMaintainRecords(maintainSheet);
   var headers = maintainHeaders[maintainSheet] || (allRecords.length ? Object.keys(allRecords[0]).filter(function(k){return k!=='_row';}) : []);
   headers = headers.filter(function(h){ return !h.includes('PS'); });
@@ -2132,7 +2198,7 @@ function getTodayDateStr() {
 }
 
 // 複製人選資料時，這些欄位需清空（流程紀錄類欄位／104_Position 依需求不複製）；Name、履歷代碼會一起複製
-var COPY_CLEAR_FIELDS = ['PI_date','Interview_date','Result','Result Update_date','Update_date','Update date','Onboard date','Memo'];
+var COPY_CLEAR_FIELDS = ['PI_date','Interview_date','Result','Result Update_date','Update_date','Update date','Onboard date','Memo','Phone Interview Scheduled','Interview Scheduled'];
 
 var selectedCandForCopy = null;
 
@@ -2150,7 +2216,7 @@ function buildFormDatalistInput(className, field, options, prefillVal, extraAttr
 }
 
 function renderNewCandidateFields() {
-  var headers = maintainHeaders['Candidate Records'] || ['invite_date','BU','Job Function','104_Position','Name','性別','年齡','最高學歷','學校','科系','履歷代碼','Source','Inviter','PI_date','Interview_date','Result','Result Update_date','Onboard date','Memo'];
+  var headers = maintainHeaders['Candidate Records'] || ['invite_date','BU','Job Function','104_Position','Name','性別','年齡','最高學歷','學校','科系','履歷代碼','Source','Inviter','PI_date','Interview_date','Result','Result Update_date','Onboard date','負責HR','Memo'];
   var dropdowns = MAINTAIN_DROPDOWNS['Candidate Records'] || {};
   var requiredFields = ['Name','Result','invite_date'];
   var todayStr = getTodayDateStr();
@@ -2164,7 +2230,8 @@ function renderNewCandidateFields() {
     var isNameOrResume = (h === 'Name' || h.indexOf('履歷代碼') >= 0);
     var spanStyle = isMemo ? 'grid-column:1/-1;' : (isPosition ? 'grid-column:span 2;' : '');
     var dupAttr = isNameOrResume ? ' oninput="checkNewCandDuplicate()"' : '';
-    var prefillVal = isInviteDate ? todayStr : '';
+    // 負責HR：自動帶入這台瀏覽器最近一次填寫過的名字，同一位 HR 不用每次重打
+    var prefillVal = isInviteDate ? todayStr : (h === '負責HR' ? getLastUsedHR() : '');
 
     // Inviter 有填寫時，依 Manager Information 工作表的姓名比對自動帶入 BU
     var inviterAttr = (h === 'Inviter') ? ' oninput="handleInviterInputChange(this)" onchange="handleInviterInputChange(this)"' : '';
@@ -2206,15 +2273,23 @@ function handlePositionInputChange(el) {
   if (jfInput) jfInput.value = jf;
 }
 
+// 新增人選表單目前用的是哪一個（資料維護的常駐表單，或 Candidate Overview 的彈窗），
+// 兩邊共用同一套「檢查重複／複製人選資料」邏輯，差別只在欄位的 selector 跟提示訊息放哪裡
+function getNewCandFormSelector() {
+  return window._kbNewCandidateMode ? '#addRowModalFields .kb-new-cand-input' : '#newCandFields .new-cand-input';
+}
+
 // 輸入姓名或履歷代碼時，即時檢查這位人選是否已經有紀錄，避免重複建檔
 function checkNewCandDuplicate() {
+  var isKb = !!window._kbNewCandidateMode;
   var name = '', resume = '';
-  document.querySelectorAll('#newCandFields .new-cand-input').forEach(function(inp){
+  document.querySelectorAll(getNewCandFormSelector()).forEach(function(inp){
     var f = inp.getAttribute('data-field');
     if (f === 'Name') name = inp.value.trim().toLowerCase();
     if (f && f.indexOf('履歷代碼') >= 0) resume = inp.value.trim().toLowerCase();
   });
-  var warnEl = document.getElementById('newCandDupWarning');
+  var warnEl = document.getElementById(isKb ? 'kbNewCandDupWarning' : 'newCandDupWarning');
+  if (!warnEl) return;
   if (!name && !resume) { warnEl.style.display = 'none'; return; }
 
   var matched = allData.filter(function(d){
@@ -2231,20 +2306,25 @@ function checkNewCandDuplicate() {
   }
 }
 
-// 點選下方人選資料卡，標記為「要複製的來源」
+// 點選人選資料卡，標記為「要複製的來源」（資料維護的查詢結果、Candidate Overview 的搜尋人選都會呼叫這裡）
 function selectCandForCopy(row) {
   var cand = allData.find(function(d){ return d._row === row; });
   if (!cand) return;
   selectedCandForCopy = cand;
-  document.getElementById('newCandSelectedHint').textContent = '已選取「'+(cand.Name||'')+'」，點擊「複製人選資料」套用到上方表單';
-  renderCandQuery();
+  var hintText = '已選取「'+(cand.Name||'')+'」，可用「複製人選資料」套用到新增表單';
+  var hintEl1 = document.getElementById('newCandSelectedHint');
+  if (hintEl1) hintEl1.textContent = hintText;
+  var hintEl2 = document.getElementById('kbNewCandSelectedHint');
+  if (hintEl2) hintEl2.textContent = hintText;
+  if (currentTab === 'maintain') renderCandQuery();
+  if (currentTab === 'kanban') renderKbCandSearch();
 }
 
-// 把選取的人選資料套用到常駐表單（Name、履歷代碼會一起複製；104_Position 與流程紀錄類欄位不複製）
+// 把選取的人選資料套用到新增表單（Name、履歷代碼會一起複製；104_Position 與流程紀錄類欄位不複製）
 function applyCopyToNewCandidateForm() {
   if (!selectedCandForCopy) { showToast('請先在下方人選清單點選要複製的人選'); return; }
   var todayStr = getTodayDateStr();
-  document.querySelectorAll('#newCandFields .new-cand-input').forEach(function(inp){
+  document.querySelectorAll(getNewCandFormSelector()).forEach(function(inp){
     var f = inp.getAttribute('data-field');
     var isInviteDate = (f === 'invite_date' || f === 'invite date');
     var isPosition = f.indexOf('104') >= 0;
@@ -2279,6 +2359,7 @@ async function submitNewCandidateForm() {
   });
   if (missing.length) { showToast('請填寫必填欄位：'+missing.join('、')); return; }
 
+  saveLastUsedHR(values['負責HR']);
   var orderedValues = headers.map(function(h){ return values[h] || ''; });
   showToast('新增中...');
   try {
@@ -2298,7 +2379,7 @@ async function submitNewCandidateForm() {
 
 // Candidate Overview 畫面的「＋ 新增人選資料」：重用共用的 addRowModal，直接寫入 Candidate Records
 function openKbNewCandidateModal() {
-  var headers = filterCandHeadersForRole(maintainHeaders['Candidate Records'] || ['invite_date','BU','Job Function','104_Position','Name','性別','年齡','最高學歷','學校','科系','履歷代碼','Source','Inviter','PI_date','Interview_date','Result','Result Update_date','Onboard date','Memo']);
+  var headers = filterCandHeadersForRole(maintainHeaders['Candidate Records'] || ['invite_date','BU','Job Function','104_Position','Name','性別','年齡','最高學歷','學校','科系','履歷代碼','Source','Inviter','PI_date','Interview_date','Result','Result Update_date','Onboard date','負責HR','Memo']);
   var dropdowns = MAINTAIN_DROPDOWNS['Candidate Records'] || {};
   var requiredFields = ['Name','Result','invite_date'];
   var todayStr = getTodayDateStr();
@@ -2309,13 +2390,17 @@ function openKbNewCandidateModal() {
     var label = h + (isRequired ? ' <span style="color:#EF4444;">*</span>' : '');
     var isInviteDate = (h === 'invite_date' || h === 'invite date');
     var isMemo = h.indexOf('Memo') >= 0;
-    var spanStyle = isMemo ? 'grid-column:1/-1;' : '';
-    var prefillVal = isInviteDate ? todayStr : '';
+    var isPosition = h === '104_Position';
+    var isNameOrResume = (h === 'Name' || h.indexOf('履歷代碼') >= 0);
+    var spanStyle = isMemo ? 'grid-column:1/-1;' : (isPosition ? 'grid-column:span 2;' : '');
+    var dupAttr = isNameOrResume ? ' oninput="checkNewCandDuplicate()"' : '';
+    // 負責HR：自動帶入這台瀏覽器最近一次填寫過的名字，同一位 HR 不用每次重打
+    var prefillVal = isInviteDate ? todayStr : (h === '負責HR' ? getLastUsedHR() : '');
     // Inviter 有填寫時，依 Manager Information 工作表的姓名比對自動帶入 BU
     var inviterAttr = (h === 'Inviter') ? ' oninput="handleInviterInputChange(this)" onchange="handleInviterInputChange(this)"' : '';
     // 104_Position 有填寫時，自動擷取【】內文字帶入 Job Function
-    var positionAttr = (h === '104_Position') ? ' oninput="handlePositionInputChange(this)" onchange="handlePositionInputChange(this)"' : '';
-    var extraAttr = inviterAttr + positionAttr;
+    var positionAttr = isPosition ? ' oninput="handlePositionInputChange(this)" onchange="handlePositionInputChange(this)"' : '';
+    var extraAttr = inviterAttr + positionAttr + dupAttr;
 
     if (dropdowns[h]) {
       var options = dropdowns[h]();
@@ -2326,8 +2411,17 @@ function openKbNewCandidateModal() {
   }).join('');
 
   document.querySelector('#addRowModal .modal').classList.add('modal-wide');
+  document.getElementById('addRowModalFields').classList.add('cand-new-fields-grid');
+  document.getElementById('kbNewCandDupWarning').style.display = 'none';
+  document.getElementById('kbNewCandCopyRow').style.display = 'flex';
+  document.getElementById('kbNewCandSelectedHint').textContent = selectedCandForCopy ? ('已選取「'+(selectedCandForCopy.Name||'')+'」，可用「複製人選資料」套用到此表單') : '';
   document.getElementById('addRowModal').style.display = 'flex';
   window._kbNewCandidateMode = true;
+}
+
+function clearKbNewCandidateForm() {
+  selectedCandForCopy = null;
+  openKbNewCandidateModal();
 }
 
 async function submitKbNewCandidate() {
@@ -2346,6 +2440,7 @@ async function submitKbNewCandidate() {
   });
   if (missing.length) { showToast('請填寫必填欄位：'+missing.join('、')); return; }
 
+  saveLastUsedHR(values['負責HR']);
   var orderedValues = headers.map(function(h){ return values[h] || ''; });
   window._kbNewCandidateMode = false;
   closeAddRowModal();
@@ -2355,7 +2450,8 @@ async function submitKbNewCandidate() {
       '&values=' + encodeURIComponent(JSON.stringify(orderedValues));
     await fetch(url, {mode:'no-cors'});
     await fetchData();
-    if (currentTab === 'kanban') renderKanban();
+    selectedCandForCopy = null;
+    if (currentTab === 'kanban') { renderKanban(); renderKbCandSearch(); }
     showToast('✓ 已新增人選資料');
   } catch(e) {
     showToast('❌ 新增失敗：'+e.message);
@@ -2382,6 +2478,9 @@ function addMaintainRow() {
   }).join('');
 
   document.querySelector('#addRowModal .modal').classList.remove('modal-wide');
+  document.getElementById('addRowModalFields').classList.remove('cand-new-fields-grid');
+  document.getElementById('kbNewCandDupWarning').style.display = 'none';
+  document.getElementById('kbNewCandCopyRow').style.display = 'none';
   document.getElementById('addRowModal').style.display = 'flex';
 }
 
@@ -2408,6 +2507,9 @@ function openHcNewRowModal(divisionName) {
   }).join('');
 
   document.querySelector('#addRowModal .modal').classList.add('modal-wide');
+  document.getElementById('addRowModalFields').classList.remove('cand-new-fields-grid');
+  document.getElementById('kbNewCandDupWarning').style.display = 'none';
+  document.getElementById('kbNewCandCopyRow').style.display = 'none';
   document.getElementById('addRowModal').style.display = 'flex';
   window._hcNewRowMode = true;
 }
