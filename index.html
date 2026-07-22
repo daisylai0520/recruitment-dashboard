@@ -288,7 +288,7 @@
       </div>
 
       <div class="metric-group">
-        <div class="metric-group-label">未連繫上</div>
+        <div class="metric-group-label">未連繫上 <span class="metric-group-total" id="c-tr-group-noconnect"></span></div>
         <div class="metric-group-items">
           <div class="metric metric-sm" id="m-tr-noreply" style="cursor:pointer;" onclick="showTrendStatDrilldown('tr-noreply')">
             <div class="metric-top"><div class="metric-dot" style="background:#F59E0B"></div><span class="metric-label">邀約未回覆</span></div>
@@ -306,7 +306,7 @@
       </div>
 
       <div class="metric-group">
-        <div class="metric-group-label">已連繫上</div>
+        <div class="metric-group-label">已連繫上 <span class="metric-group-total" id="c-tr-group-connected"></span></div>
         <div class="metric-group-items">
           <div class="metric metric-sm" id="m-tr-pi" style="cursor:pointer;" onclick="showTrendStatDrilldown('tr-pi')">
             <div class="metric-top"><div class="metric-dot" style="background:#10B981"></div><span class="metric-label">電訪</span></div>
@@ -317,8 +317,12 @@
             <div class="metric-val" id="c-tr-waitpi">—</div>
           </div>
           <div class="metric metric-sm" id="m-tr-declinepi" style="cursor:pointer;" onclick="showTrendStatDrilldown('tr-declinepi')">
-            <div class="metric-top"><div class="metric-dot" style="background:#EC4899"></div><span class="metric-label">婉拒電訪</span></div>
+            <div class="metric-top"><div class="metric-dot" style="background:#EC4899"></div><span class="metric-label">人選婉拒電訪</span></div>
             <div class="metric-val" id="c-tr-declinepi">—</div>
+          </div>
+          <div class="metric metric-sm" id="m-tr-closed" style="cursor:pointer;" onclick="showTrendStatDrilldown('tr-closed')">
+            <div class="metric-top"><div class="metric-dot" style="background:#6B7280"></div><span class="metric-label">已關閉履歷</span></div>
+            <div class="metric-val" id="c-tr-closed">—</div>
           </div>
         </div>
       </div>
@@ -326,6 +330,11 @@
       <div class="metric" id="m-tr-interview" style="cursor:pointer;" onclick="showTrendStatDrilldown('tr-interview')">
         <div class="metric-top"><div class="metric-dot" style="background:#3B82F6"></div><span class="metric-label">面試</span></div>
         <div class="metric-val" id="c-tr-interview">—</div>
+      </div>
+
+      <div class="metric" id="m-tr-declineinterview" style="cursor:pointer;" onclick="showTrendStatDrilldown('tr-declineinterview')">
+        <div class="metric-top"><div class="metric-dot" style="background:#EF4444"></div><span class="metric-label">婉拒面試</span></div>
+        <div class="metric-val" id="c-tr-declineinterview">—</div>
       </div>
     </div>
 

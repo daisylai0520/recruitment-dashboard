@@ -146,14 +146,15 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
 .metric-sub{font-size:11px;color:var(--text-tertiary);margin-top:4px;}
 
 /* Recruitment Status：分組統計字卡（邀約／未連繫上／已連繫上／面試，四個區塊並列） */
-.metrics-grouped{display:grid;grid-template-columns:repeat(4,1fr);align-items:stretch;gap:14px;}
+.metrics-grouped{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,220px));align-items:stretch;justify-content:start;gap:14px;}
 .metrics-grouped>.metric{display:flex;flex-direction:column;justify-content:center;}
 .metric-group{background:var(--bg);border:1.5px solid var(--border);border-radius:14px;padding:14px;}
 .metric-group-label{font-size:13px;font-weight:700;color:var(--text-primary);margin-bottom:10px;}
+.metric-group-total{font-size:11px;font-weight:500;color:var(--text-tertiary);}
 .metric-group-items{display:flex;flex-direction:column;gap:8px;}
 .metric-sm{padding:10px 14px;}
 .metric-sm .metric-val{font-size:22px;}
-@media (max-width:900px){.metrics-grouped{grid-template-columns:1fr 1fr;}}
+@media (max-width:900px){.metrics-grouped{grid-template-columns:1fr 1fr;justify-content:stretch;}}
 
 /* STAGES */
 .stages-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}

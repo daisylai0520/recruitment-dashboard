@@ -1438,17 +1438,19 @@ function computeFunnelMetrics(data, weeks) {
     makeTrendSeries('面試', countByDateFields(data, weeks, ['Interview_date']))
   ];
 }
-// 每週招募狀態統計（固定 8 大類，跟畫面上方字卡口徑一致）
+// 每週招募狀態統計（跟畫面上方字卡口徑一致）
 function computeResultMetrics(data, weeks) {
   return [
     makeTrendSeries('邀約', countByDateFields(data, weeks, ['invite_date','invite date'])),
     makeTrendSeries('邀約未回覆', countByStage(data, weeks, function(r){return r === '104已邀約未回覆';})),
     makeTrendSeries('已致電未接', countByStage(data, weeks, function(r){return r === '已致電未接';})),
     makeTrendSeries('電訪', countByDateFields(data, weeks, ['Phone Interview_date'])),
-    makeTrendSeries('婉拒電訪', countByStage(data, weeks, function(r){return r === '婉拒電訪' || r === '已關閉履歷';})),
+    makeTrendSeries('人選婉拒電訪', countByStage(data, weeks, function(r){return r === '婉拒電訪';})),
+    makeTrendSeries('已關閉履歷', countByStage(data, weeks, function(r){return r === '已關閉履歷';})),
     makeTrendSeries('其他主管/近期已邀約', countByStage(data, weeks, function(r){return r === '其他主管/近期已邀約';})),
     makeTrendSeries('待電訪', countByStage(data, weeks, function(r){return r === '待電訪';})),
-    makeTrendSeries('面試', countByDateFields(data, weeks, ['Interview_date']))
+    makeTrendSeries('面試', countByDateFields(data, weeks, ['Interview_date'])),
+    makeTrendSeries('婉拒面試', countByStage(data, weeks, function(r){return r === '婉拒面試';}))
   ];
 }
 
@@ -1484,11 +1486,18 @@ var TREND_STAT_DEFS = [
   {id:'tr-noreply', label:'邀約未回覆', test:function(d){return d.Result === '104已邀約未回覆';}},
   {id:'tr-noanswer', label:'已致電未接', test:function(d){return d.Result === '已致電未接';}},
   {id:'tr-pi', label:'電訪', test:function(d){return !!d['Phone Interview_date'];}},
-  {id:'tr-declinepi', label:'婉拒電訪', test:function(d){return d.Result === '婉拒電訪' || d.Result === '已關閉履歷';}},
+  {id:'tr-declinepi', label:'人選婉拒電訪', test:function(d){return d.Result === '婉拒電訪';}},
+  {id:'tr-closed', label:'已關閉履歷', test:function(d){return d.Result === '已關閉履歷';}},
   {id:'tr-othermgr', label:'其他主管/近期已邀約', test:function(d){return d.Result === '其他主管/近期已邀約';}},
   {id:'tr-waitpi', label:'待電訪', test:function(d){return d.Result === '待電訪';}},
-  {id:'tr-interview', label:'面試', test:function(d){return !!d.Interview_date;}}
+  {id:'tr-interview', label:'面試', test:function(d){return !!d.Interview_date;}},
+  {id:'tr-declineinterview', label:'婉拒面試', test:function(d){return d.Result === '婉拒面試';}}
 ];
+// 「未連繫上」「已連繫上」兩個群組字卡標題旁要顯示的總人數，由底下這些字卡加總而來
+var TREND_GROUP_TOTALS = {
+  'tr-group-noconnect': ['tr-noreply','tr-noanswer','tr-othermgr'],
+  'tr-group-connected': ['tr-pi','tr-waitpi','tr-declinepi','tr-closed']
+};
 var lastTrendData = [];
 function showTrendStatDrilldown(defId) {
   var def = TREND_STAT_DEFS.find(function(x){return x.id===defId;});
@@ -1550,8 +1559,17 @@ function renderTrends() {
   lastTrendData = trendData;
 
   // ---- 統計字卡 ----
+  var trendStatCounts = {};
   TREND_STAT_DEFS.forEach(function(def){
-    document.getElementById('c-'+def.id).textContent = trendData.filter(def.test).length;
+    var n = trendData.filter(def.test).length;
+    trendStatCounts[def.id] = n;
+    document.getElementById('c-'+def.id).textContent = n;
+  });
+  // 「未連繫上」「已連繫上」群組標題旁顯示該區塊總人數
+  Object.keys(TREND_GROUP_TOTALS).forEach(function(groupId){
+    var total = TREND_GROUP_TOTALS[groupId].reduce(function(sum, id){ return sum + (trendStatCounts[id]||0); }, 0);
+    var el = document.getElementById('c-'+groupId);
+    if (el) el.textContent = '（共 '+total+' 人）';
   });
 
   // ---- 各單位 Headcount（缺額）----
