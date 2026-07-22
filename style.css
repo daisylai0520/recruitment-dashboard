@@ -40,6 +40,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
 .date-filter-inputs{display:flex;align-items:center;gap:6px;}
 .date-filter-inputs select,.date-filter-inputs input[type=date]{font-size:12px;padding:5px 8px;border:1.5px solid var(--border);border-radius:8px;background:var(--surface);font-family:inherit;}
 .date-filter-clear{font-size:11px;color:var(--text-tertiary);cursor:pointer;text-decoration:underline;}
+.date-quick-btn{margin-left:2px;}
 .filter-group{display:flex;flex-direction:column;gap:6px;}
 .filter-group-label{font-size:10px;font-weight:600;color:var(--text-tertiary);letter-spacing:.08em;text-transform:uppercase;}
 .filter-btns{display:flex;gap:5px;flex-wrap:wrap;}

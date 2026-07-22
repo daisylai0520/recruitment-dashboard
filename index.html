@@ -53,7 +53,7 @@
     <div class="tab" data-tab-role="manager" onclick="switchTab('candidateSearch',this)">Candidate Search</div>
     <div class="tab" data-tab-role="manager,bp" onclick="switchTab('offers',this)">錄取名單</div>
     <div class="tab" data-tab-role="manager,recruiter" onclick="switchTab('overview',this)">Recruitment Progress</div>
-    <div class="tab" data-tab-role="manager,recruiter" onclick="switchTab('trends',this)">Recruitment Status</div>
+    <div class="tab" data-tab-role="manager,recruiter,bp" onclick="switchTab('trends',this)">Recruitment Status</div>
     <div class="tab" data-tab-role="manager,recruiter,bp" onclick="switchTab('hc',this)">Headcount Overview</div>
     <div class="tab" data-tab-role="manager" onclick="switchTab('schedule',this)">面試時間協調</div>
     <div class="tab" data-tab-role="manager,recruiter,bp" onclick="switchTab('salary',this)">Market Salary Records</div>
@@ -103,6 +103,16 @@
         </div>
         <div class="filter-divider"></div>
         <div class="filter-group">
+          <div class="filter-group-label">單位</div>
+          <div class="filter-btns" id="kbsBuBar"></div>
+        </div>
+        <div class="filter-divider"></div>
+        <div class="filter-group">
+          <div class="filter-group-label">Job Function</div>
+          <div class="filter-btns" id="kbsJobBar"></div>
+        </div>
+        <div class="filter-divider"></div>
+        <div class="filter-group">
           <div class="filter-group-label">目前狀態</div>
           <div class="filter-btns" id="kbSearchResultBar"></div>
         </div>
@@ -111,6 +121,8 @@
           <div class="filter-group-label">Inviter</div>
           <div class="filter-btns" id="kbSearchInviterBar"></div>
         </div>
+        <div class="filter-divider"></div>
+        <div id="kbsDateFilterSlot"></div>
       </div>
       <div id="kbCandSearchResults" style="margin-top:14px;"></div>
     </div>

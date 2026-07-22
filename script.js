@@ -88,8 +88,11 @@ function isDoneInterview(d){return isPast(d.Interview_date||'');}
 // ===== 共用：日期範圍篩選元件 =====
 var dateFilterState = {}; // { pageKey: {field, start, end} }
 
-function buildDateFilterHtml(pageKey, fieldOptions) {
+function buildDateFilterHtml(pageKey, fieldOptions, quickRanges) {
   var optHtml = fieldOptions.map(function(f){return '<option value="'+f.value+'">'+f.label+'</option>';}).join('');
+  var quickHtml = (quickRanges||[]).map(function(q){
+    return '<button type="button" class="pos-btn date-quick-btn" id="dfq-'+pageKey+'-'+q.range+'" onclick="quickDateFilter(\''+pageKey+'\',\''+q.range+'\')">'+q.label+'</button>';
+  }).join('');
   return '<div class="date-filter-group">'+
     '<div class="filter-group-label">時間篩選</div>'+
     '<div class="date-filter-inputs">'+
@@ -98,8 +101,53 @@ function buildDateFilterHtml(pageKey, fieldOptions) {
       '<span style="color:var(--text-tertiary);font-size:12px;">至</span>'+
       '<input type="date" id="df-end-'+pageKey+'" onchange="applyDateFilter(\''+pageKey+'\')">'+
       '<span class="date-filter-clear" onclick="clearDateFilter(\''+pageKey+'\')">清除</span>'+
+      quickHtml+
     '</div>'+
   '</div>';
+}
+
+// yyyy-mm-dd，給 <input type="date"> 用（跟 getTodayDateStr 的 yyyy/mm/dd 格式分開，避免混用出錯）
+function fmtISODate(d) {
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+
+// 快速時間區間按鈕：本月／過去一個月，點擊後直接帶入起訖日期並套用篩選
+function quickDateFilter(pageKey, range) {
+  var fieldEl = document.getElementById('df-field-'+pageKey);
+  var startEl = document.getElementById('df-start-'+pageKey);
+  var endEl = document.getElementById('df-end-'+pageKey);
+  if (!fieldEl || !startEl || !endEl) return;
+  var today = new Date(); today.setHours(0,0,0,0);
+  var start, end;
+  if (range === 'thisMonth') {
+    start = new Date(today.getFullYear(), today.getMonth(), 1);
+    end = new Date(today.getFullYear(), today.getMonth()+1, 0);
+  } else if (range === 'past1m') {
+    end = today;
+    start = new Date(today.getFullYear(), today.getMonth()-1, today.getDate()+1);
+  } else {
+    return;
+  }
+  startEl.value = fmtISODate(start);
+  endEl.value = fmtISODate(end);
+  dateFilterState[pageKey] = {
+    field: fieldEl.value,
+    start: new Date(start.getFullYear(),start.getMonth(),start.getDate(),0,0,0),
+    end: new Date(end.getFullYear(),end.getMonth(),end.getDate(),23,59,59),
+    quickRange: range
+  };
+  updateDateQuickBtnActive(pageKey);
+  triggerPageRerender(pageKey);
+}
+
+// 快速按鈕的反白狀態；手動改日期或按清除時，都要讓快速按鈕跟著取消反白
+function updateDateQuickBtnActive(pageKey) {
+  var state = dateFilterState[pageKey];
+  var activeRange = state && state.quickRange;
+  ['thisMonth','past1m'].forEach(function(r){
+    var btn = document.getElementById('dfq-'+pageKey+'-'+r);
+    if (btn) btn.classList.toggle('active', activeRange === r);
+  });
 }
 
 function applyDateFilter(pageKey) {
@@ -111,6 +159,7 @@ function applyDateFilter(pageKey) {
     start: startEl.value ? new Date(startEl.value+'T00:00:00') : null,
     end: endEl.value ? new Date(endEl.value+'T23:59:59') : null
   };
+  updateDateQuickBtnActive(pageKey);
   triggerPageRerender(pageKey);
 }
 
@@ -120,6 +169,7 @@ function clearDateFilter(pageKey) {
   if (startEl) startEl.value = '';
   if (endEl) endEl.value = '';
   delete dateFilterState[pageKey];
+  updateDateQuickBtnActive(pageKey);
   triggerPageRerender(pageKey);
 }
 
@@ -137,6 +187,7 @@ function dateFilterPass(pageKey, rec) {
 function triggerPageRerender(pageKey) {
   var renderMap = {
     kanban: renderKanban,
+    kbSearch: renderKbCandSearch,
     overview: renderOverview,
     hc: renderHeadcount,
     offers: renderOffers,
@@ -159,8 +210,10 @@ function initDateFilterSlots() {
     {value:'invite_date', label:'invite_date'},
     {value:'Interview_date', label:'Interview_date'}
   ];
+  var kbSearchQuickRanges = [{label:'本月',range:'thisMonth'},{label:'過去一個月',range:'past1m'}];
   var slots = {
     'kbDateFilterSlot': {key:'kanban', fields:candFields},
+    'kbsDateFilterSlot': {key:'kbSearch', fields:candFields, quickRanges:kbSearchQuickRanges, defaultQuickRange:'thisMonth'},
     'ovDateFilterSlot': {key:'overview', fields:candFields},
     'csDateFilterSlot': {key:'candidateSearch', fields:csFields},
     'candDateFilterSlot': {key:'candidateMaintenance', fields:candFields},
@@ -174,7 +227,9 @@ function initDateFilterSlots() {
     var cfg = slots[slotId];
     if (cfg.disabled) { el.innerHTML = ''; return; } // Headcount 沒有日期欄位可篩選，跳過
     if (!dateFilterState[cfg.key]) {
-      el.innerHTML = buildDateFilterHtml(cfg.key, cfg.fields);
+      el.innerHTML = buildDateFilterHtml(cfg.key, cfg.fields, cfg.quickRanges);
+      // Candidate Overview「搜尋人選資料」：畫面一打開就自動帶出本月資料，不用使用者手動操作
+      if (cfg.defaultQuickRange) quickDateFilter(cfg.key, cfg.defaultQuickRange);
     }
   });
 }
@@ -752,7 +807,7 @@ function buildDropdownDatalistInput(sheetName, rec, field, col, idx, options, in
 }
 
 // 嚴格下拉選單欄位（Candidate Records）：只能從清單中選擇，不提供手動輸入
-var STRICT_SELECT_FIELDS = ['Result', '最高學歷'];
+var STRICT_SELECT_FIELDS = ['Result', '最高學歷', '婉拒理由'];
 
 // 共用元件：嚴格下拉選單（<select>），用於已存檔的人選資料卡片，選擇後直接寫回試算表
 function buildDropdownSelectInput(sheetName, rec, field, col, idx, options, inputStyle) {
@@ -1703,7 +1758,8 @@ var MAINTAIN_DROPDOWNS = {
     'Result': function(){ return getActualResultOptions(); },
     '性別': function(){ return [...new Set(allData.map(function(d){return String(d['性別']||'').trim();}))].filter(Boolean).sort(); },
     '最高學歷': function(){ return [...new Set(allData.map(function(d){return String(d['最高學歷']||'').trim();}))].filter(Boolean).sort(); },
-    '負責HR': function(){ return [...new Set(allData.map(function(d){return String(d['負責HR']||'').trim();}))].filter(Boolean).sort(); }
+    '負責HR': function(){ return [...new Set(allData.map(function(d){return String(d['負責HR']||'').trim();}))].filter(Boolean).sort(); },
+    '婉拒理由': function(){ return [...new Set(allData.map(function(d){return String(d['婉拒理由']||'').trim();}))].filter(Boolean).sort(); }
   },
   'Headcount Records': {}
 };
@@ -1904,18 +1960,25 @@ function renderKbCandSearch() {
   var search = (document.getElementById('kbCandSearch').value || '').trim().toLowerCase();
   var container = document.getElementById('kbCandSearchResults');
 
+  var kbsBuOptions = [...new Set(allData.map(function(d){return String(d.BU||'').trim();}))].filter(Boolean).sort();
+  renderMultiFilterBar('kbsBuBar', 'kbs-bu', kbsBuOptions);
+  var kbsJobOptions = [...new Set(allData.map(function(d){return String(d['Job Function']||'').trim();}))].filter(Boolean).sort();
+  renderMultiFilterBar('kbsJobBar', 'kbs-job', kbsJobOptions);
   renderMultiFilterDropdown('kbSearchResultBar', 'kbs-result', getResultOptions(), '目前狀態');
   var kbsInviterOptions = [...new Set(allData.map(function(d){return String(d.Inviter||'').trim();}))].filter(Boolean).sort();
   renderMultiFilterDropdown('kbSearchInviterBar', 'kbs-inviter', kbsInviterOptions, 'Inviter');
 
-  if (!search && !isMultiFilterNarrowed('kbs-result') && !isMultiFilterNarrowed('kbs-inviter')) {
+  var kbsHasDateFilter = dateFilterState.kbSearch && (dateFilterState.kbSearch.start || dateFilterState.kbSearch.end);
+  if (!search && !isMultiFilterNarrowed('kbs-result') && !isMultiFilterNarrowed('kbs-inviter') &&
+      !isMultiFilterNarrowed('kbs-bu') && !isMultiFilterNarrowed('kbs-job') && !kbsHasDateFilter) {
     container.innerHTML = '<div class="empty" style="padding:30px 0;text-align:center;">請輸入姓名或履歷代碼查詢，或使用篩選條件顯示人選</div>';
     return;
   }
   var matched = allData.filter(function(d){
     var resumeKey = findResumeCodeKey(d);
     var textMatch = !search || String(d.Name||'').toLowerCase().includes(search) || String(d[resumeKey]||'').toLowerCase().includes(search);
-    return textMatch && multiFilterPass('kbs-result', d.Result) && multiFilterPass('kbs-inviter', d.Inviter);
+    return textMatch && multiFilterPass('kbs-result', d.Result) && multiFilterPass('kbs-inviter', d.Inviter) &&
+      multiFilterPass('kbs-bu', d.BU) && multiFilterPass('kbs-job', d['Job Function']) && dateFilterPass('kbSearch', d);
   });
   if (!matched.length) {
     container.innerHTML = '<div class="empty" style="padding:30px 0;text-align:center;">找不到符合的人選</div>';
@@ -3099,6 +3162,8 @@ registerMultiFilterRerender('kb-bu', renderKanban);
 registerMultiFilterRerender('kb-job', renderKanban);
 registerMultiFilterRerender('kbs-result', renderKbCandSearch);
 registerMultiFilterRerender('kbs-inviter', renderKbCandSearch);
+registerMultiFilterRerender('kbs-bu', renderKbCandSearch);
+registerMultiFilterRerender('kbs-job', renderKbCandSearch);
 registerMultiFilterRerender('cs-result', renderCandidateSearch);
 registerMultiFilterRerender('ov-bu', renderOverview);
 registerMultiFilterRerender('ov-job', renderOverview);
