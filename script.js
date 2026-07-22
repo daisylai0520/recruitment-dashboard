@@ -210,13 +210,14 @@ function initDateFilterSlots() {
     {value:'invite_date', label:'invite_date'},
     {value:'Interview_date', label:'Interview_date'}
   ];
-  var kbSearchQuickRanges = [{label:'本月',range:'thisMonth'},{label:'過去一個月',range:'past1m'}];
+  var quickRanges = [{label:'本月',range:'thisMonth'},{label:'過去一個月',range:'past1m'}];
   var slots = {
-    'kbDateFilterSlot': {key:'kanban', fields:candFields},
-    'kbsDateFilterSlot': {key:'kbSearch', fields:candFields, quickRanges:kbSearchQuickRanges, defaultQuickRange:'thisMonth'},
+    // Candidate Overview 主看板：畫面一打開就自動帶出本月資料
+    'kbDateFilterSlot': {key:'kanban', fields:candFields, quickRanges:quickRanges, defaultQuickRange:'thisMonth'},
+    'kbsDateFilterSlot': {key:'kbSearch', fields:candFields, quickRanges:quickRanges, defaultQuickRange:'thisMonth'},
     'ovDateFilterSlot': {key:'overview', fields:candFields},
     'csDateFilterSlot': {key:'candidateSearch', fields:csFields},
-    'candDateFilterSlot': {key:'candidateMaintenance', fields:candFields},
+    'candDateFilterSlot': {key:'candidateMaintenance', fields:candFields, quickRanges:quickRanges},
     'trDateFilterSlot': {key:'trends', fields:candFields},
     'expDateFilterSlot': {key:'export', fields:candFields},
     'hcDateFilterSlot': {key:'hc', fields:[{value:'Update_date',label:'Update_date（缺額更新時間，依異動記錄推算暫不支援）'}], disabled:true}
@@ -345,7 +346,7 @@ async function fetchData() {
 }
 
 var TAB_RESOURCES = {
-  kanban:['core'], candidateSearch:['core'], overview:['core'], trends:['core','headcount'], offers:['core','headcount'],
+  kanban:['core'], kbSearch:['core'], candidateSearch:['core'], overview:['core'], trends:['core','headcount'], offers:['core','headcount'],
   hc:['headcount'], salary:['salary'], schedule:['core','scheduling'], maintain:['core']
 };
 
@@ -356,6 +357,7 @@ function renderAll(){
     renderCandidateSearch();
     renderOverview();
   }
+  if (currentTab === 'kbSearch') renderKbCandSearch();
   if (currentTab === 'maintain') {
     if (maintainSheet === 'Candidate Records') renderCandQuery();
     else if (loadedResources.headcount) renderMaintain();
@@ -391,7 +393,7 @@ function selectRole(role) {
     var match = onclickAttr.match(/switchTab\('(\w+)'/);
     if (match) {
       currentTab = match[1];
-      ['kanban','candidateSearch','overview','hc','maintain','trends','offers','schedule','salary'].forEach(function(v){
+      ['kanban','kbSearch','candidateSearch','overview','hc','maintain','trends','offers','schedule','salary'].forEach(function(v){
         document.getElementById('view-'+v).style.display = v===currentTab ? '' : 'none';
       });
     }
@@ -490,7 +492,7 @@ async function switchTab(tab,el) {
   window.scrollTo(0, 0);
   document.querySelectorAll('.tab-bar:first-of-type > .tab').forEach(function(t){t.classList.remove('active');});
   if (el) el.classList.add('active');
-  ['kanban','candidateSearch','overview','hc','maintain','trends','offers','schedule','salary'].forEach(function(v){
+  ['kanban','kbSearch','candidateSearch','overview','hc','maintain','trends','offers','schedule','salary'].forEach(function(v){
     document.getElementById('view-'+v).style.display=v===tab?'':'none';
   });
 
@@ -502,7 +504,8 @@ async function switchTab(tab,el) {
     if (maintainSheet === 'Candidate Records') { ensureNewCandidateFieldsRendered(); renderCandQuery(); }
     else renderMaintain();
   }
-  if (tab === 'kanban') { renderKanban(); renderKbCandSearch(); }
+  if (tab === 'kanban') renderKanban();
+  if (tab === 'kbSearch') renderKbCandSearch();
   if (tab === 'candidateSearch') renderCandidateSearch();
   if (tab === 'overview') renderOverview();
   if (tab === 'hc') renderHeadcount();
@@ -807,7 +810,7 @@ function buildDropdownDatalistInput(sheetName, rec, field, col, idx, options, in
 }
 
 // 嚴格下拉選單欄位（Candidate Records）：只能從清單中選擇，不提供手動輸入
-var STRICT_SELECT_FIELDS = ['Result', '最高學歷', '婉拒理由'];
+var STRICT_SELECT_FIELDS = ['Result', '最高學歷', '婉拒理由', '是否邀約'];
 
 // 共用元件：嚴格下拉選單（<select>），用於已存檔的人選資料卡片，選擇後直接寫回試算表
 function buildDropdownSelectInput(sheetName, rec, field, col, idx, options, inputStyle) {
@@ -1759,7 +1762,13 @@ var MAINTAIN_DROPDOWNS = {
     '性別': function(){ return [...new Set(allData.map(function(d){return String(d['性別']||'').trim();}))].filter(Boolean).sort(); },
     '最高學歷': function(){ return [...new Set(allData.map(function(d){return String(d['最高學歷']||'').trim();}))].filter(Boolean).sort(); },
     '負責HR': function(){ return [...new Set(allData.map(function(d){return String(d['負責HR']||'').trim();}))].filter(Boolean).sort(); },
-    '婉拒理由': function(){ return [...new Set(allData.map(function(d){return String(d['婉拒理由']||'').trim();}))].filter(Boolean).sort(); }
+    '婉拒理由': function(){ return [...new Set(allData.map(function(d){return String(d['婉拒理由']||'').trim();}))].filter(Boolean).sort(); },
+    '是否邀約': function(){
+      var base = ['是','否'];
+      var actual = [...new Set(allData.map(function(d){return String(d['是否邀約']||'').trim();}))].filter(Boolean);
+      actual.forEach(function(v){ if (base.indexOf(v) < 0) base.push(v); });
+      return base;
+    }
   },
   'Headcount Records': {}
 };
@@ -2336,9 +2345,10 @@ function renderNewCandidateFields() {
     var label = h + (isRequired ? ' <span style="color:#EF4444;">*</span>' : '');
     var isInviteDate = (h === 'invite_date' || h === 'invite date');
     var isMemo = h.indexOf('Memo') >= 0;
+    var isHRComment = /^hr\s*comment$/i.test(h.trim());
     var isPosition = h === '104_Position';
     var isNameOrResume = (h === 'Name' || h.indexOf('履歷代碼') >= 0);
-    var spanStyle = isMemo ? 'grid-column:1/-1;' : (isPosition ? 'grid-column:span 2;' : '');
+    var spanStyle = (isMemo || isHRComment) ? 'grid-column:1/-1;' : (isPosition ? 'grid-column:span 2;' : '');
     var dupAttr = isNameOrResume ? ' oninput="checkNewCandDuplicate()"' : '';
     // 負責HR：自動帶入這台瀏覽器最近一次填寫過的名字，同一位 HR 不用每次重打
     var prefillVal = isInviteDate ? todayStr : (h === '負責HR' ? getLastUsedHR() : '');
@@ -2349,14 +2359,19 @@ function renderNewCandidateFields() {
     var positionAttr = isPosition ? ' oninput="handlePositionInputChange(this)" onchange="handlePositionInputChange(this)"' : '';
     var extraAttr = inviterAttr + positionAttr;
 
+    var fieldHtml;
     if (dropdowns[h]) {
       var options = dropdowns[h]();
-      var fieldHtml = (STRICT_SELECT_FIELDS.indexOf(h) >= 0)
+      var inputHtml = (STRICT_SELECT_FIELDS.indexOf(h) >= 0)
         ? buildFormSelectInput('new-cand-input', h, options, prefillVal)
         : buildFormDatalistInput('new-cand-input', h, options, prefillVal, extraAttr);
-      return '<div style="'+spanStyle+'"><div class="modal-label" style="margin-bottom:4px;">'+label+'</div>'+fieldHtml+'</div>';
+      fieldHtml = '<div style="'+spanStyle+'"><div class="modal-label" style="margin-bottom:4px;">'+label+'</div>'+inputHtml+'</div>';
+    } else {
+      fieldHtml = '<div style="'+spanStyle+'"><div class="modal-label" style="margin-bottom:4px;">'+label+'</div><input type="text" class="new-cand-input" data-field="'+h+'" value="'+prefillVal+'"'+dupAttr+extraAttr+' style="width:100%;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;box-sizing:border-box;"></div>';
     }
-    return '<div style="'+spanStyle+'"><div class="modal-label" style="margin-bottom:4px;">'+label+'</div><input type="text" class="new-cand-input" data-field="'+h+'" value="'+prefillVal+'"'+dupAttr+extraAttr+' style="width:100%;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;box-sizing:border-box;"></div>';
+    // Memo 欄位下方加一條分隔線，把表單分成前後兩區
+    if (isMemo) fieldHtml += '<div style="grid-column:1/-1;border-top:1px solid var(--border);margin:6px 0 2px;"></div>';
+    return fieldHtml;
   }).join('');
 
   document.getElementById('newCandDupWarning').style.display = 'none';
@@ -2503,9 +2518,10 @@ function openKbNewCandidateModal() {
     var label = h + (isRequired ? ' <span style="color:#EF4444;">*</span>' : '');
     var isInviteDate = (h === 'invite_date' || h === 'invite date');
     var isMemo = h.indexOf('Memo') >= 0;
+    var isHRComment = /^hr\s*comment$/i.test(h.trim());
     var isPosition = h === '104_Position';
     var isNameOrResume = (h === 'Name' || h.indexOf('履歷代碼') >= 0);
-    var spanStyle = isMemo ? 'grid-column:1/-1;' : (isPosition ? 'grid-column:span 2;' : '');
+    var spanStyle = (isMemo || isHRComment) ? 'grid-column:1/-1;' : (isPosition ? 'grid-column:span 2;' : '');
     var dupAttr = isNameOrResume ? ' oninput="checkNewCandDuplicate()"' : '';
     // 負責HR：自動帶入這台瀏覽器最近一次填寫過的名字，同一位 HR 不用每次重打
     var prefillVal = isInviteDate ? todayStr : (h === '負責HR' ? getLastUsedHR() : '');
@@ -2515,15 +2531,20 @@ function openKbNewCandidateModal() {
     var positionAttr = isPosition ? ' oninput="handlePositionInputChange(this)" onchange="handlePositionInputChange(this)"' : '';
     var extraAttr = inviterAttr + positionAttr + dupAttr;
 
+    var fieldHtml;
     if (dropdowns[h]) {
       var options = dropdowns[h]();
-      var fieldHtml = (STRICT_SELECT_FIELDS.indexOf(h) >= 0)
+      var inputHtml = (STRICT_SELECT_FIELDS.indexOf(h) >= 0)
         ? buildFormSelectInput('kb-new-cand-input', h, options, prefillVal)
         : buildFormDatalistInput('kb-new-cand-input', h, options, prefillVal, extraAttr);
-      return '<div style="'+spanStyle+'"><div class="modal-label" style="margin-bottom:4px;">'+label+'</div>'+fieldHtml+'</div>';
+      fieldHtml = '<div style="'+spanStyle+'"><div class="modal-label" style="margin-bottom:4px;">'+label+'</div>'+inputHtml+'</div>';
+    } else {
+      var valAttr = prefillVal ? ' value="'+prefillVal+'"' : '';
+      fieldHtml = '<div style="'+spanStyle+'"><div class="modal-label" style="margin-bottom:4px;">'+label+'</div><input type="text" data-field="'+h+'" class="kb-new-cand-input"'+extraAttr+' style="width:100%;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;box-sizing:border-box;"'+valAttr+'></div>';
     }
-    var valAttr = prefillVal ? ' value="'+prefillVal+'"' : '';
-    return '<div style="'+spanStyle+'"><div class="modal-label" style="margin-bottom:4px;">'+label+'</div><input type="text" data-field="'+h+'" class="kb-new-cand-input"'+extraAttr+' style="width:100%;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;box-sizing:border-box;"'+valAttr+'></div>';
+    // Memo 欄位下方加一條分隔線，把表單分成前後兩區
+    if (isMemo) fieldHtml += '<div style="grid-column:1/-1;border-top:1px solid var(--border);margin:6px 0 2px;"></div>';
+    return fieldHtml;
   }).join('');
 
   document.querySelector('#addRowModal .modal').classList.add('modal-wide');
