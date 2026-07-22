@@ -1444,8 +1444,7 @@ function computeResultMetrics(data, weeks) {
     makeTrendSeries('邀約', countByDateFields(data, weeks, ['invite_date','invite date'])),
     makeTrendSeries('邀約未回覆', countByStage(data, weeks, function(r){return r === '104已邀約未回覆';})),
     makeTrendSeries('已致電未接', countByStage(data, weeks, function(r){return r === '已致電未接';})),
-    makeTrendSeries('電訪', countByDateFields(data, weeks, ['Phone Interview_date'])),
-    makeTrendSeries('人選婉拒電訪', countByStage(data, weeks, function(r){return r === '婉拒電訪';})),
+    makeTrendSeries('人選婉拒電訪', countByStage(data, weeks, function(r){return r === '人選婉拒電訪';})),
     makeTrendSeries('已關閉履歷', countByStage(data, weeks, function(r){return r === '已關閉履歷';})),
     makeTrendSeries('其他主管/近期已邀約', countByStage(data, weeks, function(r){return r === '其他主管/近期已邀約';})),
     makeTrendSeries('待電訪', countByStage(data, weeks, function(r){return r === '待電訪';})),
@@ -1485,8 +1484,7 @@ var TREND_STAT_DEFS = [
   {id:'tr-invited', label:'邀約', test:function(d){return !!(d.invite_date || d['invite date']);}},
   {id:'tr-noreply', label:'邀約未回覆', test:function(d){return d.Result === '104已邀約未回覆';}},
   {id:'tr-noanswer', label:'已致電未接', test:function(d){return d.Result === '已致電未接';}},
-  {id:'tr-pi', label:'電訪', test:function(d){return !!d['Phone Interview_date'];}},
-  {id:'tr-declinepi', label:'人選婉拒電訪', test:function(d){return d.Result === '婉拒電訪';}},
+  {id:'tr-declinepi', label:'人選婉拒電訪', test:function(d){return d.Result === '人選婉拒電訪';}},
   {id:'tr-closed', label:'已關閉履歷', test:function(d){return d.Result === '已關閉履歷';}},
   {id:'tr-othermgr', label:'其他主管/近期已邀約', test:function(d){return d.Result === '其他主管/近期已邀約';}},
   {id:'tr-waitpi', label:'待電訪', test:function(d){return d.Result === '待電訪';}},
@@ -1496,7 +1494,7 @@ var TREND_STAT_DEFS = [
 // 「未連繫上」「已連繫上」兩個群組字卡標題旁要顯示的總人數，由底下這些字卡加總而來
 var TREND_GROUP_TOTALS = {
   'tr-group-noconnect': ['tr-noreply','tr-noanswer','tr-othermgr'],
-  'tr-group-connected': ['tr-pi','tr-waitpi','tr-declinepi','tr-closed']
+  'tr-group-connected': ['tr-waitpi','tr-declinepi','tr-closed']
 };
 var lastTrendData = [];
 function showTrendStatDrilldown(defId) {

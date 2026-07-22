@@ -308,10 +308,6 @@
       <div class="metric-group">
         <div class="metric-group-label">已連繫上 <span class="metric-group-total" id="c-tr-group-connected"></span></div>
         <div class="metric-group-items">
-          <div class="metric metric-sm" id="m-tr-pi" style="cursor:pointer;" onclick="showTrendStatDrilldown('tr-pi')">
-            <div class="metric-top"><div class="metric-dot" style="background:#10B981"></div><span class="metric-label">電訪</span></div>
-            <div class="metric-val" id="c-tr-pi">—</div>
-          </div>
           <div class="metric metric-sm" id="m-tr-waitpi" style="cursor:pointer;" onclick="showTrendStatDrilldown('tr-waitpi')">
             <div class="metric-top"><div class="metric-dot" style="background:#14B8A6"></div><span class="metric-label">待電訪</span></div>
             <div class="metric-val" id="c-tr-waitpi">—</div>
@@ -370,7 +366,7 @@
           <button class="pos-btn active" onclick="setTrendChartType('result','bar',this)" style="font-size:11px;padding:3px 10px;">長條</button>
         </div>
       </div>
-      <div style="font-size:11px;color:var(--text-secondary);margin-bottom:10px;">邀約／邀約未回覆／已致電未接／電訪／婉拒電訪／其他主管近期已邀約／待電訪／面試 · 最近 8 週</div>
+      <div style="font-size:11px;color:var(--text-secondary);margin-bottom:10px;">邀約／邀約未回覆／已致電未接／人選婉拒電訪／已關閉履歷／其他主管近期已邀約／待電訪／面試／婉拒面試 · 最近 8 週</div>
       <div id="trendResultChart" style="overflow-x:auto;"></div>
       <div style="margin-top:8px;"><span style="font-size:11px;color:var(--accent);cursor:pointer;text-decoration:underline;" onclick="toggleTrendDetail('result')">查看明細表格</span></div>
       <div class="table-wrap" id="trendResultDetail" style="display:none;margin-top:10px;"><table class="pi-table"><thead><tr id="trendResultTableHead"></tr></thead><tbody id="trendResultTableBody"></tbody></table></div>
