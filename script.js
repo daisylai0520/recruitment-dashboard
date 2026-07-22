@@ -187,7 +187,6 @@ function dateFilterPass(pageKey, rec) {
 function triggerPageRerender(pageKey) {
   var renderMap = {
     kanban: renderKanban,
-    kbSearch: renderKbCandSearch,
     overview: renderOverview,
     hc: renderHeadcount,
     offers: renderOffers,
@@ -214,7 +213,6 @@ function initDateFilterSlots() {
   var slots = {
     // Candidate Overview 主看板：畫面一打開就自動帶出本月資料
     'kbDateFilterSlot': {key:'kanban', fields:candFields, quickRanges:quickRanges, defaultQuickRange:'thisMonth'},
-    'kbsDateFilterSlot': {key:'kbSearch', fields:candFields, quickRanges:quickRanges, defaultQuickRange:'thisMonth'},
     'ovDateFilterSlot': {key:'overview', fields:candFields},
     'csDateFilterSlot': {key:'candidateSearch', fields:csFields},
     'candDateFilterSlot': {key:'candidateMaintenance', fields:candFields, quickRanges:quickRanges},
@@ -346,18 +344,16 @@ async function fetchData() {
 }
 
 var TAB_RESOURCES = {
-  kanban:['core'], kbSearch:['core'], candidateSearch:['core'], overview:['core'], trends:['core','headcount'], offers:['core','headcount'],
+  kanban:['core'], candidateSearch:['core'], overview:['core'], trends:['core','headcount'], offers:['core','headcount'],
   hc:['headcount'], salary:['salary'], schedule:['core','scheduling'], maintain:['core']
 };
 
 function renderAll(){
   if (loadedResources.core) {
     renderKanban();
-    renderKbCandSearch();
     renderCandidateSearch();
     renderOverview();
   }
-  if (currentTab === 'kbSearch') renderKbCandSearch();
   if (currentTab === 'maintain') {
     if (maintainSheet === 'Candidate Records') renderCandQuery();
     else if (loadedResources.headcount) renderMaintain();
@@ -393,7 +389,7 @@ function selectRole(role) {
     var match = onclickAttr.match(/switchTab\('(\w+)'/);
     if (match) {
       currentTab = match[1];
-      ['kanban','kbSearch','candidateSearch','overview','hc','maintain','trends','offers','schedule','salary'].forEach(function(v){
+      ['kanban','candidateSearch','overview','hc','maintain','trends','offers','schedule','salary'].forEach(function(v){
         document.getElementById('view-'+v).style.display = v===currentTab ? '' : 'none';
       });
     }
@@ -492,7 +488,7 @@ async function switchTab(tab,el) {
   window.scrollTo(0, 0);
   document.querySelectorAll('.tab-bar:first-of-type > .tab').forEach(function(t){t.classList.remove('active');});
   if (el) el.classList.add('active');
-  ['kanban','kbSearch','candidateSearch','overview','hc','maintain','trends','offers','schedule','salary'].forEach(function(v){
+  ['kanban','candidateSearch','overview','hc','maintain','trends','offers','schedule','salary'].forEach(function(v){
     document.getElementById('view-'+v).style.display=v===tab?'':'none';
   });
 
@@ -505,7 +501,6 @@ async function switchTab(tab,el) {
     else renderMaintain();
   }
   if (tab === 'kanban') renderKanban();
-  if (tab === 'kbSearch') renderKbCandSearch();
   if (tab === 'candidateSearch') renderCandidateSearch();
   if (tab === 'overview') renderOverview();
   if (tab === 'hc') renderHeadcount();
@@ -1980,38 +1975,6 @@ function buildCandQueryCardsHtml(matched) {
 }
 
 // Candidate Overview 畫面的「搜尋人選資料」：比照資料維護的搜尋，輸入姓名或履歷代碼即顯示完整可編輯資料卡
-function renderKbCandSearch() {
-  if (isMaintainCellFocused('Candidate Records')) return;
-  var search = (document.getElementById('kbCandSearch').value || '').trim().toLowerCase();
-  var container = document.getElementById('kbCandSearchResults');
-
-  var kbsBuOptions = [...new Set(allData.map(function(d){return String(d.BU||'').trim();}))].filter(Boolean).sort();
-  renderMultiFilterBar('kbsBuBar', 'kbs-bu', kbsBuOptions);
-  var kbsJobOptions = [...new Set(allData.map(function(d){return String(d['Job Function']||'').trim();}))].filter(Boolean).sort();
-  renderMultiFilterBar('kbsJobBar', 'kbs-job', kbsJobOptions);
-  renderMultiFilterDropdown('kbSearchResultBar', 'kbs-result', getResultOptions(), '目前狀態');
-  var kbsInviterOptions = [...new Set(allData.map(function(d){return String(d.Inviter||'').trim();}))].filter(Boolean).sort();
-  renderMultiFilterDropdown('kbSearchInviterBar', 'kbs-inviter', kbsInviterOptions, 'Inviter');
-
-  var kbsHasDateFilter = dateFilterState.kbSearch && (dateFilterState.kbSearch.start || dateFilterState.kbSearch.end);
-  if (!search && !isMultiFilterNarrowed('kbs-result') && !isMultiFilterNarrowed('kbs-inviter') &&
-      !isMultiFilterNarrowed('kbs-bu') && !isMultiFilterNarrowed('kbs-job') && !kbsHasDateFilter) {
-    container.innerHTML = '<div class="empty" style="padding:30px 0;text-align:center;">請輸入姓名或履歷代碼查詢，或使用篩選條件顯示人選</div>';
-    return;
-  }
-  var matched = allData.filter(function(d){
-    var resumeKey = findResumeCodeKey(d);
-    var textMatch = !search || String(d.Name||'').toLowerCase().includes(search) || String(d[resumeKey]||'').toLowerCase().includes(search);
-    return textMatch && multiFilterPass('kbs-result', d.Result) && multiFilterPass('kbs-inviter', d.Inviter) &&
-      multiFilterPass('kbs-bu', d.BU) && multiFilterPass('kbs-job', d['Job Function']) && dateFilterPass('kbSearch', d);
-  });
-  if (!matched.length) {
-    container.innerHTML = '<div class="empty" style="padding:30px 0;text-align:center;">找不到符合的人選</div>';
-    return;
-  }
-  container.innerHTML = buildCandQueryCardsHtml(matched);
-}
-
 function renderQueryField(sheetName, rec, field, idx, fullWidth, strictDateFormat) {
   var rawVal = rec[field] !== undefined ? rec[field] : '';
   var col = (maintainHeaders[sheetName] || Object.keys(rec)).indexOf(field) + 1;
@@ -2461,7 +2424,6 @@ function selectCandForCopy(row) {
   var hintEl2 = document.getElementById('kbNewCandSelectedHint');
   if (hintEl2) hintEl2.textContent = hintText;
   if (currentTab === 'maintain') renderCandQuery();
-  if (currentTab === 'kanban') renderKbCandSearch();
 }
 
 // 把選取的人選資料套用到新增表單（Name、履歷代碼會一起複製；104_Position 與流程紀錄類欄位不複製）
@@ -2604,7 +2566,7 @@ async function submitKbNewCandidate() {
     await fetch(url, {mode:'no-cors'});
     await fetchData();
     selectedCandForCopy = null;
-    if (currentTab === 'kanban') { renderKanban(); renderKbCandSearch(); }
+    if (currentTab === 'kanban') renderKanban();
     showToast('✓ 已新增人選資料');
   } catch(e) {
     showToast('❌ 新增失敗：'+e.message);
@@ -3197,10 +3159,6 @@ function renderSchedule() {
 // ===== 註冊每個篩選對應要重新渲染的畫面 =====
 registerMultiFilterRerender('kb-bu', renderKanban);
 registerMultiFilterRerender('kb-job', renderKanban);
-registerMultiFilterRerender('kbs-result', renderKbCandSearch);
-registerMultiFilterRerender('kbs-inviter', renderKbCandSearch);
-registerMultiFilterRerender('kbs-bu', renderKbCandSearch);
-registerMultiFilterRerender('kbs-job', renderKbCandSearch);
 registerMultiFilterRerender('cs-result', renderCandidateSearch);
 registerMultiFilterRerender('ov-bu', renderOverview);
 registerMultiFilterRerender('ov-job', renderOverview);
