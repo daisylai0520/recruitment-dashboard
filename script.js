@@ -1622,7 +1622,15 @@ function renderMultiFilterDropdown(containerId, filterId, options, labelPrefix) 
 }
 
 document.addEventListener('click', function(e){
-  if (!e.target.closest('.ms-dropdown')) {
+  // 用 composedPath() 取得事件「原始」傳遞路徑：即使點擊當下的 handler
+  // 把該節點的 innerHTML 整個重繪、讓原本被點的節點從 DOM 上被移除，
+  // 這個路徑仍然正確，不會像 e.target.closest() 那樣因為節點已被移除
+  // 而找不到父層、誤判成「點在下拉選單外面」導致選單被瞬間關閉。
+  var path = typeof e.composedPath === 'function' ? e.composedPath() : [];
+  var clickedInsideDropdown = path.some(function(node){
+    return node.classList && node.classList.contains('ms-dropdown');
+  });
+  if (!clickedInsideDropdown) {
     Object.keys(msDropdownOpenState).forEach(function(id){
       if (msDropdownOpenState[id]) {
         msDropdownOpenState[id] = false;
