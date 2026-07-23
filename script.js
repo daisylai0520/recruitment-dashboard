@@ -269,7 +269,7 @@ async function fetchCoreData() {
 }
 
 // Manager Information 工作表（單位／Job Function／Name／Email）依姓名比對出「單位」，
-// 供資料維護畫面填寫 Inviter 時自動帶入 BU 使用
+// 供資料維護畫面填寫 Inviter 時自動帶入 單位 使用
 function findBUByInviterName(name) {
   var target = String(name||'').trim().toLowerCase();
   if (!target) return '';
@@ -539,12 +539,20 @@ function buildKanbanPhasesHtml(filtered, readOnly, hideManagerInvitationStage) {
           var t=(stage==='待電訪'||stage==='排電訪')?(d.Interview_date||d['Phone Interview_date']||''):(d.Interview_date||'');
           var timeStr=fmtDate(t);
           var idx=allData.indexOf(d);
+          var tagsHtml = '';
+          if (kbCardDisplayFields['Job Function']) tagsHtml += '<span class="kanban-card-pos '+jfClass(d['Job Function'])+'">'+(d['Job Function']||'')+'</span>';
+          if (kbCardDisplayFields['單位']) tagsHtml += '<span class="kanban-card-bu">'+(d['單位']||'')+'</span>';
+          var extraLinesHtml = '';
+          if (kbCardDisplayFields['Inviter'] && d.Inviter) extraLinesHtml += '<div class="kanban-card-extra">👤 '+d.Inviter+'</div>';
+          if (kbCardDisplayFields['Phone Interview_date'] && d['Phone Interview_date']) extraLinesHtml += '<div class="kanban-card-extra">📞 '+fmtDate(d['Phone Interview_date'])+'</div>';
+          if (kbCardDisplayFields['Interview_date'] && d.Interview_date) extraLinesHtml += '<div class="kanban-card-extra">🗓 '+fmtDate(d.Interview_date)+'</div>';
           return '<div class="kanban-card" data-idx="'+idx+'" data-stage="'+stage+'" onclick="'+clickFn+'(this)">'
             +'<div class="kanban-card-row1">'
               +'<div class="kanban-card-name">'+d.Name+'</div>'
-              +'<div class="kanban-card-right"><span class="kanban-card-pos '+jfClass(d['Job Function'])+'">'+(d['Job Function']||'')+'</span><span class="kanban-card-bu">'+d.BU+'</span></div>'
+              +'<div class="kanban-card-right">'+tagsHtml+'</div>'
             +'</div>'
             +(timeStr?'<div class="kanban-card-time">🕐 '+timeStr+'</div>':'')
+            +extraLinesHtml
             +'</div>';
         }).join('');
       boardHtml+='<div class="kanban-col">'
@@ -558,17 +566,46 @@ function buildKanbanPhasesHtml(filtered, readOnly, hideManagerInvitationStage) {
   return boardHtml;
 }
 
+// Candidate Overview 看板卡片「顯示資料」：可勾選要不要顯示 單位／Job Function／Inviter／Interview_date／Phone Interview_date
+var KB_CARD_FIELD_OPTIONS = ['單位', 'Job Function', 'Inviter', 'Interview_date', 'Phone Interview_date'];
+var kbCardDisplayFields = {'單位': true, 'Job Function': true, 'Inviter': false, 'Interview_date': false, 'Phone Interview_date': false};
+
+function toggleKbCardField(field) {
+  kbCardDisplayFields[field] = !kbCardDisplayFields[field];
+  renderKbCardFieldsDropdown();
+  renderKanban();
+}
+
+function renderKbCardFieldsDropdown() {
+  var el = document.getElementById('kbCardFieldsSlot');
+  if (!el) return;
+  var isOpen = !!msDropdownOpenState['kbCardFieldsSlot'];
+  var selectedCount = KB_CARD_FIELD_OPTIONS.filter(function(f){ return kbCardDisplayFields[f]; }).length;
+  var summary = selectedCount + ' 項';
+  var optionsHtml = KB_CARD_FIELD_OPTIONS.map(function(f){
+    var checked = kbCardDisplayFields[f];
+    return '<label class="ms-dropdown-option"><input type="checkbox" '+(checked?'checked':'')+' onchange="toggleKbCardField(\''+f+'\')"> '+f+'</label>';
+  }).join('');
+  el.className = 'ms-dropdown';
+  el.innerHTML =
+    '<button type="button" class="ms-dropdown-toggle" onclick="toggleMsDropdownPanel(\'kbCardFieldsSlot\')">顯示資料：'+summary+' <span class="ms-dropdown-caret">▾</span></button>'+
+    '<div class="ms-dropdown-panel" id="kbCardFieldsSlot-panel" style="display:'+(isOpen?'block':'none')+';">'+
+      optionsHtml+
+    '</div>';
+}
+
 // ---- KANBAN ----
 function renderKanban() {
   var now=new Date(); now.setHours(0,0,0,0);
 
-  var kbBuOptions = [...new Set(allData.map(function(d){return String(d.BU||'').trim();}))].filter(Boolean).sort();
+  var kbBuOptions = [...new Set(allData.map(function(d){return String(d['單位']||'').trim();}))].filter(Boolean).sort();
   renderMultiFilterBar('kbBuBar', 'kb-bu', kbBuOptions);
   var kbJobOptions = [...new Set(allData.map(function(d){return String(d['Job Function']||'').trim();}))].filter(Boolean).sort();
   renderMultiFilterBar('kbJobBar', 'kb-job', kbJobOptions);
+  renderKbCardFieldsDropdown();
 
   var filtered=allData.filter(function(d){
-    if(!multiFilterPass('kb-bu', d.BU)) return false;
+    if(!multiFilterPass('kb-bu', d['單位'])) return false;
     if(!multiFilterPass('kb-job', d['Job Function'])) return false;
     if(!dateFilterPass('kanban', d)) return false;
     // 超過7天未回覆不顯示
@@ -586,7 +623,7 @@ function renderKanban() {
   // ---- 轉換率計算 ----
   // 分母：所有狀態非「HR不邀約電訪」的人選；分子：狀態為「錄取」的人選
   var convBase = allData.filter(function(d){
-    return multiFilterPass('kb-bu', d.BU) &&
+    return multiFilterPass('kb-bu', d['單位']) &&
            multiFilterPass('kb-job', d['Job Function']) &&
            d.Result !== 'HR不邀約電訪';
   });
@@ -736,13 +773,13 @@ async function changeStage(newStage) {
 function renderOverview() {
   var search=(document.getElementById('ovSearch')?document.getElementById('ovSearch').value:'').toLowerCase();
 
-  var ovBuOptions = [...new Set(allData.map(function(d){return String(d.BU||'').trim();}))].filter(Boolean).sort();
+  var ovBuOptions = [...new Set(allData.map(function(d){return String(d['單位']||'').trim();}))].filter(Boolean).sort();
   renderMultiFilterBar('ovBuBar', 'ov-bu', ovBuOptions);
   var ovJobOptions = [...new Set(allData.map(function(d){return String(d['Job Function']||'').trim();}))].filter(Boolean).sort();
   renderMultiFilterBar('ovJobBar', 'ov-job', ovJobOptions);
 
   var filtered=allData.filter(function(d){
-    return multiFilterPass('ov-bu', d.BU) &&
+    return multiFilterPass('ov-bu', d['單位']) &&
            multiFilterPass('ov-job', d['Job Function']) &&
            (!search||String(d.Name||'').toLowerCase().includes(search)) &&
            dateFilterPass('overview', d);
@@ -757,7 +794,7 @@ function renderOverview() {
     var rawT=(stage==='待電訪'||stage==='排電訪')?(d.Interview_date||d['Phone Interview_date']||''):(d.Interview_date||'');
     var t=fmtDate(rawT);
     var th=t?'<div class="card-time '+(cls||'t-gray')+'"><span style="font-size:13px">'+(icon||'🕐')+'</span><div><div class="card-time-label">'+(label||'時間')+'</div><div style="font-size:11px;opacity:.85;margin-top:1px">'+t+'</div></div></div>':'<div class="card-time t-gray"><span style="font-size:13px">🕐</span><div><div class="card-time-label">尚未排定時間</div></div></div>';
-    return '<div class="card"><div class="card-top"><div class="card-name">'+d.Name+'</div><div class="card-bu">'+d.BU+'</div></div><div class="card-pos">'+(d['Job Function']||'')+(d.Source?' · '+d.Source:'')+'</div>'+th+'</div>';
+    return '<div class="card"><div class="card-top"><div class="card-name">'+d.Name+'</div><div class="card-bu">'+d['單位']+'</div></div><div class="card-pos">'+(d['Job Function']||'')+(d.Source?' · '+d.Source:'')+'</div>'+th+'</div>';
   }
 
   activeStages.forEach(function(stage){
@@ -785,6 +822,13 @@ var BP_HIDDEN_CAND_FIELDS = ['離職原因','工作/實習&過往經驗','求職
 function filterCandHeadersForRole(headers) {
   if (userRole !== 'bp') return headers;
   return headers.filter(function(h){ return BP_HIDDEN_CAND_FIELDS.indexOf(h) < 0; });
+}
+// 人選資料維護與查詢畫面專用：這兩個是系統自動寫入的排程紀錄欄位（填 Phone Interview_date／Interview_date 時會自動同步），
+// 只是不需要在這個畫面顯示，後端 onEdit／editCell 的自動更新邏輯完全不受影響，資料還是照樣會被寫入試算表；
+// Candidate Overview 的看板卡片／檢視編輯彈窗不受影響，一樣會顯示。
+var MAINTAIN_QUERY_HIDDEN_FIELDS = ['Phone Interview Scheduled', 'Interview Scheduled'];
+function filterCandHeadersForMaintenance(headers) {
+  return filterCandHeadersForRole(headers).filter(function(h){ return MAINTAIN_QUERY_HIDDEN_FIELDS.indexOf(h) < 0; });
 }
 
 // 這些欄位原本是 Phone Interview 工作表裡內容較長的文字欄位，併入 Candidate Records 後在查詢卡裡也給較寬的顯示空間
@@ -821,6 +865,72 @@ function buildDropdownSelectInput(sheetName, rec, field, col, idx, options, inpu
     'onchange="commitMaintainSelect(this)" style="'+inputStyle+'">'+optHtml+'</select>';
 }
 
+// Inviter 可能有多位主管，欄位改成勾選式多選（同一格用「、」分隔存回試算表），
+// 清單來源是目前 Candidate Records 裡已經出現過的 Inviter 值；也能直接輸入清單以外的新名字。
+var MULTI_SELECT_FIELDS = ['Inviter'];
+function buildInviterMultiSelectInput(sheetName, rec, field, col, idx, options, inputStyle) {
+  var uid = 'invms_' + (_dlIdCounter++);
+  var rawVal = rec[field] !== undefined ? rec[field] : '';
+  var rawSafe = String(rawVal||'').replace(/"/g,'&quot;');
+  var selected = String(rawVal||'').split('、').map(function(s){return s.trim();}).filter(Boolean);
+  var opts = options.slice();
+  selected.forEach(function(s){ if (opts.indexOf(s) < 0) opts.push(s); }); // 舊資料裡有、但目前不在清單中的名字，也要能顯示、能維持勾選
+  var summary = selected.length ? selected.join('、') : '未選擇';
+  var optionsHtml = opts.map(function(o){
+    var checked = selected.indexOf(o) >= 0;
+    var oSafe = String(o).replace(/"/g,'&quot;');
+    var oDisp = String(o).replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    return '<label class="ms-dropdown-option"><input type="checkbox" '+(checked?'checked':'')+' data-val="'+oSafe+'" onchange="toggleInviterMsOption(\''+uid+'\',this)"> '+oDisp+'</label>';
+  }).join('');
+  return '<div class="ms-dropdown" id="'+uid+'" style="width:100%;">'+
+    '<button type="button" class="ms-dropdown-toggle" style="width:100%;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;box-sizing:border-box;" onclick="toggleMsDropdownPanel(\''+uid+'\')">'+
+      '<span class="invms-summary">'+summary.replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</span> <span class="ms-dropdown-caret">▾</span></button>'+
+    '<div class="ms-dropdown-panel" id="'+uid+'-panel" style="display:none;">'+
+      optionsHtml+
+      '<div class="invms-add-row">'+
+        '<input type="text" id="'+uid+'-newname" placeholder="新增其他人名..." onkeydown="if(event.key===\'Enter\'){event.preventDefault();addInviterMsName(\''+uid+'\')}">'+
+        '<button type="button" onclick="addInviterMsName(\''+uid+'\')">新增</button>'+
+      '</div>'+
+    '</div>'+
+    '<input type="hidden" class="invms-value" data-sheet="'+sheetName+'" data-row="'+rec._row+'" data-col="'+col+'" data-field="'+field+'" data-idx="'+idx+'" data-raw="'+rawSafe+'" value="'+rawSafe+'">'+
+  '</div>';
+}
+
+function toggleInviterMsOption(uid, checkboxEl) {
+  var container = document.getElementById(uid);
+  var hidden = container.querySelector('.invms-value');
+  var current = hidden.value.split('、').map(function(s){return s.trim();}).filter(Boolean);
+  var val = checkboxEl.getAttribute('data-val');
+  var i = current.indexOf(val);
+  if (checkboxEl.checked) { if (i < 0) current.push(val); } else if (i >= 0) { current.splice(i,1); }
+  var newVal = current.join('、');
+  hidden.value = newVal;
+  container.querySelector('.invms-summary').textContent = newVal || '未選擇';
+  commitMaintainInputList(hidden);
+}
+
+function addInviterMsName(uid) {
+  var container = document.getElementById(uid);
+  var input = document.getElementById(uid+'-newname');
+  var name = input.value.trim();
+  if (!name) return;
+  var hidden = container.querySelector('.invms-value');
+  var current = hidden.value.split('、').map(function(s){return s.trim();}).filter(Boolean);
+  if (current.indexOf(name) < 0) current.push(name);
+  var newVal = current.join('、');
+  hidden.value = newVal;
+  input.value = '';
+  container.querySelector('.invms-summary').textContent = newVal || '未選擇';
+  var panel = document.getElementById(uid+'-panel');
+  var label = document.createElement('label');
+  label.className = 'ms-dropdown-option';
+  var nameSafe = name.replace(/"/g,'&quot;');
+  var nameDisp = name.replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  label.innerHTML = '<input type="checkbox" checked data-val="'+nameSafe+'" onchange="toggleInviterMsOption(\''+uid+'\',this)"> '+nameDisp;
+  panel.insertBefore(label, panel.querySelector('.invms-add-row'));
+  commitMaintainInputList(hidden);
+}
+
 // 點進下拉輸入框時，先把目前的值存起來、清空欄位，讓瀏覽器顯示完整選單；如果最後沒有選新的，onblur 會還原
 function dlInputFocus(el) {
   el.dataset.beforeFocus = el.value;
@@ -854,7 +964,7 @@ async function commitMaintainInputList(el) {
   if (ok) {
     el.setAttribute('data-raw', newVal.replace(/"/g,'&quot;'));
     el.value = newVal;
-    // Inviter 更新後，依 Manager Information 自動同步 BU 欄位（僅 Candidate Records）
+    // Inviter 更新後，依 Manager Information 自動同步 單位 欄位（僅 Candidate Records）
     if (sheet === 'Candidate Records' && field === 'Inviter') {
       await autoSyncBUFromInviter(newVal, row);
     }
@@ -865,20 +975,22 @@ async function commitMaintainInputList(el) {
   }
 }
 
-// 依 Inviter 姓名查出對應單位，若跟目前 BU 不同就一併更新畫面與試算表
+// 依 Inviter 姓名查出對應單位，若跟目前 單位 不同就一併更新畫面與試算表
+// Inviter 可能是多人（用「、」分隔），單位自動帶入時以第一位為準
 async function autoSyncBUFromInviter(inviterName, row) {
-  var bu = findBUByInviterName(inviterName);
+  var firstName = String(inviterName||'').split('、')[0].trim();
+  var bu = findBUByInviterName(firstName);
   if (!bu) return;
-  var buEl = document.querySelector('[data-field="BU"][data-row="'+row+'"]');
+  var buEl = document.querySelector('[data-field="單位"][data-row="'+row+'"]');
   if (!buEl || buEl.value === bu) return;
   var buCol = buEl.getAttribute('data-col');
   var buIdx = parseInt(buEl.getAttribute('data-idx'));
-  var ok = await saveMaintainField('Candidate Records', row, buCol, 'BU', buIdx, bu);
+  var ok = await saveMaintainField('Candidate Records', row, buCol, '單位', buIdx, bu);
   if (ok) {
     buEl.setAttribute('data-raw', bu.replace(/"/g,'&quot;'));
     buEl.value = bu;
     var d = allData.find(function(x){ return String(x._row) === String(row); });
-    if (d) d.BU = bu;
+    if (d) d['單位'] = bu;
   }
 }
 
@@ -1212,11 +1324,11 @@ function renderOffers() {
     return true;
   });
 
-  var offersBuOptions = [...new Set(offers.map(function(d){return String(d.BU||'').trim();}))].filter(Boolean).sort();
+  var offersBuOptions = [...new Set(offers.map(function(d){return String(d['單位']||'').trim();}))].filter(Boolean).sort();
   renderMultiFilterBar('offersBuBar', 'offers-bu', offersBuOptions);
 
   var filtered = offers.filter(function(d){
-    return multiFilterPass('offers-bu', d.BU) &&
+    return multiFilterPass('offers-bu', d['單位']) &&
            (!search||String(d.Name||'').toLowerCase().includes(search));
   });
   filtered.sort(function(a,b){
@@ -1241,7 +1353,7 @@ function renderOffers() {
   bodyEl.innerHTML = filtered.map(function(d){
     return '<tr>'+
       '<td style="font-weight:600;white-space:nowrap">'+d.Name+'</td>'+
-      '<td style="white-space:nowrap">'+d.BU+'</td>'+
+      '<td style="white-space:nowrap">'+d['單位']+'</td>'+
       '<td style="white-space:nowrap">'+(d['Job Function']||'')+'</td>'+
       '<td style="white-space:nowrap">'+getOfferGradeLevel(d.Name)+'</td>'+
       '<td style="white-space:nowrap">'+(d[resumeKey]||'—')+'</td>'+
@@ -1452,7 +1564,7 @@ function computeResultMetrics(data, weeks) {
 // 優先以單位分（若單位narrowed到多選），否則以 Job Function 分
 function getTrendBreakdownField() {
   var buState = multiFilterState['tr-bu'];
-  if (buState && isMultiFilterNarrowed('tr-bu') && buState.selected.size >= 2) return 'BU';
+  if (buState && isMultiFilterNarrowed('tr-bu') && buState.selected.size >= 2) return '單位';
   var jobState = multiFilterState['tr-job'];
   if (jobState && isMultiFilterNarrowed('tr-job') && jobState.selected.size >= 2) return 'Job Function';
   return null;
@@ -1502,7 +1614,7 @@ function showTrendDrilldown(title, records) {
   var listEl = document.getElementById('trendDrilldownList');
   listEl.innerHTML = records.length === 0 ? '<div class="empty" style="padding:16px 0;">目前無資料</div>' :
     records.map(function(d){
-      return '<div class="mini-card"><div class="mini-card-top"><div class="mini-card-name">'+(d.Name||'')+'</div><div class="mini-card-bu">'+(d.BU||'')+'</div></div>'+
+      return '<div class="mini-card"><div class="mini-card-top"><div class="mini-card-name">'+(d.Name||'')+'</div><div class="mini-card-bu">'+(d['單位']||'')+'</div></div>'+
         '<div class="mini-card-pos">'+(d['Job Function']||'')+(d.Source?' · '+d.Source:'')+'</div>'+
         '<div style="font-size:11px;color:var(--text-secondary);margin-top:2px;">目前狀態：'+(d.Result||'—')+'</div></div>';
     }).join('');
@@ -1537,14 +1649,14 @@ function renderTrendHcChart() {
 }
 
 function renderTrends() {
-  var trBuOptions = [...new Set(allData.map(function(d){return String(d.BU||'').trim();}))].filter(Boolean).sort();
+  var trBuOptions = [...new Set(allData.map(function(d){return String(d['單位']||'').trim();}))].filter(Boolean).sort();
   renderMultiFilterBar('trBuBar', 'tr-bu', trBuOptions);
   var trJobOptions = [...new Set(allData.map(function(d){return String(d['Job Function']||'').trim();}))].filter(Boolean).sort();
   renderMultiFilterBar('trJobBar', 'tr-job', trJobOptions);
   renderMultiFilterDropdown('trResultBar', 'tr-result', getResultOptions(), '目前狀態');
 
   var trendData = allData.filter(function(d){
-    return multiFilterPass('tr-bu', d.BU) &&
+    return multiFilterPass('tr-bu', d['單位']) &&
            multiFilterPass('tr-job', d['Job Function']) &&
            multiFilterPass('tr-result', d.Result) &&
            dateFilterPass('trends', d);
@@ -1643,6 +1755,15 @@ function multiFilterPass(filterId, rawValue) {
   if (!state) return true;
   if (state.selected.size >= state.known.size) return true;
   return state.selected.has(String(rawValue||'').trim());
+}
+
+// Inviter 欄位可能存多人（用「、」分隔），篩選時只要其中一位符合勾選條件就算通過
+function multiFilterPassMulti(filterId, rawValue) {
+  var state = multiFilterState[filterId];
+  if (!state) return true;
+  if (state.selected.size >= state.known.size) return true;
+  var parts = String(rawValue||'').split('、').map(function(s){return s.trim();}).filter(Boolean);
+  return parts.some(function(p){ return state.selected.has(p); });
 }
 
 function renderMultiFilterBar(containerId, filterId, options) {
@@ -1764,11 +1885,11 @@ function rebuildHeadcountDropdowns() {
 // 哪些欄位是下拉選單
 var MAINTAIN_DROPDOWNS = {
   'Candidate Records': {
-    'BU': function(){ return [...new Set(allData.map(function(d){return String(d.BU||'').trim();}))].filter(Boolean).sort(); },
+    '單位': function(){ return [...new Set(allData.map(function(d){return String(d['單位']||'').trim();}))].filter(Boolean).sort(); },
     'Job Function': function(){ return [...new Set(allData.map(function(d){return String(d['Job Function']||'').trim();}))].filter(Boolean).sort(); },
     '104_Position': function(){ return getPositionOptions(); },
     'Source': function(){ return [...new Set(allData.map(function(d){return String(d.Source||'').trim();}))].filter(Boolean).sort(); },
-    'Inviter': function(){ return [...new Set(allData.map(function(d){return String(d.Inviter||'').trim();}))].filter(Boolean).sort(); },
+    'Inviter': function(){ return [...new Set(allData.flatMap(function(d){return String(d.Inviter||'').split('、').map(function(s){return s.trim();});}))].filter(Boolean).sort(); },
     'Result': function(){ return getActualResultOptions(); },
     '性別': function(){ return [...new Set(allData.map(function(d){return String(d['性別']||'').trim();}))].filter(Boolean).sort(); },
     '最高學歷': function(){ return [...new Set(allData.map(function(d){return String(d['最高學歷']||'').trim();}))].filter(Boolean).sort(); },
@@ -1919,12 +2040,12 @@ function renderCandQuery() {
   var hasDateFilter = dateFilterState.candidateMaintenance &&
     (dateFilterState.candidateMaintenance.start || dateFilterState.candidateMaintenance.end);
 
-  var candBuOptions = [...new Set(allData.map(function(d){return String(d.BU||'').trim();}))].filter(Boolean).sort();
+  var candBuOptions = [...new Set(allData.map(function(d){return String(d['單位']||'').trim();}))].filter(Boolean).sort();
   renderMultiFilterBar('candBuBar', 'cand-bu', candBuOptions);
   var candJobOptions = [...new Set(allData.map(function(d){return String(d['Job Function']||'').trim();}))].filter(Boolean).sort();
   renderMultiFilterBar('candJobBar', 'cand-job', candJobOptions);
   renderMultiFilterDropdown('candResultBar', 'cand-result', getResultOptions(), '目前狀態');
-  var candInviterOptions = [...new Set(allData.map(function(d){return String(d.Inviter||'').trim();}))].filter(Boolean).sort();
+  var candInviterOptions = [...new Set(allData.flatMap(function(d){return String(d.Inviter||'').split('、').map(function(s){return s.trim();});}))].filter(Boolean).sort();
   renderMultiFilterDropdown('candInviterBar', 'cand-inviter', candInviterOptions, 'Inviter');
 
   if (!search && !isMultiFilterNarrowed('cand-bu') && !isMultiFilterNarrowed('cand-job') && !isMultiFilterNarrowed('cand-result') && !isMultiFilterNarrowed('cand-inviter') && !hasDateFilter) {
@@ -1935,7 +2056,7 @@ function renderCandQuery() {
   var matched = allData.filter(function(d){
     var resumeKey = findResumeCodeKey(d);
     var textMatch = !search || String(d.Name||'').toLowerCase().includes(search) || String(d[resumeKey]||'').toLowerCase().includes(search);
-    return textMatch && multiFilterPass('cand-bu', d.BU) && multiFilterPass('cand-job', d['Job Function']) && multiFilterPass('cand-result', d.Result) && multiFilterPass('cand-inviter', d.Inviter) && dateFilterPass('candidateMaintenance', d);
+    return textMatch && multiFilterPass('cand-bu', d['單位']) && multiFilterPass('cand-job', d['Job Function']) && multiFilterPass('cand-result', d.Result) && multiFilterPassMulti('cand-inviter', d.Inviter) && dateFilterPass('candidateMaintenance', d);
   });
 
   if (!matched.length) {
@@ -1951,7 +2072,7 @@ function renderCandQuery() {
 function buildCandQueryCardsHtml(matched) {
   return matched.map(function(cand){
     var idx = allData.indexOf(cand);
-    var candHeaders = filterCandHeadersForRole(maintainHeaders['Candidate Records'] || Object.keys(cand).filter(function(k){return k!=='_row';}));
+    var candHeaders = filterCandHeadersForMaintenance(maintainHeaders['Candidate Records'] || Object.keys(cand).filter(function(k){return k!=='_row';}));
     var isSelected = selectedCandForCopy && selectedCandForCopy._row === cand._row;
 
     var fieldsHtml = candHeaders.map(function(h){
@@ -1989,7 +2110,9 @@ function renderQueryField(sheetName, rec, field, idx, fullWidth, strictDateForma
   if (dropdowns[field]) {
     var options = dropdowns[field]();
     var fieldStyle = 'width:100%;font-size:13px;padding:6px 8px;border:1.5px solid var(--border);border-radius:8px;background:var(--surface);box-sizing:border-box;';
-    inputHtml = (sheetName === 'Candidate Records' && STRICT_SELECT_FIELDS.indexOf(field) >= 0)
+    inputHtml = (sheetName === 'Candidate Records' && MULTI_SELECT_FIELDS.indexOf(field) >= 0)
+      ? buildInviterMultiSelectInput(sheetName, rec, field, col, idx, options, fieldStyle)
+      : (sheetName === 'Candidate Records' && STRICT_SELECT_FIELDS.indexOf(field) >= 0)
       ? buildDropdownSelectInput(sheetName, rec, field, col, idx, options, fieldStyle)
       : buildDropdownDatalistInput(sheetName, rec, field, col, idx, options, fieldStyle);
   } else if (fullWidth) {
@@ -2313,8 +2436,67 @@ function buildFormSelectInput(className, field, options, prefillVal) {
   return '<select class="'+className+'" data-field="'+field+'" style="width:100%;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;box-sizing:border-box;background:var(--surface);">'+optHtml+'</select>';
 }
 
+// 共用元件：給「填寫中、尚未存檔」的新增人選表單用的 Inviter 多選勾選框（同一格用「、」分隔，送出時才收集）
+function buildFormInviterMultiSelectInput(className, field, options, prefillVal) {
+  var uid = 'forminvms_' + (_dlIdCounter++);
+  var selected = String(prefillVal||'').split('、').map(function(s){return s.trim();}).filter(Boolean);
+  var opts = options.slice();
+  selected.forEach(function(s){ if (opts.indexOf(s) < 0) opts.push(s); });
+  var summary = selected.length ? selected.join('、') : '未選擇';
+  var optionsHtml = opts.map(function(o){
+    var checked = selected.indexOf(o) >= 0;
+    var oSafe = String(o).replace(/"/g,'&quot;');
+    var oDisp = String(o).replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    return '<label class="ms-dropdown-option"><input type="checkbox" '+(checked?'checked':'')+' data-val="'+oSafe+'" onchange="toggleFormInviterMsOption(\''+uid+'\',this)"> '+oDisp+'</label>';
+  }).join('');
+  return '<div class="ms-dropdown" id="'+uid+'" style="width:100%;">'+
+    '<button type="button" class="ms-dropdown-toggle" style="width:100%;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" onclick="toggleMsDropdownPanel(\''+uid+'\')">'+
+      '<span class="invms-summary">'+summary.replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</span> <span class="ms-dropdown-caret">▾</span></button>'+
+    '<div class="ms-dropdown-panel" id="'+uid+'-panel" style="display:none;">'+
+      optionsHtml+
+      '<div class="invms-add-row">'+
+        '<input type="text" id="'+uid+'-newname" placeholder="新增其他人名..." onkeydown="if(event.key===\'Enter\'){event.preventDefault();addFormInviterMsName(\''+uid+'\')}">'+
+        '<button type="button" onclick="addFormInviterMsName(\''+uid+'\')">新增</button>'+
+      '</div>'+
+    '</div>'+
+    '<input type="hidden" class="'+className+'" data-field="'+field+'" value="'+String(prefillVal||'').replace(/"/g,'&quot;')+'">'+
+  '</div>';
+}
+function toggleFormInviterMsOption(uid, checkboxEl) {
+  var container = document.getElementById(uid);
+  var hidden = container.querySelector('input[type=hidden]');
+  var current = hidden.value.split('、').map(function(s){return s.trim();}).filter(Boolean);
+  var val = checkboxEl.getAttribute('data-val');
+  var i = current.indexOf(val);
+  if (checkboxEl.checked) { if (i < 0) current.push(val); } else if (i >= 0) { current.splice(i,1); }
+  hidden.value = current.join('、');
+  container.querySelector('.invms-summary').textContent = hidden.value || '未選擇';
+  handleInviterInputChange(hidden);
+}
+function addFormInviterMsName(uid) {
+  var container = document.getElementById(uid);
+  var input = document.getElementById(uid+'-newname');
+  var name = input.value.trim();
+  if (!name) return;
+  var hidden = container.querySelector('input[type=hidden]');
+  var current = hidden.value.split('、').map(function(s){return s.trim();}).filter(Boolean);
+  if (current.indexOf(name) < 0) current.push(name);
+  hidden.value = current.join('、');
+  input.value = '';
+  container.querySelector('.invms-summary').textContent = hidden.value || '未選擇';
+  var panel = document.getElementById(uid+'-panel');
+  var label = document.createElement('label');
+  label.className = 'ms-dropdown-option';
+  var nameSafe = name.replace(/"/g,'&quot;');
+  var nameDisp = name.replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  label.innerHTML = '<input type="checkbox" checked data-val="'+nameSafe+'" onchange="toggleFormInviterMsOption(\''+uid+'\',this)"> '+nameDisp;
+  panel.insertBefore(label, panel.querySelector('.invms-add-row'));
+  handleInviterInputChange(hidden);
+}
+
 function renderNewCandidateFields() {
-  var headers = maintainHeaders['Candidate Records'] || ['invite_date','BU','Job Function','104_Position','Name','性別','年齡','最高學歷','學校','科系','履歷代碼','Source','Inviter','Phone Interview_date','Interview_date','Result','Result Update_date','Onboard date','負責HR','Memo'];
+  var headers = (maintainHeaders['Candidate Records'] || ['invite_date','單位','Job Function','104_Position','Name','性別','年齡','最高學歷','學校','科系','履歷代碼','Source','Inviter','Phone Interview_date','Interview_date','Result','Result Update_date','Onboard date','負責HR','Memo'])
+    .filter(function(h){ return MAINTAIN_QUERY_HIDDEN_FIELDS.indexOf(h) < 0; });
   var dropdowns = MAINTAIN_DROPDOWNS['Candidate Records'] || {};
   var requiredFields = ['Name','Result','invite_date'];
   var todayStr = getTodayDateStr();
@@ -2332,7 +2514,7 @@ function renderNewCandidateFields() {
     // 負責HR：自動帶入這台瀏覽器最近一次填寫過的名字，同一位 HR 不用每次重打
     var prefillVal = isInviteDate ? todayStr : (h === '負責HR' ? getLastUsedHR() : '');
 
-    // Inviter 有填寫時，依 Manager Information 工作表的姓名比對自動帶入 BU
+    // Inviter 有填寫時，依 Manager Information 工作表的姓名比對自動帶入 單位
     var inviterAttr = (h === 'Inviter') ? ' oninput="handleInviterInputChange(this)" onchange="handleInviterInputChange(this)"' : '';
     // 104_Position 有填寫時，自動擷取【】內文字帶入 Job Function
     var positionAttr = isPosition ? ' oninput="handlePositionInputChange(this)" onchange="handlePositionInputChange(this)"' : '';
@@ -2341,7 +2523,9 @@ function renderNewCandidateFields() {
     var fieldHtml;
     if (dropdowns[h]) {
       var options = dropdowns[h]();
-      var inputHtml = (STRICT_SELECT_FIELDS.indexOf(h) >= 0)
+      var inputHtml = (MULTI_SELECT_FIELDS.indexOf(h) >= 0)
+        ? buildFormInviterMultiSelectInput('new-cand-input', h, options, prefillVal)
+        : (STRICT_SELECT_FIELDS.indexOf(h) >= 0)
         ? buildFormSelectInput('new-cand-input', h, options, prefillVal)
         : buildFormDatalistInput('new-cand-input', h, options, prefillVal, extraAttr);
       fieldHtml = '<div style="'+spanStyle+'"><div class="modal-label" style="margin-bottom:4px;">'+label+'</div>'+inputHtml+'</div>';
@@ -2356,13 +2540,15 @@ function renderNewCandidateFields() {
   document.getElementById('newCandDupWarning').style.display = 'none';
 }
 
-// Manager Information 比對：Inviter 欄位有值時，自動把對應的「單位」帶入同一張表單的 BU 欄位
+// Manager Information 比對：Inviter 欄位有值時，自動把對應的「單位」帶入同一張表單的 單位 欄位
+// Inviter 可能是多人（用「、」分隔），以第一位為準
 function handleInviterInputChange(el) {
-  var bu = findBUByInviterName(el.value);
+  var firstName = String(el.value||'').split('、')[0].trim();
+  var bu = findBUByInviterName(firstName);
   if (!bu) return;
   var container = el.closest('#newCandFields') || el.closest('#addRowModalFields');
   if (!container) return;
-  var buInput = container.querySelector('[data-field="BU"]');
+  var buInput = container.querySelector('[data-field="單位"]');
   if (buInput) buInput.value = bu;
 }
 
@@ -2485,7 +2671,7 @@ async function submitNewCandidateForm() {
 
 // Candidate Overview 畫面的「＋ 新增人選資料」：重用共用的 addRowModal，直接寫入 Candidate Records
 function openKbNewCandidateModal() {
-  var headers = filterCandHeadersForRole(maintainHeaders['Candidate Records'] || ['invite_date','BU','Job Function','104_Position','Name','性別','年齡','最高學歷','學校','科系','履歷代碼','Source','Inviter','Phone Interview_date','Interview_date','Result','Result Update_date','Onboard date','負責HR','Memo']);
+  var headers = filterCandHeadersForRole(maintainHeaders['Candidate Records'] || ['invite_date','單位','Job Function','104_Position','Name','性別','年齡','最高學歷','學校','科系','履歷代碼','Source','Inviter','Phone Interview_date','Interview_date','Result','Result Update_date','Onboard date','負責HR','Memo']);
   var dropdowns = MAINTAIN_DROPDOWNS['Candidate Records'] || {};
   var requiredFields = ['Name','Result','invite_date'];
   var todayStr = getTodayDateStr();
@@ -2503,7 +2689,7 @@ function openKbNewCandidateModal() {
     var dupAttr = isNameOrResume ? ' oninput="checkNewCandDuplicate()"' : '';
     // 負責HR：自動帶入這台瀏覽器最近一次填寫過的名字，同一位 HR 不用每次重打
     var prefillVal = isInviteDate ? todayStr : (h === '負責HR' ? getLastUsedHR() : '');
-    // Inviter 有填寫時，依 Manager Information 工作表的姓名比對自動帶入 BU
+    // Inviter 有填寫時，依 Manager Information 工作表的姓名比對自動帶入 單位
     var inviterAttr = (h === 'Inviter') ? ' oninput="handleInviterInputChange(this)" onchange="handleInviterInputChange(this)"' : '';
     // 104_Position 有填寫時，自動擷取【】內文字帶入 Job Function
     var positionAttr = isPosition ? ' oninput="handlePositionInputChange(this)" onchange="handlePositionInputChange(this)"' : '';
@@ -2512,7 +2698,9 @@ function openKbNewCandidateModal() {
     var fieldHtml;
     if (dropdowns[h]) {
       var options = dropdowns[h]();
-      var inputHtml = (STRICT_SELECT_FIELDS.indexOf(h) >= 0)
+      var inputHtml = (MULTI_SELECT_FIELDS.indexOf(h) >= 0)
+        ? buildFormInviterMultiSelectInput('kb-new-cand-input', h, options, prefillVal)
+        : (STRICT_SELECT_FIELDS.indexOf(h) >= 0)
         ? buildFormSelectInput('kb-new-cand-input', h, options, prefillVal)
         : buildFormDatalistInput('kb-new-cand-input', h, options, prefillVal, extraAttr);
       fieldHtml = '<div style="'+spanStyle+'"><div class="modal-label" style="margin-bottom:4px;">'+label+'</div>'+inputHtml+'</div>';
@@ -2938,7 +3126,7 @@ async function submitCreateSchedule() {
     var url = APPS_SCRIPT_URL + '?action=createSchedule'
       + '&resumeCode=' + encodeURIComponent(cand[resumeKey2]||'')
       + '&name=' + encodeURIComponent(cand.Name||'')
-      + '&bu=' + encodeURIComponent(cand.BU||'')
+      + '&bu=' + encodeURIComponent(cand['單位']||'')
       + '&jobFunction=' + encodeURIComponent(cand['Job Function']||'')
       + '&round=' + encodeURIComponent(document.getElementById('schedRound').value||'')
       + '&managers=' + encodeURIComponent(JSON.stringify(managersToSend))
@@ -3190,19 +3378,19 @@ function closeExportCandModal() {
 }
 
 function renderExportModalFilters() {
-  var buOptions = [...new Set(allData.map(function(d){return String(d.BU||'').trim();}))].filter(Boolean).sort();
+  var buOptions = [...new Set(allData.map(function(d){return String(d['單位']||'').trim();}))].filter(Boolean).sort();
   renderMultiFilterBar('expBuBar', 'exp-bu', buOptions);
   var jobOptions = [...new Set(allData.map(function(d){return String(d['Job Function']||'').trim();}))].filter(Boolean).sort();
   renderMultiFilterBar('expJobBar', 'exp-job', jobOptions);
-  var inviterOptions = [...new Set(allData.map(function(d){return String(d.Inviter||'').trim();}))].filter(Boolean).sort();
+  var inviterOptions = [...new Set(allData.flatMap(function(d){return String(d.Inviter||'').split('、').map(function(s){return s.trim();});}))].filter(Boolean).sort();
   renderMultiFilterDropdown('expInviterBar', 'exp-inviter', inviterOptions, 'Inviter');
   renderMultiFilterDropdown('expResultBar', 'exp-result', getResultOptions(), '目前狀態');
 }
 
 function getExportMatchedRecords() {
   return allData.filter(function(d){
-    return multiFilterPass('exp-bu', d.BU) && multiFilterPass('exp-job', d['Job Function']) &&
-      multiFilterPass('exp-inviter', d.Inviter) && multiFilterPass('exp-result', d.Result) &&
+    return multiFilterPass('exp-bu', d['單位']) && multiFilterPass('exp-job', d['Job Function']) &&
+      multiFilterPassMulti('exp-inviter', d.Inviter) && multiFilterPass('exp-result', d.Result) &&
       dateFilterPass('export', d);
   });
 }
