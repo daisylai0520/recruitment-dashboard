@@ -845,6 +845,128 @@ function buildDropdownDatalistInput(sheetName, rec, field, col, idx, options, in
     '<datalist id="'+dlId+'">'+optHtml+'</datalist>';
 }
 
+// ===== 日期欄位小月曆選擇器（invite_date／Phone Interview_date／Interview_date／Result Update_date／Onboard date）=====
+// 欄位本身還是一般文字輸入框（可以手動打字，例如自己補上時間），只是額外多一顆月曆圖示，
+// 點下去會跳出小月曆，點選日期後直接把「YYYY/MM/DD」部分換掉（原本欄位裡日期後面的文字，例如時間，會保留），並自動存檔。
+function buildDateFieldInput(sheetName, rec, field, col, idx, displayVal, rawSafe) {
+  var uid = 'dtf_' + (_dlIdCounter++);
+  var dispSafe = String(displayVal||'').replace(/"/g,'&quot;');
+  return '<div class="date-field-wrap">'+
+    '<input type="text" id="'+uid+'" data-sheet="'+sheetName+'" data-row="'+rec._row+'" data-col="'+col+'" data-field="'+field+'" data-idx="'+idx+'" data-raw="'+rawSafe+'" value="'+dispSafe+'" autocomplete="off" '+
+      'onfocus="enterMaintainEditTA(this)" onblur="commitMaintainCellTA(this)" '+
+      'style="width:100%;font-size:13px;padding:6px 8px;border:1.5px solid var(--border);border-radius:8px;background:var(--surface);box-sizing:border-box;">'+
+    '<button type="button" class="date-field-cal-btn" title="選擇日期" onmousedown="event.preventDefault()" onclick="openMiniDatePicker(document.getElementById(\''+uid+'\'))">📅</button>'+
+  '</div>';
+}
+
+// 從日期欄位目前的值拆出「年/月/日」與後面的文字（例如時間、上午下午、整天等），
+// 用來初始化小月曆要顯示哪個月份，以及選好日期後要把後面的文字接回去
+function splitDateFieldValue(val) {
+  var s = String(val||'').trim();
+  var m = s.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})\s*(.*)$/);
+  if (m) return { y: parseInt(m[1]), m: parseInt(m[2]), d: parseInt(m[3]), rest: m[4] || '' };
+  return null;
+}
+
+var _minidpState = null; // {input, year, month, selectedDay, rest}
+
+function openMiniDatePicker(inputEl) {
+  if (!inputEl) return;
+  closeMiniDatePicker();
+  var parsed = splitDateFieldValue(inputEl.value);
+  if (!parsed) {
+    var t = new Date();
+    parsed = { y: t.getFullYear(), m: t.getMonth()+1, d: t.getDate(), rest: '' };
+  }
+  _minidpState = { input: inputEl, year: parsed.y, month: parsed.m, selectedDay: parsed.d, rest: parsed.rest };
+  var pop = document.createElement('div');
+  pop.id = 'minidpPopup';
+  pop.className = 'minidp-popup';
+  document.body.appendChild(pop);
+  renderMiniDatePickerBody();
+  var rect = inputEl.getBoundingClientRect();
+  pop.style.top = (window.scrollY + rect.bottom + 4) + 'px';
+  pop.style.left = (window.scrollX + rect.left) + 'px';
+  setTimeout(function(){ document.addEventListener('click', minidpOutsideClickHandler); }, 0);
+}
+
+function minidpOutsideClickHandler(e) {
+  var pop = document.getElementById('minidpPopup');
+  if (!pop) return;
+  if (_minidpState && e.target === _minidpState.input) return;
+  if (pop.contains(e.target)) return;
+  closeMiniDatePicker();
+}
+
+function closeMiniDatePicker() {
+  var pop = document.getElementById('minidpPopup');
+  if (pop) pop.remove();
+  document.removeEventListener('click', minidpOutsideClickHandler);
+  _minidpState = null;
+}
+
+function changeMiniDatePickerMonth(delta) {
+  if (!_minidpState) return;
+  var m = _minidpState.month + delta, y = _minidpState.year;
+  if (m < 1) { m = 12; y--; } else if (m > 12) { m = 1; y++; }
+  _minidpState.month = m; _minidpState.year = y;
+  renderMiniDatePickerBody();
+}
+
+function renderMiniDatePickerBody() {
+  var pop = document.getElementById('minidpPopup');
+  if (!pop || !_minidpState) return;
+  var y = _minidpState.year, m = _minidpState.month;
+  var startWeekday = new Date(y, m-1, 1).getDay();
+  var daysInMonth = new Date(y, m, 0).getDate();
+  var today = new Date(); today.setHours(0,0,0,0);
+  var weekLabels = ['日','一','二','三','四','五','六'];
+
+  var html = '<div class="minidp-header">'+
+    '<button type="button" onmousedown="event.preventDefault()" onclick="changeMiniDatePickerMonth(-1)">‹</button>'+
+    '<span>'+y+' 年 '+m+' 月</span>'+
+    '<button type="button" onmousedown="event.preventDefault()" onclick="changeMiniDatePickerMonth(1)">›</button>'+
+  '</div>'+
+  '<div class="minidp-weekdays">'+weekLabels.map(function(w){return '<span>'+w+'</span>';}).join('')+'</div>'+
+  '<div class="minidp-days">';
+  for (var i=0;i<startWeekday;i++) html += '<span></span>';
+  for (var d=1; d<=daysInMonth; d++) {
+    var isToday = (y===today.getFullYear() && m===today.getMonth()+1 && d===today.getDate());
+    var isSelected = (_minidpState.selectedDay===d);
+    html += '<button type="button" class="minidp-day'+(isToday?' is-today':'')+(isSelected?' is-selected':'')+'" '+
+      'onmousedown="event.preventDefault()" onclick="selectMiniDatePickerDate('+y+','+m+','+d+')">'+d+'</button>';
+  }
+  html += '</div>'+
+  '<div class="minidp-footer">'+
+    '<button type="button" onmousedown="event.preventDefault()" onclick="selectMiniDatePickerToday()">今天</button>'+
+    '<button type="button" onmousedown="event.preventDefault()" onclick="clearMiniDatePickerDate()">清除日期</button>'+
+  '</div>';
+  pop.innerHTML = html;
+}
+
+function selectMiniDatePickerDate(y, m, d) {
+  if (!_minidpState) return;
+  var input = _minidpState.input;
+  var rest = _minidpState.rest;
+  var dateStr = y+'/'+String(m).padStart(2,'0')+'/'+String(d).padStart(2,'0');
+  input.value = rest ? (dateStr+' '+rest) : dateStr;
+  closeMiniDatePicker();
+  commitMaintainCellTA(input);
+}
+
+function selectMiniDatePickerToday() {
+  var t = new Date();
+  selectMiniDatePickerDate(t.getFullYear(), t.getMonth()+1, t.getDate());
+}
+
+function clearMiniDatePickerDate() {
+  if (!_minidpState) return;
+  var input = _minidpState.input;
+  input.value = '';
+  closeMiniDatePicker();
+  commitMaintainCellTA(input);
+}
+
 // 嚴格下拉選單欄位（Candidate Records）：只能從清單中選擇，不提供手動輸入
 var STRICT_SELECT_FIELDS = ['Result', '最高學歷', '婉拒理由', '是否邀約'];
 
@@ -862,9 +984,10 @@ function buildDropdownSelectInput(sheetName, rec, field, col, idx, options, inpu
     'onchange="commitMaintainSelect(this)" style="'+inputStyle+'">'+optHtml+'</select>';
 }
 
-// Inviter 可能有多位主管，欄位改成勾選式多選（同一格用「、」分隔存回試算表），
-// 清單來源是目前 Candidate Records 裡已經出現過的 Inviter 值；也能直接輸入清單以外的新名字。
-var MULTI_SELECT_FIELDS = ['Inviter'];
+// 這些欄位改成勾選式多選（同一格用「、」分隔存回試算表）：
+// Inviter／面試主管 可能不只一位；單位、Job Function、104_Position、負責HR 則是希望用勾選取代手動打字，減少輸入不一致。
+// 清單來源見 MAINTAIN_DROPDOWNS；勾選清單以外的值（例如舊資料、或用「新增」手動加入的新選項）也能維持顯示與勾選。
+var MULTI_SELECT_FIELDS = ['Inviter', '面試主管', '單位', 'Job Function', '104_Position', '負責HR'];
 function buildInviterMultiSelectInput(sheetName, rec, field, col, idx, options, inputStyle) {
   var uid = 'invms_' + (_dlIdCounter++);
   var rawVal = rec[field] !== undefined ? rec[field] : '';
@@ -885,7 +1008,7 @@ function buildInviterMultiSelectInput(sheetName, rec, field, col, idx, options, 
     '<div class="ms-dropdown-panel" id="'+uid+'-panel" style="display:none;">'+
       optionsHtml+
       '<div class="invms-add-row">'+
-        '<input type="text" id="'+uid+'-newname" placeholder="新增其他人名..." onkeydown="if(event.key===\'Enter\'){event.preventDefault();addInviterMsName(\''+uid+'\')}">'+
+        '<input type="text" id="'+uid+'-newname" placeholder="新增其他選項..." onkeydown="if(event.key===\'Enter\'){event.preventDefault();addInviterMsName(\''+uid+'\')}">'+
         '<button type="button" onclick="addInviterMsName(\''+uid+'\')">新增</button>'+
       '</div>'+
     '</div>'+
@@ -972,6 +1095,25 @@ async function commitMaintainInputList(el) {
   }
 }
 
+// 通用：把新值套用到欄位對應的輸入元件上的「畫面顯示」，同時支援一般 input/textarea/select，
+// 以及勾選式多選下拉元件（單位／Job Function／104_Position／負責HR／Inviter／面試主管 現在都改成多選勾選）。
+// 多選欄位被自動同步時視為整組換成這一個值（不與原本已勾選的項目合併），跟原本自動帶入單一值的行為一致。
+function applyFieldDisplayValue(el, newVal) {
+  if (!el) return;
+  // 判斷這個欄位是不是勾選式多選元件：不管是查詢卡（class="invms-value"）還是新增人選表單
+  // （class="new-cand-input"／"kb-new-cand-input"），特徵都是「隱藏的 input，包在 .ms-dropdown 容器裡」
+  var msContainer = (el.tagName === 'INPUT' && el.type === 'hidden' && el.closest) ? el.closest('.ms-dropdown') : null;
+  el.value = newVal;
+  if (msContainer) {
+    var selected = String(newVal||'').split('、').map(function(s){return s.trim();}).filter(Boolean);
+    msContainer.querySelectorAll('.ms-dropdown-option input[type="checkbox"]').forEach(function(cb){
+      cb.checked = selected.indexOf(cb.getAttribute('data-val')) >= 0;
+    });
+    var summaryEl = msContainer.querySelector('.invms-summary');
+    if (summaryEl) summaryEl.textContent = selected.length ? selected.join('、') : '未選擇';
+  }
+}
+
 // 依 Inviter 姓名查出對應單位，若跟目前 單位 不同就一併更新畫面與試算表
 // Inviter 可能是多人（用「、」分隔），單位自動帶入時以第一位為準
 async function autoSyncBUFromInviter(inviterName, row) {
@@ -985,7 +1127,7 @@ async function autoSyncBUFromInviter(inviterName, row) {
   var ok = await saveMaintainField('Candidate Records', row, buCol, '單位', buIdx, bu);
   if (ok) {
     buEl.setAttribute('data-raw', bu.replace(/"/g,'&quot;'));
-    buEl.value = bu;
+    applyFieldDisplayValue(buEl, bu);
     var d = allData.find(function(x){ return String(x._row) === String(row); });
     if (d) d['單位'] = bu;
   }
@@ -1002,7 +1144,7 @@ async function autoSyncJobFunctionFromPosition(positionVal, row) {
   var ok = await saveMaintainField('Candidate Records', row, jfCol, 'Job Function', jfIdx, jf);
   if (ok) {
     jfEl.setAttribute('data-raw', jf.replace(/"/g,'&quot;'));
-    jfEl.value = jf;
+    applyFieldDisplayValue(jfEl, jf);
     var d = allData.find(function(x){ return String(x._row) === String(row); });
     if (d) d['Job Function'] = jf;
   }
@@ -1799,6 +1941,8 @@ var MAINTAIN_DROPDOWNS = {
     '104_Position': function(){ return getPositionOptions(); },
     'Source': function(){ return [...new Set(allData.map(function(d){return String(d.Source||'').trim();}))].filter(Boolean).sort(); },
     'Inviter': function(){ return [...new Set(allData.flatMap(function(d){return String(d.Inviter||'').split('、').map(function(s){return s.trim();});}))].filter(Boolean).sort(); },
+    // 面試主管：跟 Inviter 一樣可能不只一位，但選項直接抓 Manager Information 工作表的 Name 欄位（而非只抓已經用過的值）
+    '面試主管': function(){ return [...new Set(managerInfoData.map(function(m){return String(m.Name||'').trim();}))].filter(Boolean).sort(); },
     'Result': function(){ return getActualResultOptions(); },
     '性別': function(){ return [...new Set(allData.map(function(d){return String(d['性別']||'').trim();}))].filter(Boolean).sort(); },
     '最高學歷': function(){ return [...new Set(allData.map(function(d){return String(d['最高學歷']||'').trim();}))].filter(Boolean).sort(); },
@@ -2024,6 +2168,10 @@ function renderQueryField(sheetName, rec, field, idx, fullWidth, strictDateForma
       : (sheetName === 'Candidate Records' && STRICT_SELECT_FIELDS.indexOf(field) >= 0)
       ? buildDropdownSelectInput(sheetName, rec, field, col, idx, options, fieldStyle)
       : buildDropdownDatalistInput(sheetName, rec, field, col, idx, options, fieldStyle);
+  } else if (isDateField) {
+    // 日期欄位（invite_date／Phone Interview_date／Interview_date／Result Update_date／Onboard date）：
+    // 點擊欄位或月曆圖示可直接跳出小月曆點選日期，選完自動存檔；欄位本身仍可手動輸入或補打時間文字。
+    inputHtml = buildDateFieldInput(sheetName, rec, field, col, idx, displayVal, rawSafe);
   } else if (fullWidth) {
     inputHtml = '<textarea data-sheet="'+sheetName+'" data-row="'+rec._row+'" data-col="'+col+'" data-field="'+field+'" data-idx="'+idx+'" data-raw="'+rawSafe+'" '+
       'onfocus="this.dataset.original=this.value" onblur="commitMaintainTextarea(this)" rows="2" '+
@@ -2364,12 +2512,19 @@ function buildFormInviterMultiSelectInput(className, field, options, prefillVal)
     '<div class="ms-dropdown-panel" id="'+uid+'-panel" style="display:none;">'+
       optionsHtml+
       '<div class="invms-add-row">'+
-        '<input type="text" id="'+uid+'-newname" placeholder="新增其他人名..." onkeydown="if(event.key===\'Enter\'){event.preventDefault();addFormInviterMsName(\''+uid+'\')}">'+
+        '<input type="text" id="'+uid+'-newname" placeholder="新增其他選項..." onkeydown="if(event.key===\'Enter\'){event.preventDefault();addFormInviterMsName(\''+uid+'\')}">'+
         '<button type="button" onclick="addFormInviterMsName(\''+uid+'\')">新增</button>'+
       '</div>'+
     '</div>'+
     '<input type="hidden" class="'+className+'" data-field="'+field+'" value="'+String(prefillVal||'').replace(/"/g,'&quot;')+'">'+
   '</div>';
+}
+// 只有 Inviter／104_Position 這兩個欄位改動時才需要觸發「自動帶入單位／Job Function」，
+// 其他欄位（單位、Job Function、負責HR、面試主管）改成多選勾選後，不應該誤觸這兩個自動帶入邏輯。
+function runFormAutoSyncIfNeeded(hidden) {
+  var field = hidden.getAttribute('data-field');
+  if (field === 'Inviter') handleInviterInputChange(hidden);
+  if (field === '104_Position') handlePositionInputChange(hidden);
 }
 function toggleFormInviterMsOption(uid, checkboxEl) {
   var container = document.getElementById(uid);
@@ -2380,7 +2535,7 @@ function toggleFormInviterMsOption(uid, checkboxEl) {
   if (checkboxEl.checked) { if (i < 0) current.push(val); } else if (i >= 0) { current.splice(i,1); }
   hidden.value = current.join('、');
   container.querySelector('.invms-summary').textContent = hidden.value || '未選擇';
-  handleInviterInputChange(hidden);
+  runFormAutoSyncIfNeeded(hidden);
 }
 function addFormInviterMsName(uid) {
   var container = document.getElementById(uid);
@@ -2400,7 +2555,7 @@ function addFormInviterMsName(uid) {
   var nameDisp = name.replace(/</g,'&lt;').replace(/>/g,'&gt;');
   label.innerHTML = '<input type="checkbox" checked data-val="'+nameSafe+'" onchange="toggleFormInviterMsOption(\''+uid+'\',this)"> '+nameDisp;
   panel.insertBefore(label, panel.querySelector('.invms-add-row'));
-  handleInviterInputChange(hidden);
+  runFormAutoSyncIfNeeded(hidden);
 }
 
 function renderNewCandidateFields() {
@@ -2473,7 +2628,7 @@ function handleInviterInputChange(el) {
   var container = el.closest('#newCandFields') || el.closest('#addRowModalFields');
   if (!container) return;
   var buInput = container.querySelector('[data-field="單位"]');
-  if (buInput) buInput.value = bu;
+  if (buInput) applyFieldDisplayValue(buInput, bu);
 }
 
 // 104_Position 欄位有值時，自動擷取【】內的文字帶入同一張表單的 Job Function 欄位
@@ -2487,7 +2642,7 @@ function handlePositionInputChange(el) {
   var container = el.closest('#newCandFields') || el.closest('#addRowModalFields');
   if (!container) return;
   var jfInput = container.querySelector('[data-field="Job Function"]');
-  if (jfInput) jfInput.value = jf;
+  if (jfInput) applyFieldDisplayValue(jfInput, jf);
 }
 
 // 新增人選表單目前用的是哪一個（資料維護的常駐表單，或 Candidate Overview 的彈窗），
