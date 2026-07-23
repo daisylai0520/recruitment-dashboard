@@ -823,7 +823,7 @@ function filterCandHeadersForRole(headers) {
 // 人選資料維護與查詢畫面專用：這兩個是系統自動寫入的排程紀錄欄位（填 Phone Interview_date／Interview_date 時會自動同步），
 // 只是不需要在這個畫面顯示，後端 onEdit／editCell 的自動更新邏輯完全不受影響，資料還是照樣會被寫入試算表；
 // Candidate Overview 的看板卡片／檢視編輯彈窗不受影響，一樣會顯示。
-var MAINTAIN_QUERY_HIDDEN_FIELDS = ['Phone Interview Scheduled', 'Interview Scheduled'];
+var MAINTAIN_QUERY_HIDDEN_FIELDS = ['Phone Interview Scheduled', 'Interview Scheduled', '離職原因', '工作/實習&過往經驗', '求職狀態', '現有待遇', '期望待遇', '其他資訊', 'HR Comment'];
 function filterCandHeadersForMaintenance(headers) {
   return filterCandHeadersForRole(headers).filter(function(h){ return MAINTAIN_QUERY_HIDDEN_FIELDS.indexOf(h) < 0; });
 }
@@ -2415,10 +2415,12 @@ function renderNewCandidateFields() {
     var label = h + (isRequired ? ' <span style="color:#EF4444;">*</span>' : '');
     var isInviteDate = (h === 'invite_date' || h === 'invite date');
     var isMemo = h.indexOf('Memo') >= 0;
+    var isPhoneRecord = /phone\s*interview\s*record/i.test(h);
+    var isMultilineField = isMemo || isPhoneRecord;
     var isHRComment = /^hr\s*comment$/i.test(h.trim());
     var isPosition = h === '104_Position';
     var isNameOrResume = (h === 'Name' || h.indexOf('履歷代碼') >= 0);
-    var spanStyle = (isMemo || isHRComment) ? 'grid-column:1/-1;' : (isPosition ? 'grid-column:span 2;' : '');
+    var spanStyle = (isMultilineField || isHRComment) ? 'grid-column:1/-1;' : (isPosition ? 'grid-column:span 2;' : '');
     var dupAttr = isNameOrResume ? ' oninput="checkNewCandDuplicate()"' : '';
     // 負責HR：自動帶入這台瀏覽器最近一次填寫過的名字，同一位 HR 不用每次重打
     var prefillVal = isInviteDate ? todayStr : (h === '負責HR' ? getLastUsedHR() : '');
@@ -2438,6 +2440,12 @@ function renderNewCandidateFields() {
         ? buildFormSelectInput('new-cand-input', h, options, prefillVal)
         : buildFormDatalistInput('new-cand-input', h, options, prefillVal, extraAttr);
       fieldHtml = '<div style="'+spanStyle+'"><div class="modal-label" style="margin-bottom:4px;">'+label+'</div>'+inputHtml+'</div>';
+    } else if (isMultilineField) {
+      // Memo、Phone Interview Record(HR)／(主管)：像 Excel 儲存格一樣，Enter 直接換下一行，且高度依內容自動變長
+      var escapedVal = String(prefillVal||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      fieldHtml = '<div style="'+spanStyle+'"><div class="modal-label" style="margin-bottom:4px;">'+label+'</div>'+
+        '<textarea class="new-cand-input" data-field="'+h+'" rows="2" oninput="autoGrowTextarea(this)" '+
+        'style="width:100%;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;box-sizing:border-box;font-family:inherit;resize:vertical;overflow:hidden;min-height:38px;">'+escapedVal+'</textarea></div>';
     } else {
       fieldHtml = '<div style="'+spanStyle+'"><div class="modal-label" style="margin-bottom:4px;">'+label+'</div><input type="text" class="new-cand-input" data-field="'+h+'" value="'+prefillVal+'"'+dupAttr+extraAttr+' style="width:100%;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;box-sizing:border-box;"></div>';
     }
@@ -2446,7 +2454,14 @@ function renderNewCandidateFields() {
     return fieldHtml;
   }).join('');
 
+  document.getElementById('newCandFields').querySelectorAll('textarea.new-cand-input').forEach(autoGrowTextarea);
   document.getElementById('newCandDupWarning').style.display = 'none';
+}
+
+// 依內容自動調整 textarea 高度（先歸零再抓 scrollHeight，避免內容變短時高度卡住不縮回去）
+function autoGrowTextarea(el) {
+  el.style.height = 'auto';
+  el.style.height = el.scrollHeight + 'px';
 }
 
 // Manager Information 比對：Inviter 欄位有值時，自動把對應的「單位」帶入同一張表單的 單位 欄位
@@ -2532,6 +2547,7 @@ function applyCopyToNewCandidateForm() {
     if (isInviteDate) { inp.value = todayStr; return; }
     if (isPosition || COPY_CLEAR_FIELDS.indexOf(f) >= 0) { inp.value = ''; return; }
     inp.value = selectedCandForCopy[f] || '';
+    if (inp.tagName === 'TEXTAREA') autoGrowTextarea(inp);
   });
   showToast('✓ 已複製「'+(selectedCandForCopy.Name||'')+'」的資料，可修改後再新增');
   checkNewCandDuplicate();
