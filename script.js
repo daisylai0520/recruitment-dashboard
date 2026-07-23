@@ -730,7 +730,7 @@ function openEditCandidateModal(row) {
   var cand = allData.find(function(d){ return d._row === row; });
   if (!cand) { showToast('找不到這位人選的資料'); return; }
   var idx = allData.indexOf(cand);
-  var candHeaders = filterCandHeadersForRole(maintainHeaders['Candidate Records'] || Object.keys(cand).filter(function(k){return k!=='_row';}));
+  var candHeaders = filterCandHeadersForMaintenance(maintainHeaders['Candidate Records'] || Object.keys(cand).filter(function(k){return k!=='_row';}));
   document.getElementById('editCandModalName').textContent = cand.Name || '編輯人選資料';
   document.getElementById('editCandModalFields').innerHTML = candHeaders.map(function(h){
     return renderQueryField('Candidate Records', cand, h, idx);
@@ -3324,8 +3324,10 @@ function updateExportPreview() {
   if (el) el.textContent = '符合 ' + getExportMatchedRecords().length + ' 筆資料';
 }
 
+// 匯出人選資料不需要顯示的欄位：跟人選資料維護與查詢畫面隱藏的欄位相同
 function getExportHeaders() {
-  return maintainHeaders['Candidate Records'] || (allData.length ? Object.keys(allData[0]).filter(function(k){return k!=='_row';}) : []);
+  var headers = maintainHeaders['Candidate Records'] || (allData.length ? Object.keys(allData[0]).filter(function(k){return k!=='_row';}) : []);
+  return headers.filter(function(h){ return MAINTAIN_QUERY_HIDDEN_FIELDS.indexOf(h) < 0; });
 }
 
 function renderExportColumnList() {
