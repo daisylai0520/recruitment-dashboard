@@ -189,7 +189,6 @@ function triggerPageRerender(pageKey) {
     kanban: renderKanban,
     overview: renderOverview,
     hc: renderHeadcount,
-    offers: renderOffers,
     candidateSearch: renderCandidateSearch,
     candidateMaintenance: renderCandQuery,
     trends: renderTrends,
@@ -344,7 +343,7 @@ async function fetchData() {
 }
 
 var TAB_RESOURCES = {
-  kanban:['core'], candidateSearch:['core'], overview:['core'], trends:['core','headcount'], offers:['core','headcount'],
+  kanban:['core'], candidateSearch:['core'], overview:['core'], trends:['core','headcount'],
   hc:['headcount'], salary:['salary'], schedule:['core','scheduling'], maintain:['core']
 };
 
@@ -360,7 +359,6 @@ function renderAll(){
   }
   if (currentTab === 'schedule' && loadedResources.scheduling) renderSchedule();
   if (currentTab === 'salary' && loadedResources.salary) renderSalaryScreen();
-  if (currentTab === 'offers') renderOffers();
   if (loadedResources.headcount) renderHeadcount();
 }
 
@@ -389,7 +387,7 @@ function selectRole(role) {
     var match = onclickAttr.match(/switchTab\('(\w+)'/);
     if (match) {
       currentTab = match[1];
-      ['kanban','candidateSearch','overview','hc','maintain','trends','offers','schedule','salary'].forEach(function(v){
+      ['kanban','candidateSearch','overview','hc','maintain','trends','schedule','salary'].forEach(function(v){
         document.getElementById('view-'+v).style.display = v===currentTab ? '' : 'none';
       });
     }
@@ -488,7 +486,7 @@ async function switchTab(tab,el) {
   window.scrollTo(0, 0);
   document.querySelectorAll('.tab-bar:first-of-type > .tab').forEach(function(t){t.classList.remove('active');});
   if (el) el.classList.add('active');
-  ['kanban','candidateSearch','overview','hc','maintain','trends','offers','schedule','salary'].forEach(function(v){
+  ['kanban','candidateSearch','overview','hc','maintain','trends','schedule','salary'].forEach(function(v){
     document.getElementById('view-'+v).style.display=v===tab?'':'none';
   });
 
@@ -505,7 +503,6 @@ async function switchTab(tab,el) {
   if (tab === 'overview') renderOverview();
   if (tab === 'hc') renderHeadcount();
   if (tab === 'trends') renderTrends();
-  if (tab === 'offers') renderOffers();
   if (tab === 'schedule') renderSchedule();
   if (tab === 'salary') { ensureNewSalaryFieldsRendered(); renderSalaryScreen(); }
 }
@@ -1279,94 +1276,6 @@ async function saveMemo() {
   } catch(e) {
     showToast('❌ 儲存失敗：'+e.message);
   }
-}
-
-// ===== OFFER LIST =====
-var _offersNow = new Date();
-var offersYear = String(_offersNow.getFullYear());
-var offersMonth = String(_offersNow.getMonth()+1);
-
-function offersFilterYearMonth() {
-  offersYear = document.getElementById('offersYearSelect').value;
-  offersMonth = document.getElementById('offersMonthSelect').value;
-  renderOffers();
-}
-
-function renderOffers() {
-  var search = (document.getElementById('offersSearch')?document.getElementById('offersSearch').value:'').toLowerCase();
-  var offers = allData.filter(function(d){ return d.Result === '錄取'; });
-
-  // Onboard date 來源為 Candidate Records 的 Onboard date 欄位
-  var yearsSet = [...new Set(offers.map(function(d){
-    var t = parseDateTime(d['Onboard date']||'');
-    return t ? String(t.getFullYear()) : null;
-  }).filter(Boolean))].sort().reverse();
-  if (yearsSet.indexOf(offersYear) < 0 && offersYear !== 'all') { if(!yearsSet.length){offersYear='all';} }
-  var yearSel = document.getElementById('offersYearSelect');
-  if (yearSel) {
-    yearSel.innerHTML = '<option value="all">全部年份</option>' +
-      yearsSet.map(function(y){return '<option value="'+y+'"'+(offersYear===y?' selected':'')+'>'+y+'年</option>';}).join('');
-    yearSel.value = offersYear;
-  }
-  var monthSel = document.getElementById('offersMonthSelect');
-  if (monthSel) {
-    var monthOpts = '<option value="all">全部月份</option>';
-    for (var mi=1; mi<=12; mi++) monthOpts += '<option value="'+mi+'"'+(offersMonth===String(mi)?' selected':'')+'>'+mi+'月</option>';
-    monthSel.innerHTML = monthOpts;
-    monthSel.value = offersMonth;
-  }
-
-  offers = offers.filter(function(d){
-    var t = parseDateTime(d['Onboard date']||'');
-    if (!t) return false;
-    if (offersYear !== 'all' && String(t.getFullYear()) !== offersYear) return false;
-    if (offersMonth !== 'all' && String(t.getMonth()+1) !== offersMonth) return false;
-    return true;
-  });
-
-  var offersBuOptions = [...new Set(offers.map(function(d){return String(d['單位']||'').trim();}))].filter(Boolean).sort();
-  renderMultiFilterBar('offersBuBar', 'offers-bu', offersBuOptions);
-
-  var filtered = offers.filter(function(d){
-    return multiFilterPass('offers-bu', d['單位']) &&
-           (!search||String(d.Name||'').toLowerCase().includes(search));
-  });
-  filtered.sort(function(a,b){
-    var ta = parseDateTime(a['Onboard date']||'');
-    var tb = parseDateTime(b['Onboard date']||'');
-    var tsa = ta?ta.getTime():0, tsb = tb?tb.getTime():0;
-    return tsb-tsa;
-  });
-
-  var periodLabel = (offersYear==='all'?'全部年份':offersYear+'年') + '・' + (offersMonth==='all'?'全部月份':offersMonth+'月');
-  var subEl = document.getElementById('offersSub');
-  if (subEl) subEl.textContent = '共 '+filtered.length+' 位錄取人選 · '+periodLabel;
-
-  var bodyEl = document.getElementById('offersTableBody');
-  if (!bodyEl) return;
-  if (!filtered.length) {
-    bodyEl.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-tertiary);padding:24px">目前無錄取人選</td></tr>';
-    return;
-  }
-
-  var resumeKey = filtered.length ? findResumeCodeKey(filtered[0]) : '履歷代碼';
-  bodyEl.innerHTML = filtered.map(function(d){
-    return '<tr>'+
-      '<td style="font-weight:600;white-space:nowrap">'+d.Name+'</td>'+
-      '<td style="white-space:nowrap">'+d['單位']+'</td>'+
-      '<td style="white-space:nowrap">'+(d['Job Function']||'')+'</td>'+
-      '<td style="white-space:nowrap">'+getOfferGradeLevel(d.Name)+'</td>'+
-      '<td style="white-space:nowrap">'+(d[resumeKey]||'—')+'</td>'+
-      '<td style="white-space:nowrap">'+fmtDateOnly(d['Onboard date']||'')+'</td>'+
-    '</tr>';
-  }).join('');
-}
-
-// 職等：從 Headcount Records 的「遞補人員」欄位比對這位錄取人選的姓名，抓同一列的「職等」欄位
-function getOfferGradeLevel(name) {
-  if (!name || !hcRawData.length) return '—';
-  var match = hcRawData.find(function(h){ return String(h['遞補人員']||'').trim() === String(name).trim(); });
-  return (match && match['職等']) ? match['職等'] : '—';
 }
 
 // ===== TRENDS =====
@@ -3361,7 +3270,6 @@ registerMultiFilterRerender('hc-bu', renderHeadcount);
 registerMultiFilterRerender('hc-job', renderHeadcount);
 registerMultiFilterRerender('salary-bu', renderSalaryScreen);
 registerMultiFilterRerender('salary-job', renderSalaryScreen);
-registerMultiFilterRerender('offers-bu', renderOffers);
 
 // ---- Candidate Overview：匯出人選資料 ----
 var exportSelectedColumns = null; // Set，null 代表尚未初始化（預設全選）

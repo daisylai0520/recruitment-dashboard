@@ -50,14 +50,13 @@
 <div class="container">
   <div class="tab-bar">
     <div class="tab active" data-tab-role="manager,recruiter,bp" onclick="switchTab('kanban',this)">Candidate Overview</div>
+    <div class="tab" data-tab-role="manager,recruiter,bp" onclick="switchTab('maintain',this)">人選資料維護與查詢</div>
     <div class="tab" data-tab-role="manager" onclick="switchTab('candidateSearch',this)">Candidate Search</div>
-    <div class="tab" data-tab-role="manager,bp" onclick="switchTab('offers',this)">錄取名單</div>
     <div class="tab" data-tab-role="manager,recruiter" onclick="switchTab('overview',this)">Recruitment Progress</div>
     <div class="tab" data-tab-role="manager,recruiter,bp" onclick="switchTab('trends',this)">Recruitment Status</div>
     <div class="tab" data-tab-role="manager,recruiter,bp" onclick="switchTab('hc',this)">Headcount Overview</div>
     <div class="tab" data-tab-role="manager" onclick="switchTab('schedule',this)">面試時間協調</div>
     <div class="tab" data-tab-role="manager,recruiter,bp" onclick="switchTab('salary',this)">Market Salary Records</div>
-    <div class="tab" data-tab-role="manager,recruiter,bp" onclick="switchTab('maintain',this)">人選資料維護與查詢</div>
   </div>
 
   <div class="error-banner" id="errorBanner"></div>
@@ -119,37 +118,6 @@
     </div>
     <div class="kanban-wrap">
       <div class="kanban-board" id="csKanbanBoard"></div>
-    </div>
-  </div>
-
-  <!-- ===== OFFER LIST ===== -->
-  <div id="view-offers" style="display:none">
-    <div class="page-title">錄取名單</div>
-    <div class="page-sub" id="offersSub">載入中...</div>
-    <div class="filter-bar">
-      <div class="filter-group">
-        <div class="filter-group-label">單位</div>
-        <div class="filter-btns" id="offersBuBar"></div>
-      </div>
-      <div class="filter-divider"></div>
-      <div class="filter-group">
-        <div class="filter-group-label">年月</div>
-        <div style="display:flex;gap:6px;">
-          <select id="offersYearSelect" onchange="offersFilterYearMonth()" style="font-size:12px;padding:5px 8px;border:1.5px solid var(--border);border-radius:8px;background:var(--surface);font-family:inherit;"></select>
-          <select id="offersMonthSelect" onchange="offersFilterYearMonth()" style="font-size:12px;padding:5px 8px;border:1.5px solid var(--border);border-radius:8px;background:var(--surface);font-family:inherit;"></select>
-        </div>
-      </div>
-      <div class="filter-divider"></div>
-      <div class="search-wrap">
-        <div class="search-label">搜尋</div>
-        <input class="search-input" type="text" id="offersSearch" placeholder="姓名..." oninput="renderOffers()" style="width:200px;">
-      </div>
-    </div>
-    <div class="table-wrap">
-      <table class="pi-table">
-        <thead><tr><th>姓名</th><th>單位</th><th>職缺</th><th>職等</th><th>履歷代碼</th><th>Onboard date</th></tr></thead>
-        <tbody id="offersTableBody"></tbody>
-      </table>
     </div>
   </div>
 
