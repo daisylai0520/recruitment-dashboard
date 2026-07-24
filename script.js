@@ -2131,10 +2131,11 @@ function buildCandQueryCardsHtml(matched) {
     var isSelected = selectedCandForCopy && selectedCandForCopy._row === cand._row;
 
     var fieldsHtml = candHeaders.map(function(h){
-      // 採緊湊欄寬，僅職缺名稱與備註保留較大的編輯空間。
-      var isWide = (h === '104_Position' || h.indexOf('Memo') >= 0);
+      // 採緊湊欄寬，僅職缺名稱保留稍大空間；Memo、Phone Interview Record 兩個欄位改成跟下面「新增人選資料」一樣的全寬
+      var isFullWidth = h.indexOf('Memo') >= 0 || /phone\s*interview\s*record/i.test(h);
+      var isWide = h === '104_Position';
       // 時間欄位一律統一顯示成 YYYY/MM/DD HH:MM
-      return renderQueryField('Candidate Records', cand, h, idx, isWide ? 'span2' : false, true);
+      return renderQueryField('Candidate Records', cand, h, idx, isFullWidth ? true : (isWide ? 'span2' : false), true);
     }).join('');
 
     return '<div class="mini-card" style="padding:20px 22px;margin-bottom:16px;'+(isSelected?'border-color:var(--accent);box-shadow:0 0 0 2px var(--accent);':'')+'">'+
