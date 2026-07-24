@@ -987,7 +987,7 @@ function buildDropdownSelectInput(sheetName, rec, field, col, idx, options, inpu
 // 這些欄位改成勾選式多選（同一格用「、」分隔存回試算表）：
 // Inviter／面試主管 可能不只一位；單位、Job Function、104_Position、負責HR 則是希望用勾選取代手動打字，減少輸入不一致。
 // 清單來源見 MAINTAIN_DROPDOWNS；勾選清單以外的值（例如舊資料、或用「新增」手動加入的新選項）也能維持顯示與勾選。
-var MULTI_SELECT_FIELDS = ['Inviter', '面試主管', '單位', 'Job Function', '104_Position', '負責HR'];
+var MULTI_SELECT_FIELDS = ['Inviter', '面試主管', '單位', 'Job Function', '104_Position', '負責HR', 'Source'];
 function buildInviterMultiSelectInput(sheetName, rec, field, col, idx, options, inputStyle) {
   var uid = 'invms_' + (_dlIdCounter++);
   var rawVal = rec[field] !== undefined ? rec[field] : '';
@@ -1805,6 +1805,7 @@ function multiFilterPass(filterId, rawValue) {
   var state = multiFilterState[filterId];
   if (!state) return true;
   if (state.selected.size >= state.known.size) return true;
+  if (state.selected.size === 0) return true; // 這個維度全部取消勾選時，視為「不篩選這個欄位」，不要連帶擋掉其他篩選條件
   return state.selected.has(String(rawValue||'').trim());
 }
 
@@ -1813,6 +1814,7 @@ function multiFilterPassMulti(filterId, rawValue) {
   var state = multiFilterState[filterId];
   if (!state) return true;
   if (state.selected.size >= state.known.size) return true;
+  if (state.selected.size === 0) return true; // 同上：全部取消勾選視為不篩選，不擋其他條件
   var parts = String(rawValue||'').split('、').map(function(s){return s.trim();}).filter(Boolean);
   return parts.some(function(p){ return state.selected.has(p); });
 }
@@ -1939,7 +1941,7 @@ var MAINTAIN_DROPDOWNS = {
     '單位': function(){ return [...new Set(allData.map(function(d){return String(d['單位']||'').trim();}))].filter(Boolean).sort(); },
     'Job Function': function(){ return [...new Set(allData.map(function(d){return String(d['Job Function']||'').trim();}))].filter(Boolean).sort(); },
     '104_Position': function(){ return getPositionOptions(); },
-    'Source': function(){ return [...new Set(allData.map(function(d){return String(d.Source||'').trim();}))].filter(Boolean).sort(); },
+    'Source': function(){ return [...new Set(allData.flatMap(function(d){return String(d.Source||'').split('、').map(function(s){return s.trim();});}))].filter(Boolean).sort(); },
     'Inviter': function(){ return [...new Set(allData.flatMap(function(d){return String(d.Inviter||'').split('、').map(function(s){return s.trim();});}))].filter(Boolean).sort(); },
     // 面試主管：跟 Inviter 一樣可能不只一位，但選項直接抓 Manager Information 工作表的 Name 欄位（而非只抓已經用過的值）
     '面試主管': function(){ return [...new Set(managerInfoData.map(function(m){return String(m.Name||'').trim();}))].filter(Boolean).sort(); },
