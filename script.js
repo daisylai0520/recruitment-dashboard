@@ -1101,7 +1101,7 @@ async function commitMaintainInputList(el) {
 function applyFieldDisplayValue(el, newVal) {
   if (!el) return;
   // 判斷這個欄位是不是勾選式多選元件：不管是查詢卡（class="invms-value"）還是新增人選表單
-  // （class="new-cand-input"／"kb-new-cand-input"），特徵都是「隱藏的 input，包在 .ms-dropdown 容器裡」
+  // （class="new-cand-input"），特徵都是「隱藏的 input，包在 .ms-dropdown 容器裡」
   var msContainer = (el.tagName === 'INPUT' && el.type === 'hidden' && el.closest) ? el.closest('.ms-dropdown') : null;
   el.value = newVal;
   if (msContainer) {
@@ -2120,6 +2120,7 @@ function renderCandQuery() {
   }
 
   container.innerHTML = buildCandQueryCardsHtml(matched);
+  container.querySelectorAll('textarea').forEach(autoGrowTextarea);
 }
 
 // 完整可編輯人選資料卡（含選取以複製／刪除按鈕）：資料維護的查詢結果、
@@ -2177,8 +2178,8 @@ function renderQueryField(sheetName, rec, field, idx, fullWidth, strictDateForma
     inputHtml = buildDateFieldInput(sheetName, rec, field, col, idx, displayVal, rawSafe);
   } else if (fullWidth) {
     inputHtml = '<textarea data-sheet="'+sheetName+'" data-row="'+rec._row+'" data-col="'+col+'" data-field="'+field+'" data-idx="'+idx+'" data-raw="'+rawSafe+'" '+
-      'onfocus="this.dataset.original=this.value" onblur="commitMaintainTextarea(this)" rows="2" '+
-      'style="width:100%;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;box-sizing:border-box;resize:vertical;font-family:inherit;white-space:pre-wrap;word-break:break-word;">'+(rawVal||'')+'</textarea>';
+      'onfocus="this.dataset.original=this.value" onblur="commitMaintainTextarea(this)" oninput="autoGrowTextarea(this)" rows="2" '+
+      'style="width:100%;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;box-sizing:border-box;resize:vertical;font-family:inherit;white-space:pre-wrap;word-break:break-word;overflow:hidden;">'+(rawVal||'')+'</textarea>';
   } else {
     inputHtml = '<textarea data-sheet="'+sheetName+'" data-row="'+rec._row+'" data-col="'+col+'" data-field="'+field+'" data-idx="'+idx+'" data-raw="'+rawSafe+'" '+
       'onfocus="enterMaintainEditTA(this)" onblur="commitMaintainCellTA(this)" rows="2" '+
@@ -2648,22 +2649,20 @@ function handlePositionInputChange(el) {
   if (jfInput) applyFieldDisplayValue(jfInput, jf);
 }
 
-// 新增人選表單目前用的是哪一個（資料維護的常駐表單，或 Candidate Overview 的彈窗），
-// 兩邊共用同一套「檢查重複／複製人選資料」邏輯，差別只在欄位的 selector 跟提示訊息放哪裡
+// 新增人選表單的欄位 selector（資料維護畫面的常駐新增表單）
 function getNewCandFormSelector() {
-  return window._kbNewCandidateMode ? '#addRowModalFields .kb-new-cand-input' : '#newCandFields .new-cand-input';
+  return '#newCandFields .new-cand-input';
 }
 
 // 輸入姓名或履歷代碼時，即時檢查這位人選是否已經有紀錄，避免重複建檔
 function checkNewCandDuplicate() {
-  var isKb = !!window._kbNewCandidateMode;
   var name = '', resume = '';
   document.querySelectorAll(getNewCandFormSelector()).forEach(function(inp){
     var f = inp.getAttribute('data-field');
     if (f === 'Name') name = inp.value.trim().toLowerCase();
     if (f && f.indexOf('履歷代碼') >= 0) resume = inp.value.trim().toLowerCase();
   });
-  var warnEl = document.getElementById(isKb ? 'kbNewCandDupWarning' : 'newCandDupWarning');
+  var warnEl = document.getElementById('newCandDupWarning');
   if (!warnEl) return;
   if (!name && !resume) { warnEl.style.display = 'none'; return; }
 
@@ -2681,7 +2680,7 @@ function checkNewCandDuplicate() {
   }
 }
 
-// 點選人選資料卡，標記為「要複製的來源」（資料維護的查詢結果、Candidate Overview 的搜尋人選都會呼叫這裡）
+// 點選人選資料卡，標記為「要複製的來源」
 function selectCandForCopy(row) {
   var cand = allData.find(function(d){ return d._row === row; });
   if (!cand) return;
@@ -2689,8 +2688,6 @@ function selectCandForCopy(row) {
   var hintText = '已選取「'+(cand.Name||'')+'」，可用「複製人選資料」套用到新增表單';
   var hintEl1 = document.getElementById('newCandSelectedHint');
   if (hintEl1) hintEl1.textContent = hintText;
-  var hintEl2 = document.getElementById('kbNewCandSelectedHint');
-  if (hintEl2) hintEl2.textContent = hintText;
   if (currentTab === 'maintain') renderCandQuery();
 }
 
@@ -2752,98 +2749,6 @@ async function submitNewCandidateForm() {
   }
 }
 
-// Candidate Overview 畫面的「＋ 新增人選資料」：重用共用的 addRowModal，直接寫入 Candidate Records
-function openKbNewCandidateModal() {
-  var headers = filterCandHeadersForRole(maintainHeaders['Candidate Records'] || ['invite_date','單位','Job Function','104_Position','Name','性別','年齡','最高學歷','學校','科系','履歷代碼','Source','Inviter','Phone Interview_date','Interview_date','Result','Result Update_date','Onboard date','負責HR','Memo']);
-  var dropdowns = MAINTAIN_DROPDOWNS['Candidate Records'] || {};
-  var requiredFields = ['Name','Result','invite_date'];
-  var todayStr = getTodayDateStr();
-
-  document.getElementById('addRowModalSub').textContent = '新增全新人選至 Candidate Records';
-  document.getElementById('addRowModalFields').innerHTML = headers.map(function(h){
-    var isRequired = requiredFields.indexOf(h) >= 0;
-    var label = h + (isRequired ? ' <span style="color:#EF4444;">*</span>' : '');
-    var isInviteDate = (h === 'invite_date' || h === 'invite date');
-    var isMemo = h.indexOf('Memo') >= 0;
-    var isHRComment = /^hr\s*comment$/i.test(h.trim());
-    var isPosition = h === '104_Position';
-    var isNameOrResume = (h === 'Name' || h.indexOf('履歷代碼') >= 0);
-    var spanStyle = (isMemo || isHRComment) ? 'grid-column:1/-1;' : (isPosition ? 'grid-column:span 2;' : '');
-    var dupAttr = isNameOrResume ? ' oninput="checkNewCandDuplicate()"' : '';
-    // 負責HR：自動帶入這台瀏覽器最近一次填寫過的名字，同一位 HR 不用每次重打
-    var prefillVal = isInviteDate ? todayStr : (h === '負責HR' ? getLastUsedHR() : '');
-    // Inviter 有填寫時，依 Manager Information 工作表的姓名比對自動帶入 單位
-    var inviterAttr = (h === 'Inviter') ? ' oninput="handleInviterInputChange(this)" onchange="handleInviterInputChange(this)"' : '';
-    // 104_Position 有填寫時，自動擷取【】內文字帶入 Job Function
-    var positionAttr = isPosition ? ' oninput="handlePositionInputChange(this)" onchange="handlePositionInputChange(this)"' : '';
-    var extraAttr = inviterAttr + positionAttr + dupAttr;
-
-    var fieldHtml;
-    if (dropdowns[h]) {
-      var options = dropdowns[h]();
-      var inputHtml = (MULTI_SELECT_FIELDS.indexOf(h) >= 0)
-        ? buildFormInviterMultiSelectInput('kb-new-cand-input', h, options, prefillVal)
-        : (STRICT_SELECT_FIELDS.indexOf(h) >= 0)
-        ? buildFormSelectInput('kb-new-cand-input', h, options, prefillVal)
-        : buildFormDatalistInput('kb-new-cand-input', h, options, prefillVal, extraAttr);
-      fieldHtml = '<div style="'+spanStyle+'"><div class="modal-label" style="margin-bottom:4px;">'+label+'</div>'+inputHtml+'</div>';
-    } else {
-      var valAttr = prefillVal ? ' value="'+prefillVal+'"' : '';
-      fieldHtml = '<div style="'+spanStyle+'"><div class="modal-label" style="margin-bottom:4px;">'+label+'</div><input type="text" data-field="'+h+'" class="kb-new-cand-input"'+extraAttr+' style="width:100%;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;box-sizing:border-box;"'+valAttr+'></div>';
-    }
-    // Memo 欄位下方加一條分隔線，把表單分成前後兩區
-    if (isMemo) fieldHtml += '<div style="grid-column:1/-1;border-top:1px solid var(--border);margin:6px 0 2px;"></div>';
-    return fieldHtml;
-  }).join('');
-
-  document.querySelector('#addRowModal .modal').classList.add('modal-wide');
-  document.getElementById('addRowModalFields').classList.add('cand-new-fields-grid');
-  document.getElementById('kbNewCandDupWarning').style.display = 'none';
-  document.getElementById('kbNewCandCopyRow').style.display = 'flex';
-  document.getElementById('kbNewCandSelectedHint').textContent = selectedCandForCopy ? ('已選取「'+(selectedCandForCopy.Name||'')+'」，可用「複製人選資料」套用到此表單') : '';
-  document.getElementById('addRowModal').style.display = 'flex';
-  window._kbNewCandidateMode = true;
-}
-
-function clearKbNewCandidateForm() {
-  selectedCandForCopy = null;
-  openKbNewCandidateModal();
-}
-
-async function submitKbNewCandidate() {
-  var headers = maintainHeaders['Candidate Records'] || [];
-  var requiredFields = ['Name','Result','invite_date'];
-  var values = {};
-  var missing = [];
-  document.querySelectorAll('#addRowModalFields .kb-new-cand-input').forEach(function(inp){
-    var field = inp.getAttribute('data-field');
-    var val = inp.value.trim();
-    if (val && (MAINTAIN_DATE_FIELDS.indexOf(field) >= 0 || MAINTAIN_DATEONLY_FIELDS.indexOf(field) >= 0)) {
-      val = normalizeDateForSave(field, val);
-    }
-    values[field] = val;
-    if (requiredFields.indexOf(field) >= 0 && !val) missing.push(field);
-  });
-  if (missing.length) { showToast('請填寫必填欄位：'+missing.join('、')); return; }
-
-  saveLastUsedHR(values['負責HR']);
-  var orderedValues = headers.map(function(h){ return values[h] || ''; });
-  window._kbNewCandidateMode = false;
-  closeAddRowModal();
-  showToast('新增中...');
-  try {
-    var url = APPS_SCRIPT_URL + '?action=addRow&sheet=' + encodeURIComponent('Candidate Records') +
-      '&values=' + encodeURIComponent(JSON.stringify(orderedValues));
-    await fetch(url, {mode:'no-cors'});
-    await fetchData();
-    selectedCandForCopy = null;
-    if (currentTab === 'kanban') renderKanban();
-    showToast('✓ 已新增人選資料');
-  } catch(e) {
-    showToast('❌ 新增失敗：'+e.message);
-  }
-}
-
 function addMaintainRow() {
   var records = getMaintainRecords(maintainSheet);
   var headers = maintainHeaders[maintainSheet] || (records.length ? Object.keys(records[0]).filter(function(k){return k!=='_row';}) : []);
@@ -2865,8 +2770,6 @@ function addMaintainRow() {
 
   document.querySelector('#addRowModal .modal').classList.remove('modal-wide');
   document.getElementById('addRowModalFields').classList.remove('cand-new-fields-grid');
-  document.getElementById('kbNewCandDupWarning').style.display = 'none';
-  document.getElementById('kbNewCandCopyRow').style.display = 'none';
   document.getElementById('addRowModal').style.display = 'flex';
 }
 
@@ -2894,8 +2797,6 @@ function openHcNewRowModal(divisionName) {
 
   document.querySelector('#addRowModal .modal').classList.add('modal-wide');
   document.getElementById('addRowModalFields').classList.remove('cand-new-fields-grid');
-  document.getElementById('kbNewCandDupWarning').style.display = 'none';
-  document.getElementById('kbNewCandCopyRow').style.display = 'none';
   document.getElementById('addRowModal').style.display = 'flex';
   window._hcNewRowMode = true;
 }
@@ -2936,13 +2837,11 @@ async function submitHcNewRow() {
 function closeAddRowModal() {
   document.getElementById('addRowModal').style.display = 'none';
   document.querySelector('#addRowModal .modal').classList.remove('modal-wide');
-  window._kbNewCandidateMode = false;
   window._hcNewRowMode = false;
 }
 
 function handleAddRowModalSubmit() {
-  if (window._kbNewCandidateMode) submitKbNewCandidate();
-  else if (window._hcNewRowMode) submitHcNewRow();
+  if (window._hcNewRowMode) submitHcNewRow();
   else submitAddRow();
 }
 
