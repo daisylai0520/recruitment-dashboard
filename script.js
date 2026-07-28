@@ -202,7 +202,7 @@ function initDateFilterSlots() {
     {value:'invite_date', label:'invite_date'},
     {value:'Phone Interview_date', label:'Phone Interview_date'},
     {value:'Interview_date', label:'Interview_date'},
-    {value:'Update_date', label:'Update_date'}
+    {value:'Result Update_date', label:'Result Update_date'}
   ];
   var csFields = [
     {value:'invite_date', label:'invite_date'},
@@ -2699,9 +2699,9 @@ function applyCopyToNewCandidateForm() {
     var f = inp.getAttribute('data-field');
     var isInviteDate = (f === 'invite_date' || f === 'invite date');
     var isPosition = f.indexOf('104') >= 0;
-    if (isInviteDate) { inp.value = todayStr; return; }
-    if (isPosition || COPY_CLEAR_FIELDS.indexOf(f) >= 0) { inp.value = ''; return; }
-    inp.value = selectedCandForCopy[f] || '';
+    if (isInviteDate) { applyFieldDisplayValue(inp, todayStr); return; }
+    if (isPosition || COPY_CLEAR_FIELDS.indexOf(f) >= 0) { applyFieldDisplayValue(inp, ''); return; }
+    applyFieldDisplayValue(inp, selectedCandForCopy[f] || '');
     if (inp.tagName === 'TEXTAREA') autoGrowTextarea(inp);
   });
   showToast('✓ 已複製「'+(selectedCandForCopy.Name||'')+'」的資料，可修改後再新增');
