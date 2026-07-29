@@ -205,6 +205,11 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
 .date-field-wrap input{padding-right:28px !important;}
 .date-field-cal-btn{position:absolute;right:3px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:13px;padding:2px 4px;line-height:1;color:var(--text-tertiary);}
 .date-field-cal-btn:hover{color:var(--accent);}
+.select-clear-wrap{position:relative;}
+.select-clear-wrap select{padding-right:26px !important;}
+.select-clear-btn{position:absolute;right:5px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:12px;padding:2px 4px;line-height:1;color:var(--text-tertiary);}
+.select-clear-btn:hover{color:var(--accent);}
+.invms-clear-row{margin-top:6px;padding-top:6px;border-top:1px solid var(--border);}
 .minidp-popup{position:absolute;background:var(--surface);border:1.5px solid var(--border);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.15);padding:10px;width:224px;font-size:12px;z-index:500;}
 .minidp-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;font-weight:600;font-size:12px;}
 .minidp-header button{background:none;border:none;cursor:pointer;font-size:14px;padding:2px 8px;color:var(--text-secondary);}

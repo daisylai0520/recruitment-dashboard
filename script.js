@@ -119,7 +119,11 @@ function quickDateFilter(pageKey, range) {
   if (!fieldEl || !startEl || !endEl) return;
   var today = new Date(); today.setHours(0,0,0,0);
   var start, end;
-  if (range === 'thisMonth') {
+  if (range === 'thisWeek') {
+    var dow = (today.getDay() + 6) % 7; // 週一為一週的第一天
+    start = new Date(today.getFullYear(), today.getMonth(), today.getDate() - dow);
+    end = new Date(today.getFullYear(), today.getMonth(), today.getDate() - dow + 6);
+  } else if (range === 'thisMonth') {
     start = new Date(today.getFullYear(), today.getMonth(), 1);
     end = new Date(today.getFullYear(), today.getMonth()+1, 0);
   } else if (range === 'past1m') {
@@ -144,7 +148,7 @@ function quickDateFilter(pageKey, range) {
 function updateDateQuickBtnActive(pageKey) {
   var state = dateFilterState[pageKey];
   var activeRange = state && state.quickRange;
-  ['thisMonth','past1m'].forEach(function(r){
+  ['thisWeek','thisMonth','past1m'].forEach(function(r){
     var btn = document.getElementById('dfq-'+pageKey+'-'+r);
     if (btn) btn.classList.toggle('active', activeRange === r);
   });
@@ -209,12 +213,13 @@ function initDateFilterSlots() {
     {value:'Interview_date', label:'Interview_date'}
   ];
   var quickRanges = [{label:'本月',range:'thisMonth'},{label:'過去一個月',range:'past1m'}];
+  var maintainQuickRanges = [{label:'本週',range:'thisWeek'},{label:'本月',range:'thisMonth'},{label:'過去一個月',range:'past1m'}];
   var slots = {
     // Candidate Overview 主看板：畫面一打開就自動帶出本月資料
     'kbDateFilterSlot': {key:'kanban', fields:candFields, quickRanges:quickRanges, defaultQuickRange:'thisMonth'},
     'ovDateFilterSlot': {key:'overview', fields:candFields},
     'csDateFilterSlot': {key:'candidateSearch', fields:csFields},
-    'candDateFilterSlot': {key:'candidateMaintenance', fields:candFields, quickRanges:quickRanges},
+    'candDateFilterSlot': {key:'candidateMaintenance', fields:candFields, quickRanges:maintainQuickRanges},
     'trDateFilterSlot': {key:'trends', fields:candFields},
     'expDateFilterSlot': {key:'export', fields:candFields},
     'hcDateFilterSlot': {key:'hc', fields:[{value:'Update_date',label:'Update_date（缺額更新時間，依異動記錄推算暫不支援）'}], disabled:true}
@@ -910,7 +915,6 @@ function openMiniDatePicker(inputEl) {
     '<div id="minidpTimeSlot"></div>'+
     '<div class="minidp-footer">'+
       '<button type="button" onmousedown="event.preventDefault()" onclick="selectMiniDatePickerToday()">今天</button>'+
-      (needsTime ? '<button type="button" onmousedown="event.preventDefault()" onclick="closeMiniDatePicker()">完成</button>' : '')+
       '<button type="button" onmousedown="event.preventDefault()" onclick="clearMiniDatePickerDate()">清除日期</button>'+
     '</div>';
   document.body.appendChild(pop);
@@ -1021,6 +1025,7 @@ function updateMiniDatePickerTime() {
   if (hEl) _minidpState.hour = parseInt(hEl.value);
   if (mEl) _minidpState.minute = parseInt(mEl.value);
   applyMiniDatePickerValue();
+  closeMiniDatePicker();
 }
 
 function selectMiniDatePickerToday() {
@@ -1049,8 +1054,19 @@ function buildDropdownSelectInput(sheetName, rec, field, col, idx, options, inpu
     var sel = (String(o) === String(rawVal)) ? ' selected' : '';
     return '<option value="'+String(o).replace(/"/g,'&quot;')+'"'+sel+'>'+String(o).replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</option>';
   }).join('');
-  return '<select data-sheet="'+sheetName+'" data-row="'+rec._row+'" data-col="'+col+'" data-field="'+field+'" data-idx="'+idx+'" data-raw="'+rawSafe+'" '+
+  var selectHtml = '<select data-sheet="'+sheetName+'" data-row="'+rec._row+'" data-col="'+col+'" data-field="'+field+'" data-idx="'+idx+'" data-raw="'+rawSafe+'" '+
     'onchange="commitMaintainSelect(this)" style="'+inputStyle+'">'+optHtml+'</select>';
+  if (!rawVal) return selectHtml;
+  return '<div class="select-clear-wrap">'+selectHtml+
+    '<button type="button" class="select-clear-btn" title="清除" onclick="clearDropdownSelectValue(this)">✕</button>'+
+  '</div>';
+}
+
+function clearDropdownSelectValue(btn) {
+  var sel = btn.previousElementSibling;
+  if (!sel || sel.tagName !== 'SELECT') return;
+  sel.value = '';
+  commitMaintainSelect(sel);
 }
 
 // 這些欄位改成勾選式多選（同一格用「、」分隔存回試算表）：
@@ -1080,9 +1096,21 @@ function buildInviterMultiSelectInput(sheetName, rec, field, col, idx, options, 
         '<input type="text" id="'+uid+'-newname" placeholder="新增其他選項..." onkeydown="if(event.key===\'Enter\'){event.preventDefault();addInviterMsName(\''+uid+'\')}">'+
         '<button type="button" onclick="addInviterMsName(\''+uid+'\')">新增</button>'+
       '</div>'+
+      '<div class="invms-clear-row"><span class="date-filter-clear" onclick="clearInviterMsSelection(\''+uid+'\')">清除已勾選</span></div>'+
     '</div>'+
     '<input type="hidden" class="invms-value" data-sheet="'+sheetName+'" data-row="'+rec._row+'" data-col="'+col+'" data-field="'+field+'" data-idx="'+idx+'" data-raw="'+rawSafe+'" value="'+rawSafe+'">'+
   '</div>';
+}
+
+function clearInviterMsSelection(uid) {
+  var container = document.getElementById(uid);
+  if (!container) return;
+  container.querySelectorAll('input[type=checkbox]').forEach(function(cb){ cb.checked = false; });
+  var hidden = container.querySelector('.invms-value');
+  hidden.value = '';
+  var summaryEl = container.querySelector('.invms-summary');
+  if (summaryEl) summaryEl.textContent = '未選擇';
+  commitMaintainInputList(hidden);
 }
 
 function toggleInviterMsOption(uid, checkboxEl) {
@@ -2573,7 +2601,11 @@ function buildFormSelectInput(className, field, options, prefillVal) {
     var sel = (String(o) === String(prefillVal)) ? ' selected' : '';
     return '<option value="'+String(o).replace(/"/g,'&quot;')+'"'+sel+'>'+String(o).replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</option>';
   }).join('');
-  return '<select class="'+className+'" data-field="'+field+'" style="width:100%;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;box-sizing:border-box;background:var(--surface);">'+optHtml+'</select>';
+  var selectHtml = '<select class="'+className+'" data-field="'+field+'" style="width:100%;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;box-sizing:border-box;background:var(--surface);">'+optHtml+'</select>';
+  if (!prefillVal) return selectHtml;
+  return '<div class="select-clear-wrap">'+selectHtml+
+    '<button type="button" class="select-clear-btn" title="清除" onclick="this.previousElementSibling.value=\'\'">✕</button>'+
+  '</div>';
 }
 
 // 共用元件：給「填寫中、尚未存檔」的新增人選表單用的 Inviter 多選勾選框（同一格用「、」分隔，送出時才收集）
@@ -2598,9 +2630,19 @@ function buildFormInviterMultiSelectInput(className, field, options, prefillVal)
         '<input type="text" id="'+uid+'-newname" placeholder="新增其他選項..." onkeydown="if(event.key===\'Enter\'){event.preventDefault();addFormInviterMsName(\''+uid+'\')}">'+
         '<button type="button" onclick="addFormInviterMsName(\''+uid+'\')">新增</button>'+
       '</div>'+
+      '<div class="invms-clear-row"><span class="date-filter-clear" onclick="clearFormInviterMsSelection(\''+uid+'\')">清除已勾選</span></div>'+
     '</div>'+
     '<input type="hidden" class="'+className+'" data-field="'+field+'" value="'+String(prefillVal||'').replace(/"/g,'&quot;')+'">'+
   '</div>';
+}
+function clearFormInviterMsSelection(uid) {
+  var container = document.getElementById(uid);
+  if (!container) return;
+  container.querySelectorAll('input[type=checkbox]').forEach(function(cb){ cb.checked = false; });
+  var hidden = container.querySelector('input[type=hidden]');
+  hidden.value = '';
+  var summaryEl = container.querySelector('.invms-summary');
+  if (summaryEl) summaryEl.textContent = '未選擇';
 }
 // 只有 Inviter／104_Position 這兩個欄位改動時才需要觸發「自動帶入單位／Job Function」，
 // 其他欄位（單位、Job Function、負責HR、面試主管）改成多選勾選後，不應該誤觸這兩個自動帶入邏輯。
