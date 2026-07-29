@@ -634,12 +634,16 @@ function renderKanban() {
 // 搜尋 + 目前狀態篩選 + 時間篩選（僅 invite_date／Interview_date）＋ 電訪/面試/錄取階段 Kanban
 function renderCandidateSearch() {
   var search=(document.getElementById('csSearch')?document.getElementById('csSearch').value:'').toLowerCase();
+  var searchTerms = splitSearchTerms(search);
 
   renderMultiFilterDropdown('csResultBar', 'cs-result', getResultOptions(), '目前狀態');
 
   var filtered=allData.filter(function(d){
     if(!multiFilterPass('cs-result', d.Result)) return false;
-    if(search&&!String(d.Name||'').toLowerCase().includes(search)) return false;
+    if(searchTerms.length){
+      var resumeKey = findResumeCodeKey(d);
+      if(!matchesAnySearchTerm(d.Name, searchTerms) && !matchesAnySearchTerm(d[resumeKey], searchTerms)) return false;
+    }
     if(!dateFilterPass('candidateSearch', d)) return false;
     return true;
   });
@@ -769,6 +773,7 @@ async function changeStage(newStage) {
 // ---- OVERVIEW ----
 function renderOverview() {
   var search=(document.getElementById('ovSearch')?document.getElementById('ovSearch').value:'').toLowerCase();
+  var searchTerms = splitSearchTerms(search);
 
   var ovBuOptions = [...new Set(allData.map(function(d){return String(d['單位']||'').trim();}))].filter(Boolean).sort();
   renderMultiFilterBar('ovBuBar', 'ov-bu', ovBuOptions);
@@ -778,7 +783,7 @@ function renderOverview() {
   var filtered=allData.filter(function(d){
     return multiFilterPass('ov-bu', d['單位']) &&
            multiFilterPass('ov-job', d['Job Function']) &&
-           (!search||String(d.Name||'').toLowerCase().includes(search)) &&
+           (!searchTerms.length||matchesAnySearchTerm(d.Name, searchTerms)) &&
            dateFilterPass('overview', d);
   });
   var activeStages=['排電訪','待電訪','排面試','待面試'];
