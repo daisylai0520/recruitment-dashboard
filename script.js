@@ -868,17 +868,25 @@ function splitDateFieldValue(val) {
   return null;
 }
 
-var _minidpState = null; // {input, year, month, selectedDay, rest}
+var _minidpState = null; // {input, year, month, selectedDay, rest, needsTime, hour, minute}
 
 function openMiniDatePicker(inputEl) {
   if (!inputEl) return;
   closeMiniDatePicker();
+  var field = inputEl.getAttribute('data-field');
+  var needsTime = (field === 'Phone Interview_date' || field === 'Interview_date');
   var parsed = splitDateFieldValue(inputEl.value);
+  var hour = 9, minute = 0;
+  if (parsed && needsTime) {
+    var tm = String(parsed.rest||'').match(/(\d{1,2}):(\d{2})/);
+    if (tm) { hour = parseInt(tm[1]); minute = parseInt(tm[2]); }
+  }
   if (!parsed) {
     var t = new Date();
     parsed = { y: t.getFullYear(), m: t.getMonth()+1, d: t.getDate(), rest: '' };
+    if (needsTime) { hour = t.getHours(); minute = Math.floor(t.getMinutes()/5)*5; }
   }
-  _minidpState = { input: inputEl, year: parsed.y, month: parsed.m, selectedDay: parsed.d, rest: parsed.rest };
+  _minidpState = { input: inputEl, year: parsed.y, month: parsed.m, selectedDay: parsed.d, rest: parsed.rest, needsTime: needsTime, hour: hour, minute: minute };
   var pop = document.createElement('div');
   pop.id = 'minidpPopup';
   pop.className = 'minidp-popup';
@@ -893,8 +901,13 @@ function openMiniDatePicker(inputEl) {
 function minidpOutsideClickHandler(e) {
   var pop = document.getElementById('minidpPopup');
   if (!pop) return;
-  if (_minidpState && e.target === _minidpState.input) return;
-  if (pop.contains(e.target)) return;
+  // 用 composedPath()（事件「原始」傳遞路徑）判斷，而不是直接用 e.target：
+  // 切換月份／改時間時，面板整個 innerHTML 會重繪，剛剛點擊的按鈕會被移除、換成新的節點，
+  // 這時候如果用 e.target.closest()／pop.contains(e.target) 去查，會因為節點已經被移除、
+  // 找不到父層而誤判成「點在面板外面」，導致面板剛重繪完就被關掉，變成完全無法切換月份。
+  var path = typeof e.composedPath === 'function' ? e.composedPath() : [];
+  if (_minidpState && path.indexOf(_minidpState.input) >= 0) return;
+  if (path.indexOf(pop) >= 0) return;
   closeMiniDatePicker();
 }
 
@@ -936,22 +949,59 @@ function renderMiniDatePickerBody() {
     html += '<button type="button" class="minidp-day'+(isToday?' is-today':'')+(isSelected?' is-selected':'')+'" '+
       'onmousedown="event.preventDefault()" onclick="selectMiniDatePickerDate('+y+','+m+','+d+')">'+d+'</button>';
   }
-  html += '</div>'+
-  '<div class="minidp-footer">'+
+  html += '</div>';
+  if (_minidpState.needsTime) {
+    var hourOpts = '';
+    for (var h=0; h<24; h++) hourOpts += '<option value="'+h+'"'+(h===_minidpState.hour?' selected':'')+'>'+String(h).padStart(2,'0')+'</option>';
+    var minuteOpts = '';
+    for (var mi=0; mi<60; mi+=5) minuteOpts += '<option value="'+mi+'"'+(mi===_minidpState.minute?' selected':'')+'>'+String(mi).padStart(2,'0')+'</option>';
+    html += '<div class="minidp-time-row">'+
+      '<span class="minidp-time-label">時間</span>'+
+      '<select id="minidpHour" onchange="updateMiniDatePickerTime()">'+hourOpts+'</select>'+
+      '<span>:</span>'+
+      '<select id="minidpMinute" onchange="updateMiniDatePickerTime()">'+minuteOpts+'</select>'+
+    '</div>';
+  }
+  html += '<div class="minidp-footer">'+
     '<button type="button" onmousedown="event.preventDefault()" onclick="selectMiniDatePickerToday()">今天</button>'+
+    (_minidpState.needsTime ? '<button type="button" onmousedown="event.preventDefault()" onclick="closeMiniDatePicker()">完成</button>' : '')+
     '<button type="button" onmousedown="event.preventDefault()" onclick="clearMiniDatePickerDate()">清除日期</button>'+
   '</div>';
   pop.innerHTML = html;
 }
 
-function selectMiniDatePickerDate(y, m, d) {
+// 組合目前選到的年/月/日（＋時間欄位的話再加上時:分）寫回輸入框並存檔
+function applyMiniDatePickerValue() {
   if (!_minidpState) return;
   var input = _minidpState.input;
-  var rest = _minidpState.rest;
-  var dateStr = y+'/'+String(m).padStart(2,'0')+'/'+String(d).padStart(2,'0');
-  input.value = rest ? (dateStr+' '+rest) : dateStr;
-  closeMiniDatePicker();
+  var dateStr = _minidpState.year+'/'+String(_minidpState.month).padStart(2,'0')+'/'+String(_minidpState.selectedDay).padStart(2,'0');
+  var valueStr = _minidpState.needsTime
+    ? dateStr+' '+String(_minidpState.hour).padStart(2,'0')+':'+String(_minidpState.minute).padStart(2,'0')
+    : (_minidpState.rest ? dateStr+' '+_minidpState.rest : dateStr);
+  input.value = valueStr;
   commitMaintainCellTA(input);
+}
+
+function selectMiniDatePickerDate(y, m, d) {
+  if (!_minidpState) return;
+  _minidpState.year = y; _minidpState.month = m; _minidpState.selectedDay = d;
+  applyMiniDatePickerValue();
+  if (_minidpState.needsTime) {
+    // Phone Interview_date／Interview_date：選完日期先別關面板，讓使用者接著選時間
+    renderMiniDatePickerBody();
+  } else {
+    closeMiniDatePicker();
+  }
+}
+
+// Phone Interview_date／Interview_date 專用：調整時間下拉選單後即時存檔（面板保持開啟）
+function updateMiniDatePickerTime() {
+  if (!_minidpState) return;
+  var hEl = document.getElementById('minidpHour');
+  var mEl = document.getElementById('minidpMinute');
+  if (hEl) _minidpState.hour = parseInt(hEl.value);
+  if (mEl) _minidpState.minute = parseInt(mEl.value);
+  applyMiniDatePickerValue();
 }
 
 function selectMiniDatePickerToday() {
