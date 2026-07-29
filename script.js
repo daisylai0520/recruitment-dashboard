@@ -887,9 +887,27 @@ function openMiniDatePicker(inputEl) {
     if (needsTime) { hour = t.getHours(); minute = Math.floor(t.getMinutes()/5)*5; }
   }
   _minidpState = { input: inputEl, year: parsed.y, month: parsed.m, selectedDay: parsed.d, rest: parsed.rest, needsTime: needsTime, hour: hour, minute: minute };
+
+  // 外殼（上/下月按鈕、月份文字、星期標題列、日期格子容器、時間選單容器、底部按鈕）只在這裡建立一次；
+  // 之後切換月份／選日期／改時間都只改裡面的內容（textContent／innerHTML 局部更新），
+  // 「‹」「›」這些按鈕本身絕對不會被整個換掉、跟頁面斷開，才不會被「點在面板外」的判斷誤判掉。
+  var weekLabels = ['日','一','二','三','四','五','六'];
   var pop = document.createElement('div');
   pop.id = 'minidpPopup';
   pop.className = 'minidp-popup';
+  pop.innerHTML = '<div class="minidp-header">'+
+      '<button type="button" onmousedown="event.preventDefault()" onclick="changeMiniDatePickerMonth(-1)">‹</button>'+
+      '<span id="minidpMonthLabel"></span>'+
+      '<button type="button" onmousedown="event.preventDefault()" onclick="changeMiniDatePickerMonth(1)">›</button>'+
+    '</div>'+
+    '<div class="minidp-weekdays">'+weekLabels.map(function(w){return '<span>'+w+'</span>';}).join('')+'</div>'+
+    '<div class="minidp-days" id="minidpDaysGrid"></div>'+
+    '<div id="minidpTimeSlot"></div>'+
+    '<div class="minidp-footer">'+
+      '<button type="button" onmousedown="event.preventDefault()" onclick="selectMiniDatePickerToday()">今天</button>'+
+      (needsTime ? '<button type="button" onmousedown="event.preventDefault()" onclick="closeMiniDatePicker()">完成</button>' : '')+
+      '<button type="button" onmousedown="event.preventDefault()" onclick="clearMiniDatePickerDate()">清除日期</button>'+
+    '</div>';
   document.body.appendChild(pop);
   renderMiniDatePickerBody();
   var rect = inputEl.getBoundingClientRect();
@@ -901,10 +919,9 @@ function openMiniDatePicker(inputEl) {
 function minidpOutsideClickHandler(e) {
   var pop = document.getElementById('minidpPopup');
   if (!pop) return;
-  // 用 composedPath()（事件「原始」傳遞路徑）判斷，而不是直接用 e.target：
-  // 切換月份／改時間時，面板整個 innerHTML 會重繪，剛剛點擊的按鈕會被移除、換成新的節點，
-  // 這時候如果用 e.target.closest()／pop.contains(e.target) 去查，會因為節點已經被移除、
-  // 找不到父層而誤判成「點在面板外面」，導致面板剛重繪完就被關掉，變成完全無法切換月份。
+  // 用 composedPath()（事件「原始」傳遞路徑）判斷，而不是直接用 e.target／pop.contains()：
+  // 選日期／改時間時，日期格子跟時間選單那幾塊內容會重繪，剛剛點的元素可能因此跟頁面斷開，
+  // 這時如果用「即時查詢父層」的方式判斷會誤判成「點在面板外」，導致面板被提早關掉。
   var path = typeof e.composedPath === 'function' ? e.composedPath() : [];
   if (_minidpState && path.indexOf(_minidpState.input) >= 0) return;
   if (path.indexOf(pop) >= 0) return;
@@ -933,41 +950,38 @@ function renderMiniDatePickerBody() {
   var startWeekday = new Date(y, m-1, 1).getDay();
   var daysInMonth = new Date(y, m, 0).getDate();
   var today = new Date(); today.setHours(0,0,0,0);
-  var weekLabels = ['日','一','二','三','四','五','六'];
 
-  var html = '<div class="minidp-header">'+
-    '<button type="button" onmousedown="event.preventDefault()" onclick="changeMiniDatePickerMonth(-1)">‹</button>'+
-    '<span>'+y+' 年 '+m+' 月</span>'+
-    '<button type="button" onmousedown="event.preventDefault()" onclick="changeMiniDatePickerMonth(1)">›</button>'+
-  '</div>'+
-  '<div class="minidp-weekdays">'+weekLabels.map(function(w){return '<span>'+w+'</span>';}).join('')+'</div>'+
-  '<div class="minidp-days">';
-  for (var i=0;i<startWeekday;i++) html += '<span></span>';
+  var monthLabel = document.getElementById('minidpMonthLabel');
+  if (monthLabel) monthLabel.textContent = y+' 年 '+m+' 月';
+
+  var daysHtml = '';
+  for (var i=0;i<startWeekday;i++) daysHtml += '<span></span>';
   for (var d=1; d<=daysInMonth; d++) {
     var isToday = (y===today.getFullYear() && m===today.getMonth()+1 && d===today.getDate());
     var isSelected = (_minidpState.selectedDay===d);
-    html += '<button type="button" class="minidp-day'+(isToday?' is-today':'')+(isSelected?' is-selected':'')+'" '+
+    daysHtml += '<button type="button" class="minidp-day'+(isToday?' is-today':'')+(isSelected?' is-selected':'')+'" '+
       'onmousedown="event.preventDefault()" onclick="selectMiniDatePickerDate('+y+','+m+','+d+')">'+d+'</button>';
   }
-  html += '</div>';
-  if (_minidpState.needsTime) {
-    var hourOpts = '';
-    for (var h=0; h<24; h++) hourOpts += '<option value="'+h+'"'+(h===_minidpState.hour?' selected':'')+'>'+String(h).padStart(2,'0')+'</option>';
-    var minuteOpts = '';
-    for (var mi=0; mi<60; mi+=5) minuteOpts += '<option value="'+mi+'"'+(mi===_minidpState.minute?' selected':'')+'>'+String(mi).padStart(2,'0')+'</option>';
-    html += '<div class="minidp-time-row">'+
-      '<span class="minidp-time-label">時間</span>'+
-      '<select id="minidpHour" onchange="updateMiniDatePickerTime()">'+hourOpts+'</select>'+
-      '<span>:</span>'+
-      '<select id="minidpMinute" onchange="updateMiniDatePickerTime()">'+minuteOpts+'</select>'+
-    '</div>';
+  var daysGrid = document.getElementById('minidpDaysGrid');
+  if (daysGrid) daysGrid.innerHTML = daysHtml;
+
+  var timeSlot = document.getElementById('minidpTimeSlot');
+  if (timeSlot) {
+    if (_minidpState.needsTime) {
+      var hourOpts = '';
+      for (var h=0; h<24; h++) hourOpts += '<option value="'+h+'"'+(h===_minidpState.hour?' selected':'')+'>'+String(h).padStart(2,'0')+'</option>';
+      var minuteOpts = '';
+      for (var mi=0; mi<60; mi+=5) minuteOpts += '<option value="'+mi+'"'+(mi===_minidpState.minute?' selected':'')+'>'+String(mi).padStart(2,'0')+'</option>';
+      timeSlot.innerHTML = '<div class="minidp-time-row">'+
+        '<span class="minidp-time-label">時間</span>'+
+        '<select id="minidpHour" onchange="updateMiniDatePickerTime()">'+hourOpts+'</select>'+
+        '<span>:</span>'+
+        '<select id="minidpMinute" onchange="updateMiniDatePickerTime()">'+minuteOpts+'</select>'+
+      '</div>';
+    } else {
+      timeSlot.innerHTML = '';
+    }
   }
-  html += '<div class="minidp-footer">'+
-    '<button type="button" onmousedown="event.preventDefault()" onclick="selectMiniDatePickerToday()">今天</button>'+
-    (_minidpState.needsTime ? '<button type="button" onmousedown="event.preventDefault()" onclick="closeMiniDatePicker()">完成</button>' : '')+
-    '<button type="button" onmousedown="event.preventDefault()" onclick="clearMiniDatePickerDate()">清除日期</button>'+
-  '</div>';
-  pop.innerHTML = html;
 }
 
 // 組合目前選到的年/月/日（＋時間欄位的話再加上時:分）寫回輸入框並存檔
@@ -2138,9 +2152,19 @@ function isMaintainCellFocused(sheetName) {
   return sheetName ? ae.getAttribute('data-sheet') === sheetName : true;
 }
 
+// 支援一次打多個名字或履歷代碼查詢（用空白、逗號、頓號分隔），只要符合其中一個就算通過，方便一次查好幾位人選
+function splitSearchTerms(search) {
+  return String(search||'').split(/[\s,，、]+/).map(function(s){return s.trim().toLowerCase();}).filter(Boolean);
+}
+function matchesAnySearchTerm(text, terms) {
+  var t = String(text||'').toLowerCase();
+  return terms.some(function(term){ return t.includes(term); });
+}
+
 function renderCandQuery() {
   if (isMaintainCellFocused('Candidate Records')) return;
   var search = (document.getElementById('candQuerySearch').value || '').trim().toLowerCase();
+  var searchTerms = splitSearchTerms(search);
   var container = document.getElementById('candQueryResults');
   var hasDateFilter = dateFilterState.candidateMaintenance &&
     (dateFilterState.candidateMaintenance.start || dateFilterState.candidateMaintenance.end);
@@ -2149,18 +2173,18 @@ function renderCandQuery() {
   renderMultiFilterBar('candBuBar', 'cand-bu', candBuOptions);
   var candJobOptions = [...new Set(allData.map(function(d){return String(d['Job Function']||'').trim();}))].filter(Boolean).sort();
   renderMultiFilterBar('candJobBar', 'cand-job', candJobOptions);
-  renderMultiFilterDropdown('candResultBar', 'cand-result', getResultOptions(), '目前狀態');
+  renderMultiFilterDropdown('candResultBar', 'cand-result', getActualResultOptions(), '目前狀態');
   var candInviterOptions = [...new Set(allData.flatMap(function(d){return String(d.Inviter||'').split('、').map(function(s){return s.trim();});}))].filter(Boolean).sort();
   renderMultiFilterDropdown('candInviterBar', 'cand-inviter', candInviterOptions, 'Inviter');
 
-  if (!search && !isMultiFilterNarrowed('cand-bu') && !isMultiFilterNarrowed('cand-job') && !isMultiFilterNarrowed('cand-result') && !isMultiFilterNarrowed('cand-inviter') && !hasDateFilter) {
+  if (!searchTerms.length && !isMultiFilterNarrowed('cand-bu') && !isMultiFilterNarrowed('cand-job') && !isMultiFilterNarrowed('cand-result') && !isMultiFilterNarrowed('cand-inviter') && !hasDateFilter) {
     container.innerHTML = '<div class="empty" style="padding:30px 0;text-align:center;">請輸入姓名或履歷代碼查詢，或使用上方篩選條件顯示人選</div>';
     return;
   }
 
   var matched = allData.filter(function(d){
     var resumeKey = findResumeCodeKey(d);
-    var textMatch = !search || String(d.Name||'').toLowerCase().includes(search) || String(d[resumeKey]||'').toLowerCase().includes(search);
+    var textMatch = !searchTerms.length || matchesAnySearchTerm(d.Name, searchTerms) || matchesAnySearchTerm(d[resumeKey], searchTerms);
     return textMatch && multiFilterPass('cand-bu', d['單位']) && multiFilterPass('cand-job', d['Job Function']) && multiFilterPass('cand-result', d.Result) && multiFilterPassMulti('cand-inviter', d.Inviter) && dateFilterPass('candidateMaintenance', d);
   });
 
@@ -3415,7 +3439,7 @@ function renderExportModalFilters() {
   renderMultiFilterBar('expJobBar', 'exp-job', jobOptions);
   var inviterOptions = [...new Set(allData.flatMap(function(d){return String(d.Inviter||'').split('、').map(function(s){return s.trim();});}))].filter(Boolean).sort();
   renderMultiFilterDropdown('expInviterBar', 'exp-inviter', inviterOptions, 'Inviter');
-  renderMultiFilterDropdown('expResultBar', 'exp-result', getResultOptions(), '目前狀態');
+  renderMultiFilterDropdown('expResultBar', 'exp-result', getActualResultOptions(), '目前狀態');
 }
 
 function getExportMatchedRecords() {
