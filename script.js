@@ -2284,9 +2284,18 @@ function renderQueryField(sheetName, rec, field, idx, fullWidth, strictDateForma
     // 點擊欄位或月曆圖示可直接跳出小月曆點選日期，選完自動存檔；欄位本身仍可手動輸入或補打時間文字。
     inputHtml = buildDateFieldInput(sheetName, rec, field, col, idx, displayVal, rawSafe);
   } else if (fullWidth) {
-    inputHtml = '<textarea data-sheet="'+sheetName+'" data-row="'+rec._row+'" data-col="'+col+'" data-field="'+field+'" data-idx="'+idx+'" data-raw="'+rawSafe+'" '+
-      'onfocus="this.dataset.original=this.value" onblur="commitMaintainTextarea(this)" oninput="autoGrowTextarea(this)" rows="2" '+
+    var isPhoneRecordField = /phone\s*interview\s*record/i.test(field);
+    var taUid = 'ta_' + (_dlIdCounter++);
+    inputHtml = '<textarea id="'+(isPhoneRecordField?taUid:'')+'" data-sheet="'+sheetName+'" data-row="'+rec._row+'" data-col="'+col+'" data-field="'+field+'" data-idx="'+idx+'" data-raw="'+rawSafe+'" '+
+      'onfocus="this.dataset.original=this.value;'+(isPhoneRecordField?'initTextHistoryOnFocus(this);':'')+'" onblur="commitMaintainTextarea(this)" oninput="autoGrowTextarea(this);'+(isPhoneRecordField?'recordTextHistory(this);':'')+'" rows="2" '+
       'style="width:100%;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;box-sizing:border-box;resize:vertical;font-family:inherit;white-space:pre-wrap;word-break:break-word;overflow:hidden;">'+(rawVal||'')+'</textarea>';
+    if (isPhoneRecordField) {
+      inputHtml += '<div class="ta-history-toolbar">'+
+        '<button type="button" onmousedown="event.preventDefault()" onclick="saveTextFieldNow(\''+taUid+'\')">💾 儲存</button>'+
+        '<button type="button" onmousedown="event.preventDefault()" onclick="undoTextField(\''+taUid+'\')">↶ 上一步</button>'+
+        '<button type="button" onmousedown="event.preventDefault()" onclick="redoTextField(\''+taUid+'\')">↷ 下一步</button>'+
+      '</div>';
+    }
   } else {
     inputHtml = '<textarea data-sheet="'+sheetName+'" data-row="'+rec._row+'" data-col="'+col+'" data-field="'+field+'" data-idx="'+idx+'" data-raw="'+rawSafe+'" '+
       'onfocus="enterMaintainEditTA(this)" onblur="commitMaintainCellTA(this)" rows="2" '+
@@ -2302,6 +2311,73 @@ async function commitMaintainTextarea(el) {
   var original = el.dataset.original || '';
   if (newVal === original) return;
   await saveMaintainField(el.getAttribute('data-sheet'), el.getAttribute('data-row'), el.getAttribute('data-col'), el.getAttribute('data-field'), parseInt(el.getAttribute('data-idx')), newVal);
+}
+
+// Phone Interview Record(HR)／(主管) 專用：獨立的「上一步／下一步」編輯歷史（跟瀏覽器原生的復原無關，
+// 是打字打到一半、想退回前一版內容用的），加上一個明確的「儲存」按鈕；欄位本身的自動存檔（離開欄位就存）維持不變。
+var _textHistoryMap = {};    // uid -> {stack:[...每次修改後的完整內容], index:目前是第幾個版本}
+var _textHistoryTimers = {}; // uid -> 記錄歷史用的防抖動計時器
+
+// 欄位一得到焦點就先把「當下內容」存成歷史的第一筆，之後才有「上一步」可以退回
+function initTextHistoryOnFocus(el) {
+  if (!_textHistoryMap[el.id]) _textHistoryMap[el.id] = { stack: [el.value], index: 0 };
+}
+
+// 打字打到一半不要每個字都記一筆，停下來 0.8 秒後才記一筆版本，「上一步」才會是有意義的段落，不是一個字一個字退
+function recordTextHistory(el) {
+  var uid = el.id;
+  if (!uid) return;
+  clearTimeout(_textHistoryTimers[uid]);
+  _textHistoryTimers[uid] = setTimeout(function(){
+    if (!_textHistoryMap[uid]) _textHistoryMap[uid] = { stack: [el.value], index: 0 };
+    var hist = _textHistoryMap[uid];
+    if (hist.stack[hist.index] === el.value) return;
+    hist.stack = hist.stack.slice(0, hist.index + 1); // 退回舊版本後又繼續打字，後面「下一步」的紀錄就不算數了
+    hist.stack.push(el.value);
+    hist.index = hist.stack.length - 1;
+  }, 800);
+}
+
+async function applyTextHistoryValue(el, newVal) {
+  el.value = newVal;
+  autoGrowTextarea(el);
+  el.dataset.original = newVal;
+  el.setAttribute('data-raw', newVal);
+  await saveMaintainField(el.getAttribute('data-sheet'), el.getAttribute('data-row'), el.getAttribute('data-col'), el.getAttribute('data-field'), parseInt(el.getAttribute('data-idx')), newVal);
+}
+
+function undoTextField(uid) {
+  var el = document.getElementById(uid);
+  if (!el) return;
+  initTextHistoryOnFocus(el);
+  var hist = _textHistoryMap[uid];
+  if (hist.index <= 0) { showToast('已經是最早的版本了'); return; }
+  hist.index--;
+  applyTextHistoryValue(el, hist.stack[hist.index]);
+}
+
+function redoTextField(uid) {
+  var el = document.getElementById(uid);
+  if (!el) return;
+  var hist = _textHistoryMap[uid];
+  if (!hist || hist.index >= hist.stack.length - 1) { showToast('已經是最新的版本了'); return; }
+  hist.index++;
+  applyTextHistoryValue(el, hist.stack[hist.index]);
+}
+
+function saveTextFieldNow(uid) {
+  var el = document.getElementById(uid);
+  if (!el) return;
+  var newVal = el.value.trim();
+  initTextHistoryOnFocus(el);
+  var hist = _textHistoryMap[uid];
+  if (hist.stack[hist.index] !== newVal) {
+    hist.stack = hist.stack.slice(0, hist.index + 1);
+    hist.stack.push(newVal);
+    hist.index = hist.stack.length - 1;
+  }
+  applyTextHistoryValue(el, newVal);
+  showToast('✓ 已儲存');
 }
 
 // ---- Headcount Records 表格模式 ----
