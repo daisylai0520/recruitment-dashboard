@@ -2238,9 +2238,26 @@ function buildCandQueryCardsHtml(matched) {
     var candHeaders = filterCandHeadersForMaintenance(maintainHeaders['Candidate Records'] || Object.keys(cand).filter(function(k){return k!=='_row';}));
     var isSelected = selectedCandForCopy && selectedCandForCopy._row === cand._row;
 
+    var isPhoneRecordHeader = function(h){ return /phone\s*interview\s*record/i.test(h); };
+    var phoneRecordFields = candHeaders.filter(isPhoneRecordHeader).sort(function(a,b){
+      return (/hr/i.test(a)?0:1) - (/hr/i.test(b)?0:1); // HR 固定在左，主管固定在右
+    });
+    var pairedPhoneRecordDone = false;
     var fieldsHtml = candHeaders.map(function(h){
-      // 採緊湊欄寬，僅職缺名稱保留稍大空間；Memo、Phone Interview Record 兩個欄位改成跟下面「新增人選資料」一樣的全寬
-      var isFullWidth = h.indexOf('Memo') >= 0 || /phone\s*interview\s*record/i.test(h);
+      if (isPhoneRecordHeader(h)) {
+        if (pairedPhoneRecordDone) return ''; // 第二個欄位（不論是 HR 或主管，看誰先出現）已經跟第一個一起畫在同一排了
+        pairedPhoneRecordDone = true;
+        if (phoneRecordFields.length >= 2) {
+          // 兩個欄位並排在同一整排：外層佔滿整排，裡面用兩欄各放一個
+          var pairHtml = phoneRecordFields.map(function(pf){
+            return renderQueryField('Candidate Records', cand, pf, idx, false, true);
+          }).join('');
+          return '<div style="grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:14px;">'+pairHtml+'</div>';
+        }
+        return renderQueryField('Candidate Records', cand, h, idx, true, true);
+      }
+      // 採緊湊欄寬，僅職缺名稱保留稍大空間；Memo 欄位改成跟下面「新增人選資料」一樣的全寬
+      var isFullWidth = h.indexOf('Memo') >= 0;
       var isWide = h === '104_Position';
       // 時間欄位一律統一顯示成 YYYY/MM/DD HH:MM
       return renderQueryField('Candidate Records', cand, h, idx, isFullWidth ? true : (isWide ? 'span2' : false), true);
@@ -2269,6 +2286,8 @@ function renderQueryField(sheetName, rec, field, idx, fullWidth, strictDateForma
   var displayVal = isDateOnlyField ? fmtDateOnly(rawVal) : isDateField ? (strictDateFormat ? fmtDateTimeStrict(rawVal) : fmtDate(rawVal)) : rawVal;
   var rawSafe = String(rawVal||'').replace(/"/g,'&quot;');
   var wrapStyle = fullWidth === 'span2' ? 'grid-column:span 2;' : fullWidth ? 'grid-column:1/-1;' : '';
+  var isPhoneRecordField = /phone\s*interview\s*record/i.test(field);
+  var isLongTextField = field.indexOf('Memo') >= 0 || isPhoneRecordField;
 
   var inputHtml;
   if (dropdowns[field]) {
@@ -2283,8 +2302,7 @@ function renderQueryField(sheetName, rec, field, idx, fullWidth, strictDateForma
     // 日期欄位（invite_date／Phone Interview_date／Interview_date／Result Update_date／Onboard date）：
     // 點擊欄位或月曆圖示可直接跳出小月曆點選日期，選完自動存檔；欄位本身仍可手動輸入或補打時間文字。
     inputHtml = buildDateFieldInput(sheetName, rec, field, col, idx, displayVal, rawSafe);
-  } else if (fullWidth) {
-    var isPhoneRecordField = /phone\s*interview\s*record/i.test(field);
+  } else if (isLongTextField) {
     var taUid = 'ta_' + (_dlIdCounter++);
     inputHtml = '<textarea id="'+(isPhoneRecordField?taUid:'')+'" data-sheet="'+sheetName+'" data-row="'+rec._row+'" data-col="'+col+'" data-field="'+field+'" data-idx="'+idx+'" data-raw="'+rawSafe+'" '+
       'onfocus="this.dataset.original=this.value;'+(isPhoneRecordField?'initTextHistoryOnFocus(this);':'')+'" onblur="commitMaintainTextarea(this)" oninput="autoGrowTextarea(this);'+(isPhoneRecordField?'recordTextHistory(this);':'')+'" rows="2" '+
