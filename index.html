@@ -10,20 +10,15 @@
 <body>
 
 <!-- ROLE SELECTION SCREEN -->
-<div id="roleScreen" style="position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:9999;">
-  <div style="text-align:center;">
+<div id="roleScreen" style="position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:9999;overflow-y:auto;">
+  <div style="text-align:center;padding:40px 20px;">
     <div style="margin-bottom:32px;">
       <img id="roleLogoImg" style="width:56px;height:56px;object-fit:contain;margin-bottom:14px;" alt="WT">
       <div style="font-size:20px;font-weight:700;color:var(--text-primary);">WT Recruitment Overview</div>
       <div style="font-size:13px;color:var(--text-secondary);margin-top:4px;">請選擇您的身分</div>
     </div>
-    <div style="display:flex;gap:16px;justify-content:center;flex-wrap:wrap;">
-      <button onclick="selectRole('recruiter')" style="width:180px;padding:28px 20px;border:1.5px solid var(--border);border-radius:14px;background:var(--surface);cursor:pointer;transition:all .15s;" onmouseover="this.style.borderColor='#4F46E5';this.style.boxShadow='0 4px 16px rgba(79,70,229,.12)'" onmouseout="this.style.borderColor='#E8EAED';this.style.boxShadow='none'">
-        <div style="font-size:16px;font-weight:600;color:var(--text-primary);">我是 Recruiter</div>
-      </button>
-      <button onclick="selectRole('bp')" style="width:180px;padding:28px 20px;border:1.5px solid var(--border);border-radius:14px;background:var(--surface);cursor:pointer;transition:all .15s;" onmouseover="this.style.borderColor='#4F46E5';this.style.boxShadow='0 4px 16px rgba(79,70,229,.12)'" onmouseout="this.style.borderColor='#E8EAED';this.style.boxShadow='none'">
-        <div style="font-size:16px;font-weight:600;color:var(--text-primary);">我是 BP</div>
-      </button>
+    <div id="hrIdentityButtons" style="display:flex;gap:16px;justify-content:center;flex-wrap:wrap;max-width:720px;">
+      <div style="font-size:12px;color:var(--text-tertiary);">載入中...</div>
     </div>
   </div>
   <button onclick="selectRole('manager')" style="position:absolute;left:16px;bottom:16px;padding:5px 10px;font-size:11px;color:var(--text-tertiary);border:1px solid var(--border);border-radius:8px;background:var(--surface);cursor:pointer;">我是管理者</button>
@@ -34,6 +29,7 @@
   <div class="topbar-left">
 <img src="logo.jpg" style="width:34px;height:34px;object-fit:contain;" alt="WT">
     <span class="topbar-title">WT Recruitment Overview</span>
+    <span id="identityBadge" style="font-size:12px;color:var(--text-secondary);margin-left:14px;padding:3px 10px;border-radius:12px;background:var(--bg);"></span>
   </div>
   <div style="display:flex;align-items:center;">
     <div class="sync-badge">
@@ -54,9 +50,10 @@
     <div class="tab" data-tab-role="manager" onclick="switchTab('candidateSearch',this)">Candidate Search</div>
     <div class="tab" data-tab-role="manager,recruiter" onclick="switchTab('overview',this)">Recruitment Progress</div>
     <div class="tab" data-tab-role="manager,recruiter,bp" onclick="switchTab('trends',this)">Recruitment Status</div>
-    <div class="tab" data-tab-role="manager,recruiter,bp" onclick="switchTab('hc',this)">Headcount Overview</div>
+    <div class="tab" data-tab-role="manager" onclick="switchTab('hc',this)">Headcount Overview</div>
     <div class="tab" data-tab-role="manager" onclick="switchTab('schedule',this)">面試時間協調</div>
-    <div class="tab" data-tab-role="manager,recruiter,bp" onclick="switchTab('salary',this)">Market Salary Records</div>
+    <div class="tab" data-tab-role="manager" onclick="switchTab('salary',this)">Market Salary Records</div>
+    <div class="tab" data-tab-role="manager" onclick="switchTab('permissions',this)">權限管理</div>
   </div>
 
   <div class="error-banner" id="errorBanner"></div>
@@ -393,6 +390,34 @@
         <tbody id="salaryTableBody"></tbody>
       </table>
     </div>
+  </div>
+
+  <!-- ===== PERMISSION MANAGEMENT（僅管理者可見）===== -->
+  <div id="view-permissions" style="display:none">
+    <div class="page-title">權限管理</div>
+    <div class="page-sub">設定每個單位由哪些 HR 負責、以及每位 HR 的角色（Recruiter／BP），設定後 HR 在「選擇身分」畫面點選自己的名字，就只會看到自己負責單位的人選資料</div>
+
+    <div id="permWarningBanner" style="display:none;font-size:12px;background:var(--amber-bg);color:var(--amber-text);padding:10px 14px;border-radius:8px;margin-bottom:20px;"></div>
+
+    <div style="font-size:14px;font-weight:700;margin-bottom:10px;">單位 → 負責 HR 對應表</div>
+    <div class="page-sub" style="margin-top:-4px;">「單位」選項來自 Candidate Records 的「單位」欄位；「負責HR」可複選，選項來自 Candidate Records 的「負責HR」欄位。同一位 HR 可以出現在多個單位裡（代表他負責多個單位）</div>
+    <div class="table-wrap" style="margin-bottom:10px;">
+      <table class="pi-table">
+        <thead><tr><th style="width:32%;">單位</th><th>負責 HR（可複選）</th><th style="width:70px;"></th></tr></thead>
+        <tbody id="permUnitMappingBody"></tbody>
+      </table>
+    </div>
+    <button class="refresh-btn" style="margin-left:0;margin-bottom:28px;" onclick="addUnitMappingRow()">＋ 新增單位</button>
+
+    <div style="font-size:14px;font-weight:700;margin-bottom:10px;">HR 名冊管理</div>
+    <div class="page-sub" style="margin-top:-4px;">「HR 姓名」選項來自 Candidate Records 的「負責HR」欄位；設定角色後，該 HR 在「選擇身分」畫面點選自己名字時，就會依此角色顯示對應的分頁</div>
+    <div class="table-wrap" style="margin-bottom:10px;">
+      <table class="pi-table">
+        <thead><tr><th style="width:40%;">HR 姓名</th><th>角色</th><th style="width:70px;"></th></tr></thead>
+        <tbody id="permHrDirectoryBody"></tbody>
+      </table>
+    </div>
+    <button class="refresh-btn" style="margin-left:0;" onclick="addHrDirectoryRow()">＋ 新增 HR</button>
   </div>
 
   <!-- ===== DATA MAINTENANCE ===== -->

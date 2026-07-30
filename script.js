@@ -2,6 +2,19 @@ var APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby0h1OkoC_xNWeAAb
 var userRole = null;
 var allData=[], salaryData=[], scheduleData=[], managerDirectoryData=[], managerInfoData=[], resultOptions=[], positionOptions=[];
 var currentTab='kanban';
+
+// ---- 身分 / 權限管理 ----
+// hrDirectoryData／unitHrMappingData 一開始（角色選擇畫面）就會抓一次輕量版（只有 HR 名冊 + 單位對應表），
+// 進到「權限管理」畫面時再用 getPermissionData 補齊 permUnitOptions／permHrOptions 並重新整包覆蓋。
+var hrDirectoryData = [], unitHrMappingData = [], permUnitOptions = [], permHrOptions = [];
+var currentHRName = null;   // 目前登入的 HR 姓名；管理者是 '管理者'
+var currentHRUnits = null;  // 目前登入的 HR 負責哪些單位；null 代表不限制（管理者）
+var isAdmin = false;
+
+// 依現有多選欄位的儲存慣例（用「、」分隔多個值，見 MULTI_SELECT_FIELDS）拆成陣列
+function splitMultiValue(s) {
+  return String(s||'').split('、').map(function(v){ return v.trim(); }).filter(Boolean);
+}
 // 舊的單選篩選狀態變數已改用 multiFilterState（見下方通用多選篩選元件），這裡保留 activeFilter 給 Recruitment Status 用
 var activeFilter=null;
 var selectedCard=null;
@@ -252,7 +265,7 @@ function showToast(msg) {
 
 // ---- fetch ----
 // ===== 分頁式載入：每個畫面只在真正被打開時，才去抓它需要的資料 =====
-var loadedResources = { core: false, headcount: false, salary: false, scheduling: false };
+var loadedResources = { core: false, headcount: false, salary: false, scheduling: false, permissions: false };
 
 function setSyncStatus(state, msg) {
   var dot=document.getElementById('syncDot'), txt=document.getElementById('syncText');
@@ -265,11 +278,58 @@ async function fetchCoreData() {
   if (!res.ok) throw new Error('HTTP '+res.status);
   var json = await res.json();
   allData=(json.candidates||[]).filter(function(d){return d.Name&&d.Result;});
+  // 一般 HR 身分（非管理者）：只留下「單位」有落在自己負責範圍內的人選資料
+  if (!isAdmin && currentHRUnits) {
+    allData = allData.filter(function(d){
+      var units = splitMultiValue(d['單位']);
+      return units.some(function(u){ return currentHRUnits.indexOf(u) >= 0; });
+    });
+  }
   resultOptions=(json.resultOptions||[]).map(function(v){return String(v).trim();}).filter(Boolean);
   positionOptions=(json.positionOptions||[]).map(function(v){return String(v).trim();}).filter(Boolean);
   managerInfoData=(json.managerInfo||[]).filter(function(d){return d.Name;});
   Object.assign(maintainHeaders, json.sheetHeaders || {});
   loadedResources.core = true;
+}
+
+// ---- 身分選擇畫面：一開始就抓 HR 名冊 + 單位對應表，用來畫出「我是 XXX」的按鈕 ----
+async function fetchIdentityData() {
+  try {
+    var res = await fetch(APPS_SCRIPT_URL + '?action=getIdentityData');
+    if (!res.ok) throw new Error('HTTP '+res.status);
+    var json = await res.json();
+    hrDirectoryData = (json.hrDirectory||[]).filter(function(d){return d['HR姓名'];});
+    unitHrMappingData = (json.unitHrMapping||[]).filter(function(d){return d['單位']||d['負責HR'];});
+    renderRoleScreenIdentities();
+  } catch(e) {
+    var el = document.getElementById('hrIdentityButtons');
+    if (el) el.innerHTML = '<div style="font-size:12px;color:#EF4444;">身分清單載入失敗，請重新整理頁面（'+e.message+'）</div>';
+  }
+}
+
+function renderRoleScreenIdentities() {
+  var el = document.getElementById('hrIdentityButtons');
+  if (!el) return;
+  if (!hrDirectoryData.length) {
+    el.innerHTML = '<div style="font-size:12px;color:var(--text-tertiary);">目前尚未設定任何 HR，請由管理者登入後至「權限管理」畫面新增</div>';
+    return;
+  }
+  el.innerHTML = hrDirectoryData.map(function(hr){
+    var name = hr['HR姓名'];
+    var role = hr['角色'] === 'BP' ? 'BP' : 'Recruiter';
+    var nameSafe = String(name).replace(/'/g,"\\'");
+    return '<button onclick="selectHRIdentity(\''+nameSafe+'\')" style="width:160px;padding:22px 16px;border:1.5px solid var(--border);border-radius:14px;background:var(--surface);cursor:pointer;transition:all .15s;" onmouseover="this.style.borderColor=\'#4F46E5\';this.style.boxShadow=\'0 4px 16px rgba(79,70,229,.12)\'" onmouseout="this.style.borderColor=\'#E8EAED\';this.style.boxShadow=\'none\'">'+
+      '<div style="font-size:15px;font-weight:600;color:var(--text-primary);">我是 '+String(name).replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</div>'+
+      '<div style="font-size:11px;color:var(--text-tertiary);margin-top:4px;">'+role+'</div>'+
+    '</button>';
+  }).join('');
+}
+
+function getUnitsForHR(name) {
+  return unitHrMappingData
+    .filter(function(m){ return splitMultiValue(m['負責HR']).indexOf(name) >= 0; })
+    .map(function(m){ return String(m['單位']||'').trim(); })
+    .filter(Boolean);
 }
 
 // Manager Information 工作表（單位／Job Function／Name／Email）依姓名比對出「單位」，
@@ -310,7 +370,19 @@ async function fetchSchedulingData() {
   loadedResources.scheduling = true;
 }
 
-var RESOURCE_FETCHERS = { core: fetchCoreData, headcount: fetchHeadcountData, salary: fetchSalaryData, scheduling: fetchSchedulingData };
+// 權限管理畫面：Candidate Records 目前實際出現過的「單位」「負責HR」選項 + 目前的對應表／HR 名冊設定
+async function fetchPermissionData() {
+  var res = await fetch(APPS_SCRIPT_URL + '?action=getPermissionData');
+  if (!res.ok) throw new Error('HTTP '+res.status);
+  var json = await res.json();
+  permUnitOptions = (json.unitOptions||[]).map(function(v){return String(v).trim();}).filter(Boolean);
+  permHrOptions = (json.hrOptions||[]).map(function(v){return String(v).trim();}).filter(Boolean);
+  unitHrMappingData = (json.unitHrMapping||[]).filter(function(d){return d['單位']||d['負責HR'];});
+  hrDirectoryData = (json.hrDirectory||[]).filter(function(d){return d['HR姓名'];});
+  loadedResources.permissions = true;
+}
+
+var RESOURCE_FETCHERS = { core: fetchCoreData, headcount: fetchHeadcountData, salary: fetchSalaryData, scheduling: fetchSchedulingData, permissions: fetchPermissionData };
 
 // 切換到某個畫面時呼叫：如果這個畫面需要的資料還沒載入過，才去抓；已經載入過就直接用現有的，不用整份重讀
 async function ensureResourceLoaded(resource) {
@@ -334,6 +406,7 @@ async function fetchData() {
     if (loadedResources.headcount) tasks.push(fetchHeadcountData());
     if (loadedResources.salary) tasks.push(fetchSalaryData());
     if (loadedResources.scheduling) tasks.push(fetchSchedulingData());
+    if (loadedResources.permissions) tasks.push(fetchPermissionData());
     await Promise.all(tasks);
     var now=new Date();
     setSyncStatus('ok', '已同步 '+String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0'));
@@ -349,7 +422,8 @@ async function fetchData() {
 
 var TAB_RESOURCES = {
   kanban:['core'], candidateSearch:['core'], overview:['core'], trends:['core','headcount'],
-  hc:['headcount'], salary:['salary'], schedule:['core','scheduling'], maintain:['core']
+  hc:['headcount'], salary:['salary'], schedule:['core','scheduling'], maintain:['core'],
+  permissions:['permissions']
 };
 
 function renderAll(){
@@ -364,26 +438,40 @@ function renderAll(){
   }
   if (currentTab === 'schedule' && loadedResources.scheduling) renderSchedule();
   if (currentTab === 'salary' && loadedResources.salary) renderSalaryScreen();
+  if (currentTab === 'permissions' && loadedResources.permissions) renderPermissions();
   if (loadedResources.headcount) renderHeadcount();
 }
 
 // ---- role selection ----
-function selectRole(role) {
-  userRole = role;
+var ALL_VIEW_TABS = ['kanban','candidateSearch','overview','hc','maintain','trends','schedule','salary','permissions'];
+
+// 實際進入主畫面的共用邏輯：管理者（selectRole('manager')）跟一般 HR（selectHRIdentity）都會走這裡。
+// roleToken 決定分頁顯示（recruiter/bp/manager）；hrName 是顯示用的識別名稱；units 是這個身分能看到的「單位」清單（null=不限制）。
+function enterAs(roleToken, hrName, units) {
+  userRole = roleToken;
+  isAdmin = (roleToken === 'manager');
+  currentHRName = hrName;
+  currentHRUnits = units;
+
   // 切換身分時回到頁首，確保上方分頁導覽會立即出現在視窗中。
   window.scrollTo(0, 0);
   document.getElementById('roleScreen').style.display = 'none';
   document.getElementById('mainAppWrapper').style.display = '';
 
+  var badge = document.getElementById('identityBadge');
+  if (badge) {
+    badge.textContent = hrName ? ('👤 ' + hrName + (isAdmin ? '' : '（' + (roleToken==='bp'?'BP':'Recruiter') + '）')) : '';
+  }
+
   // 依角色顯示/隱藏 tab
   document.querySelectorAll('.tab[data-tab-role]').forEach(function(t){
     var r = t.getAttribute('data-tab-role');
-    t.style.display = r.split(',').indexOf(role) >= 0 ? '' : 'none';
+    t.style.display = r.split(',').indexOf(roleToken) >= 0 ? '' : 'none';
   });
 
   // 每次選擇身分都重設到第一個 tab，避免殘留前一個角色的畫面狀態
   var firstTab = Array.prototype.find.call(document.querySelectorAll('.tab[data-tab-role]'), function(t){
-    return t.getAttribute('data-tab-role').split(',').indexOf(role) >= 0;
+    return t.getAttribute('data-tab-role').split(',').indexOf(roleToken) >= 0;
   });
   document.querySelectorAll('.tab').forEach(function(t){t.classList.remove('active');});
   if (firstTab) {
@@ -392,7 +480,7 @@ function selectRole(role) {
     var match = onclickAttr.match(/switchTab\('(\w+)'/);
     if (match) {
       currentTab = match[1];
-      ['kanban','candidateSearch','overview','hc','maintain','trends','schedule','salary'].forEach(function(v){
+      ALL_VIEW_TABS.forEach(function(v){
         document.getElementById('view-'+v).style.display = v===currentTab ? '' : 'none';
       });
     }
@@ -404,6 +492,9 @@ function selectRole(role) {
   initTabHistoryNav();
 
   fetchCoreData().then(function(){
+    if (!isAdmin && currentHRUnits && !currentHRUnits.length) {
+      showToast('⚠️ 你目前尚未被指派任何單位，請聯繫管理者設定權限');
+    }
     var resources = TAB_RESOURCES[currentTab] || ['core'];
     return Promise.all(resources.filter(function(r){return r!=='core';}).map(ensureResourceLoaded));
   }).then(function(){
@@ -418,11 +509,31 @@ function selectRole(role) {
   });
 }
 
+// 「我是管理者」：不限制單位，可看到全部畫面（含權限管理）
+function selectRole(role) {
+  enterAs(role, role === 'manager' ? '管理者' : role, null);
+}
+
+// 一般 HR 點選「我是 XXX」：依 HR Directory 的角色決定看得到哪些分頁，依 Unit HR Mapping 決定看得到哪些單位的資料
+function selectHRIdentity(name) {
+  var entry = hrDirectoryData.find(function(h){ return h['HR姓名'] === name; });
+  var roleToken = (entry && entry['角色'] === 'BP') ? 'bp' : 'recruiter';
+  var units = getUnitsForHR(name);
+  enterAs(roleToken, name, units);
+}
+
 function switchRole() {
   userRole = null;
+  isAdmin = false;
+  currentHRName = null;
+  currentHRUnits = null;
   window.scrollTo(0, 0);
   document.getElementById('mainAppWrapper').style.display = 'none';
   document.getElementById('roleScreen').style.display = 'flex';
+  var badge = document.getElementById('identityBadge');
+  if (badge) badge.textContent = '';
+  // 回到身分選擇畫面時重新抓一次 HR 名冊，避免管理者剛在權限管理新增完 HR 卻看不到新按鈕
+  fetchIdentityData();
 }
 
 // ---- 分頁瀏覽歷史（上一步／下一步）----
@@ -491,7 +602,7 @@ async function switchTab(tab,el) {
   window.scrollTo(0, 0);
   document.querySelectorAll('.tab-bar:first-of-type > .tab').forEach(function(t){t.classList.remove('active');});
   if (el) el.classList.add('active');
-  ['kanban','candidateSearch','overview','hc','maintain','trends','schedule','salary'].forEach(function(v){
+  ALL_VIEW_TABS.forEach(function(v){
     document.getElementById('view-'+v).style.display=v===tab?'':'none';
   });
 
@@ -510,6 +621,7 @@ async function switchTab(tab,el) {
   if (tab === 'trends') renderTrends();
   if (tab === 'schedule') renderSchedule();
   if (tab === 'salary') { ensureNewSalaryFieldsRendered(); renderSalaryScreen(); }
+  if (tab === 'permissions') renderPermissions();
 }
 
 // ---- filter helpers ----
@@ -3669,7 +3781,244 @@ registerMultiFilterRerender('exp-job', refreshExportFilters);
 registerMultiFilterRerender('exp-inviter', refreshExportFilters);
 registerMultiFilterRerender('exp-result', refreshExportFilters);
 
+// ============================================================
+// ===== 權限管理畫面 =====
+// ============================================================
+
+function renderPermissions() {
+  renderPermissionWarnings();
+  renderUnitHrMappingTable();
+  renderHrDirectoryTable();
+}
+
+// 統整目前設定裡「跟 Candidate Records 對不起來」的項目，在畫面最上方提醒管理者
+function renderPermissionWarnings() {
+  var el = document.getElementById('permWarningBanner');
+  if (!el) return;
+  var msgs = [];
+
+  var directoryNames = hrDirectoryData.map(function(h){ return h['HR姓名']; });
+  var missingFromDirectory = permHrOptions.filter(function(n){ return directoryNames.indexOf(n) < 0; });
+  if (missingFromDirectory.length) {
+    msgs.push('以下「負責HR」在 Candidate Records 中出現過，但尚未加入下方 HR 名冊，這些人暫時無法用自己的名字登入：' + missingFromDirectory.join('、'));
+  }
+
+  var invalidHrInMapping = [];
+  unitHrMappingData.forEach(function(rec){
+    splitMultiValue(rec['負責HR']).forEach(function(hr){
+      if (permHrOptions.indexOf(hr) < 0 && invalidHrInMapping.indexOf(hr) < 0) invalidHrInMapping.push(hr);
+    });
+  });
+  if (invalidHrInMapping.length) {
+    msgs.push('以下單位對應表中設定的「負責HR」，跟 Candidate Records 目前的選項不一致（可能是舊資料或打字有出入），請確認：' + invalidHrInMapping.join('、'));
+  }
+
+  var invalidHrInDirectory = hrDirectoryData.filter(function(h){ return permHrOptions.indexOf(h['HR姓名']) < 0; }).map(function(h){ return h['HR姓名']; });
+  if (invalidHrInDirectory.length) {
+    msgs.push('以下 HR 名冊中的姓名，跟 Candidate Records 目前的「負責HR」選項不一致：' + invalidHrInDirectory.join('、'));
+  }
+
+  if (msgs.length) {
+    el.style.display = '';
+    el.innerHTML = msgs.map(function(m){ return '⚠️ ' + m; }).join('<br>');
+  } else {
+    el.style.display = 'none';
+    el.innerHTML = '';
+  }
+}
+
+async function savePermCell(sheet, row, col, value) {
+  try {
+    var url = APPS_SCRIPT_URL + '?action=editCell&sheet=' + encodeURIComponent(sheet) +
+      '&row=' + encodeURIComponent(row) + '&col=' + encodeURIComponent(col) + '&value=' + encodeURIComponent(value);
+    await fetch(url, {mode:'no-cors'});
+    return true;
+  } catch(e) {
+    showToast('❌ 儲存失敗：'+e.message);
+    return false;
+  }
+}
+
+// ---- 單位 → 負責HR 對應表 ----
+function renderUnitHrMappingTable() {
+  var body = document.getElementById('permUnitMappingBody');
+  if (!body) return;
+  if (!unitHrMappingData.length) {
+    body.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--text-tertiary);padding:20px;">尚無資料，請點下方「＋ 新增單位」開始設定</td></tr>';
+    return;
+  }
+  body.innerHTML = unitHrMappingData.map(function(rec, idx){
+    var buVal = String(rec['單位']||'').trim();
+    var buInvalid = buVal && permUnitOptions.indexOf(buVal) < 0;
+    var buOpts = permUnitOptions.slice();
+    if (buVal && buOpts.indexOf(buVal) < 0) buOpts.push(buVal);
+    var buOptionsHtml = '<option value="">請選擇單位...</option>' + buOpts.map(function(o){
+      var oSafe = String(o).replace(/"/g,'&quot;');
+      var oDisp = String(o).replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      return '<option value="'+oSafe+'" '+(o===buVal?'selected':'')+'>'+(o===buVal&&buInvalid?'⚠️ ':'')+oDisp+'</option>';
+    }).join('');
+    var buSelect = '<select onchange="updateUnitMappingBu('+idx+',this.value)" style="width:100%;font-size:13px;padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;'+(buInvalid?'color:#EF4444;border-color:#EF4444;':'')+'">'+buOptionsHtml+'</select>';
+    return '<tr>'+
+      '<td style="padding:8px;">'+buSelect+'</td>'+
+      '<td style="padding:8px;">'+buildHrMultiSelectForPermission(rec, idx)+'</td>'+
+      '<td style="padding:8px;text-align:center;"><button class="btn-cancel" style="padding:4px 10px;font-size:12px;" onclick="deleteUnitMappingRow('+idx+')">刪除</button></td>'+
+    '</tr>';
+  }).join('');
+}
+
+function buildHrMultiSelectForPermission(rec, idx) {
+  var uid = 'permhrms_' + (_dlIdCounter++);
+  var selected = splitMultiValue(rec['負責HR']);
+  var opts = permHrOptions.slice();
+  selected.forEach(function(s){ if (opts.indexOf(s) < 0) opts.push(s); });
+  var summary = selected.length ? selected.join('、') : '未選擇';
+  var hasInvalid = selected.some(function(s){ return permHrOptions.indexOf(s) < 0; });
+  var optionsHtml = opts.map(function(o){
+    var checked = selected.indexOf(o) >= 0;
+    var invalid = permHrOptions.indexOf(o) < 0;
+    var oSafe = String(o).replace(/"/g,'&quot;');
+    var oDisp = String(o).replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    return '<label class="ms-dropdown-option" style="'+(invalid?'color:#EF4444;':'')+'"><input type="checkbox" '+(checked?'checked':'')+' data-val="'+oSafe+'" onchange="togglePermHrOption('+idx+',this)"> '+(invalid?'⚠️ ':'')+oDisp+'</label>';
+  }).join('');
+  return '<div class="ms-dropdown" id="'+uid+'" style="width:100%;">'+
+    '<button type="button" class="ms-dropdown-toggle" style="width:100%;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;box-sizing:border-box;'+(hasInvalid?'color:#EF4444;':'')+'" onclick="toggleMsDropdownPanel(\''+uid+'\')">'+
+      '<span>'+(hasInvalid?'⚠️ ':'')+summary.replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</span> <span class="ms-dropdown-caret">▾</span></button>'+
+    '<div class="ms-dropdown-panel" id="'+uid+'-panel" style="display:none;">'+optionsHtml+'</div>'+
+  '</div>';
+}
+
+async function togglePermHrOption(idx, checkboxEl) {
+  var rec = unitHrMappingData[idx];
+  if (!rec) return;
+  var current = splitMultiValue(rec['負責HR']);
+  var val = checkboxEl.getAttribute('data-val');
+  var i = current.indexOf(val);
+  if (checkboxEl.checked) { if (i < 0) current.push(val); } else if (i >= 0) { current.splice(i,1); }
+  var newVal = current.join('、');
+  var ok = await savePermCell('Unit HR Mapping', rec._row, 2, newVal);
+  if (!ok) { checkboxEl.checked = !checkboxEl.checked; return; }
+  rec['負責HR'] = newVal;
+  showToast('✓ 已儲存');
+  // 只更新這個下拉選單自己的摘要文字與警示樣式，不整個重繪表格，避免選單被關掉、方便一次勾選多個人
+  var container = checkboxEl.closest('.ms-dropdown');
+  if (container) {
+    var selected = splitMultiValue(newVal);
+    var hasInvalid = selected.some(function(s){ return permHrOptions.indexOf(s) < 0; });
+    var toggleBtn = container.querySelector('.ms-dropdown-toggle');
+    var summarySpan = toggleBtn.querySelector('span');
+    summarySpan.innerHTML = (hasInvalid?'⚠️ ':'') + (selected.length ? selected.join('、').replace(/</g,'&lt;').replace(/>/g,'&gt;') : '未選擇');
+    toggleBtn.style.color = hasInvalid ? '#EF4444' : '';
+  }
+  renderPermissionWarnings();
+}
+
+async function updateUnitMappingBu(idx, newVal) {
+  var rec = unitHrMappingData[idx];
+  if (!rec) return;
+  var ok = await savePermCell('Unit HR Mapping', rec._row, 1, newVal);
+  if (ok) { rec['單位'] = newVal; showToast('✓ 已儲存'); renderPermissions(); }
+}
+
+async function addUnitMappingRow() {
+  try {
+    var url = APPS_SCRIPT_URL + '?action=addRow&sheet=' + encodeURIComponent('Unit HR Mapping') +
+      '&values=' + encodeURIComponent(JSON.stringify(['','']));
+    await fetch(url, {mode:'no-cors'});
+    showToast('新增中...');
+    await fetchPermissionData();
+    renderPermissions();
+  } catch(e) {
+    showToast('❌ 新增失敗：'+e.message);
+  }
+}
+
+async function deleteUnitMappingRow(idx) {
+  var rec = unitHrMappingData[idx];
+  if (!rec) return;
+  if (!confirm('確定要刪除「'+(rec['單位']||'（未設定單位）')+'」這筆單位設定嗎？')) return;
+  try {
+    var url = APPS_SCRIPT_URL + '?action=deleteRow&sheet=' + encodeURIComponent('Unit HR Mapping') + '&row=' + encodeURIComponent(rec._row);
+    await fetch(url, {mode:'no-cors'});
+    await fetchPermissionData();
+    renderPermissions();
+    showToast('✓ 已刪除');
+  } catch(e) {
+    showToast('❌ 刪除失敗：'+e.message);
+  }
+}
+
+// ---- HR 名冊管理 ----
+function renderHrDirectoryTable() {
+  var body = document.getElementById('permHrDirectoryBody');
+  if (!body) return;
+  if (!hrDirectoryData.length) {
+    body.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--text-tertiary);padding:20px;">尚無資料，請點下方「＋ 新增 HR」開始設定</td></tr>';
+    return;
+  }
+  body.innerHTML = hrDirectoryData.map(function(hr, idx){
+    var nameVal = String(hr['HR姓名']||'').trim();
+    var nameInvalid = nameVal && permHrOptions.indexOf(nameVal) < 0;
+    var nameOpts = permHrOptions.slice();
+    if (nameVal && nameOpts.indexOf(nameVal) < 0) nameOpts.push(nameVal);
+    var nameOptionsHtml = '<option value="">請選擇 HR 姓名...</option>' + nameOpts.map(function(o){
+      var oSafe = String(o).replace(/"/g,'&quot;');
+      var oDisp = String(o).replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      return '<option value="'+oSafe+'" '+(o===nameVal?'selected':'')+'>'+(o===nameVal&&nameInvalid?'⚠️ ':'')+oDisp+'</option>';
+    }).join('');
+    var nameSelect = '<select onchange="updateHrDirectoryField('+idx+',1,this.value,\'HR姓名\')" style="width:100%;font-size:13px;padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;'+(nameInvalid?'color:#EF4444;border-color:#EF4444;':'')+'">'+nameOptionsHtml+'</select>';
+    var roleVal = hr['角色'] === 'BP' ? 'BP' : (hr['角色'] === 'Recruiter' ? 'Recruiter' : '');
+    var roleSelect = '<select onchange="updateHrDirectoryField('+idx+',2,this.value,\'角色\')" style="width:100%;font-size:13px;padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;">'+
+      '<option value="">請選擇角色...</option>'+
+      '<option value="Recruiter" '+(roleVal==='Recruiter'?'selected':'')+'>Recruiter</option>'+
+      '<option value="BP" '+(roleVal==='BP'?'selected':'')+'>BP</option>'+
+    '</select>';
+    return '<tr>'+
+      '<td style="padding:8px;">'+nameSelect+'</td>'+
+      '<td style="padding:8px;">'+roleSelect+'</td>'+
+      '<td style="padding:8px;text-align:center;"><button class="btn-cancel" style="padding:4px 10px;font-size:12px;" onclick="deleteHrDirectoryRow('+idx+')">刪除</button></td>'+
+    '</tr>';
+  }).join('');
+}
+
+async function updateHrDirectoryField(idx, col, newVal, field) {
+  var rec = hrDirectoryData[idx];
+  if (!rec) return;
+  var ok = await savePermCell('HR Directory', rec._row, col, newVal);
+  if (ok) { rec[field] = newVal; showToast('✓ 已儲存'); renderPermissions(); }
+}
+
+async function addHrDirectoryRow() {
+  try {
+    var url = APPS_SCRIPT_URL + '?action=addRow&sheet=' + encodeURIComponent('HR Directory') +
+      '&values=' + encodeURIComponent(JSON.stringify(['','']));
+    await fetch(url, {mode:'no-cors'});
+    showToast('新增中...');
+    await fetchPermissionData();
+    renderPermissions();
+  } catch(e) {
+    showToast('❌ 新增失敗：'+e.message);
+  }
+}
+
+async function deleteHrDirectoryRow(idx) {
+  var rec = hrDirectoryData[idx];
+  if (!rec) return;
+  if (!confirm('確定要刪除「'+(rec['HR姓名']||'（未設定姓名）')+'」這筆 HR 資料嗎？')) return;
+  try {
+    var url = APPS_SCRIPT_URL + '?action=deleteRow&sheet=' + encodeURIComponent('HR Directory') + '&row=' + encodeURIComponent(rec._row);
+    await fetch(url, {mode:'no-cors'});
+    await fetchPermissionData();
+    renderPermissions();
+    showToast('✓ 已刪除');
+  } catch(e) {
+    showToast('❌ 刪除失敗：'+e.message);
+  }
+}
+
 setInterval(fetchData,5*60*1000);
 
 // 設定 logo 圖片（取用 topbar 的同一張 base64）
 document.getElementById('roleLogoImg').src = document.querySelector('.topbar-left img').src;
+
+// 進頁面就先抓一次 HR 名冊，畫出「選擇身分」畫面上的按鈕
+fetchIdentityData();
