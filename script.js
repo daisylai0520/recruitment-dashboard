@@ -221,15 +221,15 @@ function initDateFilterSlots() {
     {value:'Interview_date', label:'Interview_date'},
     {value:'Result Update_date', label:'Result Update_date'}
   ];
-  // 全站時間篩選統一比照「人選資料維護與查詢」畫面：欄位、快速範圍按鈕都一致，也都不自動預設套用範圍
+  // 全站時間篩選統一比照「Candidate」畫面：欄位、快速範圍按鈕都一致；每個畫面一打開都自動套用「本週」
   var maintainQuickRanges = [{label:'本週',range:'thisWeek'},{label:'本月',range:'thisMonth'},{label:'過去一個月',range:'past1m'}];
   var slots = {
-    'kbDateFilterSlot': {key:'kanban', fields:candFields, quickRanges:maintainQuickRanges},
-    'ovDateFilterSlot': {key:'overview', fields:candFields, quickRanges:maintainQuickRanges},
-    'csDateFilterSlot': {key:'candidateSearch', fields:candFields, quickRanges:maintainQuickRanges},
-    'candDateFilterSlot': {key:'candidateMaintenance', fields:candFields, quickRanges:maintainQuickRanges},
-    'trDateFilterSlot': {key:'trends', fields:candFields, quickRanges:maintainQuickRanges},
-    'expDateFilterSlot': {key:'export', fields:candFields, quickRanges:maintainQuickRanges},
+    'kbDateFilterSlot': {key:'kanban', fields:candFields, quickRanges:maintainQuickRanges, defaultQuickRange:'thisWeek'},
+    'ovDateFilterSlot': {key:'overview', fields:candFields, quickRanges:maintainQuickRanges, defaultQuickRange:'thisWeek'},
+    'csDateFilterSlot': {key:'candidateSearch', fields:candFields, quickRanges:maintainQuickRanges, defaultQuickRange:'thisWeek'},
+    'candDateFilterSlot': {key:'candidateMaintenance', fields:candFields, quickRanges:maintainQuickRanges, defaultQuickRange:'thisWeek'},
+    'trDateFilterSlot': {key:'trends', fields:candFields, quickRanges:maintainQuickRanges, defaultQuickRange:'thisWeek'},
+    'expDateFilterSlot': {key:'export', fields:candFields, quickRanges:maintainQuickRanges, defaultQuickRange:'thisWeek'},
     'hcDateFilterSlot': {key:'hc', fields:[{value:'Update_date',label:'Update_date（缺額更新時間，依異動記錄推算暫不支援）'}], disabled:true}
   };
   Object.keys(slots).forEach(function(slotId){
@@ -239,7 +239,7 @@ function initDateFilterSlots() {
     if (cfg.disabled) { el.innerHTML = ''; return; } // Headcount 沒有日期欄位可篩選，跳過
     if (!dateFilterState[cfg.key]) {
       el.innerHTML = buildDateFilterHtml(cfg.key, cfg.fields, cfg.quickRanges);
-      // Candidate Overview「搜尋人選資料」：畫面一打開就自動帶出本月資料，不用使用者手動操作
+      // 每個畫面一打開都自動帶出「本週」資料，不用使用者手動操作
       if (cfg.defaultQuickRange) quickDateFilter(cfg.key, cfg.defaultQuickRange);
     }
   });
@@ -2180,7 +2180,9 @@ var MAINTAIN_DROPDOWNS = {
     'Result': function(){ return getActualResultOptions(); },
     '性別': function(){ return [...new Set(allData.map(function(d){return String(d['性別']||'').trim();}))].filter(Boolean).sort(); },
     '最高學歷': function(){ return [...new Set(allData.map(function(d){return String(d['最高學歷']||'').trim();}))].filter(Boolean).sort(); },
-    '負責HR': function(){ return [...new Set(allData.map(function(d){return String(d['負責HR']||'').trim();}))].filter(Boolean).sort(); },
+    // 負責HR：選項對照「HR Directory」工作表（權限管理裡設定的 HR 名冊），而不是抓歷史上打過的值，
+    // 避免打字不一致或人員異動後名單對不起來；舊資料裡已經填過、但目前不在名冊裡的名字，畫面上仍會顯示並保留勾選。
+    '負責HR': function(){ return hrDirectoryData.map(function(h){return String(h['HR姓名']||'').trim();}).filter(Boolean).sort(); },
     '婉拒理由': function(){ return [...new Set(allData.map(function(d){return String(d['婉拒理由']||'').trim();}))].filter(Boolean).sort(); },
     '是否邀約': function(){
       var base = ['是','否'];

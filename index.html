@@ -17,8 +17,8 @@
     <div style="text-align:center;padding-top:70px;">
       <div style="font-size:12px;font-weight:700;color:var(--text-tertiary);letter-spacing:.06em;margin-bottom:14px;">快速查看</div>
       <div style="display:flex;flex-direction:column;gap:12px;">
-        <button onclick="enterQuickAccess('hc')" style="width:190px;padding:16px 18px;border:1.5px solid var(--border);border-radius:12px;background:var(--surface);cursor:pointer;font-size:13px;font-weight:600;color:var(--text-primary);transition:all .15s;" onmouseover="this.style.borderColor='#4F46E5';this.style.boxShadow='0 4px 16px rgba(79,70,229,.12)'" onmouseout="this.style.borderColor='#E8EAED';this.style.boxShadow='none'">Headcount Overview</button>
-        <button onclick="enterQuickAccess('salary')" style="width:190px;padding:16px 18px;border:1.5px solid var(--border);border-radius:12px;background:var(--surface);cursor:pointer;font-size:13px;font-weight:600;color:var(--text-primary);transition:all .15s;" onmouseover="this.style.borderColor='#4F46E5';this.style.boxShadow='0 4px 16px rgba(79,70,229,.12)'" onmouseout="this.style.borderColor='#E8EAED';this.style.boxShadow='none'">Market Salary Records</button>
+        <button onclick="enterQuickAccess('hc')" style="width:190px;padding:16px 18px;border:1.5px solid var(--border);border-radius:12px;background:var(--surface);cursor:pointer;font-size:13px;font-weight:600;color:var(--text-primary);transition:all .15s;" onmouseover="this.style.borderColor='#4F46E5';this.style.boxShadow='0 4px 16px rgba(79,70,229,.12)'" onmouseout="this.style.borderColor='#E8EAED';this.style.boxShadow='none'">Headcount</button>
+        <button onclick="enterQuickAccess('salary')" style="width:190px;padding:16px 18px;border:1.5px solid var(--border);border-radius:12px;background:var(--surface);cursor:pointer;font-size:13px;font-weight:600;color:var(--text-primary);transition:all .15s;" onmouseover="this.style.borderColor='#4F46E5';this.style.boxShadow='0 4px 16px rgba(79,70,229,.12)'" onmouseout="this.style.borderColor='#E8EAED';this.style.boxShadow='none'">Market Salary</button>
       </div>
     </div>
 
@@ -72,14 +72,14 @@
 
 <div class="container">
   <div class="tab-bar">
-    <div class="tab active" data-tab-role="manager,recruiter,bp" onclick="switchTab('kanban',this)">Candidate Overview</div>
-    <div class="tab" data-tab-role="manager,recruiter,bp" onclick="switchTab('maintain',this)">人選資料維護與查詢</div>
+    <div class="tab active" data-tab-role="manager,recruiter,bp" onclick="switchTab('kanban',this)">Overview</div>
+    <div class="tab" data-tab-role="manager,recruiter,bp" onclick="switchTab('maintain',this)">Candidate</div>
     <div class="tab" data-tab-role="manager" onclick="switchTab('candidateSearch',this)">Candidate Search</div>
     <div class="tab" data-tab-role="manager,recruiter" onclick="switchTab('overview',this)">Recruitment Progress</div>
-    <div class="tab" data-tab-role="manager,recruiter,bp" onclick="switchTab('trends',this)">Recruitment Status</div>
-    <div class="tab" data-tab-role="manager" onclick="switchTab('hc',this)">Headcount Overview</div>
+    <div class="tab" data-tab-role="manager,recruiter,bp" onclick="switchTab('trends',this)">Analysis</div>
+    <div class="tab" data-tab-role="manager" onclick="switchTab('hc',this)">Headcount</div>
     <div class="tab" data-tab-role="manager" onclick="switchTab('schedule',this)">面試時間協調</div>
-    <div class="tab" data-tab-role="manager" onclick="switchTab('salary',this)">Market Salary Records</div>
+    <div class="tab" data-tab-role="manager" onclick="switchTab('salary',this)">Market Salary</div>
     <div class="tab" data-tab-role="manager" onclick="switchTab('permissions',this)">權限管理</div>
   </div>
 
@@ -87,7 +87,7 @@
 
   <!-- ===== KANBAN ===== -->
   <div id="view-kanban" style="position:relative;">
-    <div class="page-title">Candidate Overview</div>
+    <div class="page-title">Overview</div>
     <div class="page-sub">點擊人選卡片可變更人選資料</div>
     <div style="display:flex;align-items:flex-end;gap:14px;margin-bottom:10px;flex-wrap:wrap;">
       <button class="refresh-btn" style="margin-left:0;" onclick="openExportCandModal()">⬇ 匯出人選資料</button>
@@ -210,7 +210,7 @@
 
   <!-- ===== TRENDS ===== -->
   <div id="view-trends" style="display:none">
-    <div class="page-title">Recruitment Status</div>
+    <div class="page-title">Analysis</div>
     <div class="page-sub">各單位 Headcount 缺額與每月 Headcount／Onboard 趨勢（點圖表可切換樣式、看明細）</div>
 
     <div class="filter-bar" style="margin-bottom:16px;">
@@ -314,7 +314,7 @@
 
   <!-- ===== HEADCOUNT OVERVIEW ===== -->
   <div id="view-hc" style="display:none">
-    <div class="page-title">Headcount Overview</div>
+    <div class="page-title">Headcount</div>
     <div class="page-sub" id="hcSub">尚未載入資料</div>
 
     <div style="margin-bottom:20px;">
@@ -364,7 +364,7 @@
 
   <!-- ===== MARKET SALARY RECORDS（獨立畫面）===== -->
   <div id="view-salary" style="display:none">
-    <div class="page-title">Market Salary Records</div>
+    <div class="page-title">Market Salary</div>
     <div class="page-sub">市場薪資行情資料，可直接編輯或新增，會同步寫入試算表</div>
 
     <div id="newSalaryPanel" class="mini-card" style="padding:18px 20px;margin-bottom:20px;">
@@ -429,7 +429,7 @@
 
   <!-- ===== DATA MAINTENANCE ===== -->
   <div id="view-maintain" style="display:none">
-    <div class="page-title">人選資料維護與查詢</div>
+    <div class="page-title">Candidate</div>
     <div class="page-sub" id="maintainPageSub">可直接編輯資料</div>
 
     <!-- ===== Candidate Records：查詢卡模式 ===== -->
@@ -512,7 +512,7 @@
 <div id="viewCandidateModal" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeViewCandidateModal()">
   <div class="modal modal-wide">
     <div class="modal-title" id="viewCandModalName">—</div>
-    <div class="modal-sub">僅供查看，如需修改請至 Candidate Overview 畫面</div>
+    <div class="modal-sub">僅供查看，如需修改請至 Overview 畫面</div>
     <div id="viewCandModalFields" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;max-height:60vh;overflow-y:auto;padding-right:4px;"></div>
     <div class="modal-actions" style="margin-top:14px;">
       <button class="btn-cancel" onclick="closeViewCandidateModal()">關閉</button>
