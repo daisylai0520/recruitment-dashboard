@@ -221,20 +221,15 @@ function initDateFilterSlots() {
     {value:'Interview_date', label:'Interview_date'},
     {value:'Result Update_date', label:'Result Update_date'}
   ];
-  var csFields = [
-    {value:'invite_date', label:'invite_date'},
-    {value:'Interview_date', label:'Interview_date'}
-  ];
-  var quickRanges = [{label:'本月',range:'thisMonth'},{label:'過去一個月',range:'past1m'}];
+  // 全站時間篩選統一比照「人選資料維護與查詢」畫面：欄位、快速範圍按鈕都一致，也都不自動預設套用範圍
   var maintainQuickRanges = [{label:'本週',range:'thisWeek'},{label:'本月',range:'thisMonth'},{label:'過去一個月',range:'past1m'}];
   var slots = {
-    // Candidate Overview 主看板：畫面一打開就自動帶出本月資料
-    'kbDateFilterSlot': {key:'kanban', fields:candFields, quickRanges:quickRanges, defaultQuickRange:'thisMonth'},
-    'ovDateFilterSlot': {key:'overview', fields:candFields},
-    'csDateFilterSlot': {key:'candidateSearch', fields:csFields},
+    'kbDateFilterSlot': {key:'kanban', fields:candFields, quickRanges:maintainQuickRanges},
+    'ovDateFilterSlot': {key:'overview', fields:candFields, quickRanges:maintainQuickRanges},
+    'csDateFilterSlot': {key:'candidateSearch', fields:candFields, quickRanges:maintainQuickRanges},
     'candDateFilterSlot': {key:'candidateMaintenance', fields:candFields, quickRanges:maintainQuickRanges},
-    'trDateFilterSlot': {key:'trends', fields:candFields},
-    'expDateFilterSlot': {key:'export', fields:candFields},
+    'trDateFilterSlot': {key:'trends', fields:candFields, quickRanges:maintainQuickRanges},
+    'expDateFilterSlot': {key:'export', fields:candFields, quickRanges:maintainQuickRanges},
     'hcDateFilterSlot': {key:'hc', fields:[{value:'Update_date',label:'Update_date（缺額更新時間，依異動記錄推算暫不支援）'}], disabled:true}
   };
   Object.keys(slots).forEach(function(slotId){
@@ -302,27 +297,29 @@ async function fetchIdentityData() {
     unitHrMappingData = (json.unitHrMapping||[]).filter(function(d){return d['單位']||d['負責HR'];});
     renderRoleScreenIdentities();
   } catch(e) {
-    var el = document.getElementById('hrIdentityButtons');
-    if (el) el.innerHTML = '<div style="font-size:12px;color:#EF4444;">身分清單載入失敗，請重新整理頁面（'+e.message+'）</div>';
+    var bpEl = document.getElementById('hrIdentityButtonsBP');
+    var recEl = document.getElementById('hrIdentityButtonsRecruiter');
+    var errHtml = '<div style="font-size:12px;color:#EF4444;">身分清單載入失敗，請重新整理頁面（'+e.message+'）</div>';
+    if (bpEl) bpEl.innerHTML = errHtml;
+    if (recEl) recEl.innerHTML = '';
   }
 }
 
+function buildHRIdentityButton(name) {
+  var nameSafe = String(name).replace(/'/g,"\\'");
+  var nameDisp = String(name).replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  return '<button onclick="selectHRIdentity(\''+nameSafe+'\')" style="width:150px;padding:16px 14px;border:1.5px solid var(--border);border-radius:12px;background:var(--surface);cursor:pointer;transition:all .15s;font-size:14px;font-weight:600;color:var(--text-primary);" onmouseover="this.style.borderColor=\'#4F46E5\';this.style.boxShadow=\'0 4px 16px rgba(79,70,229,.12)\'" onmouseout="this.style.borderColor=\'#E8EAED\';this.style.boxShadow=\'none\'">'+nameDisp+'</button>';
+}
+
+// 依角色分兩欄顯示：BP 一欄、Recruiter 一欄（角色未設定時預設歸在 Recruiter 欄）
 function renderRoleScreenIdentities() {
-  var el = document.getElementById('hrIdentityButtons');
-  if (!el) return;
-  if (!hrDirectoryData.length) {
-    el.innerHTML = '<div style="font-size:12px;color:var(--text-tertiary);">目前尚未設定任何 HR，請由管理者登入後至「權限管理」畫面新增</div>';
-    return;
-  }
-  el.innerHTML = hrDirectoryData.map(function(hr){
-    var name = hr['HR姓名'];
-    var role = hr['角色'] === 'BP' ? 'BP' : 'Recruiter';
-    var nameSafe = String(name).replace(/'/g,"\\'");
-    return '<button onclick="selectHRIdentity(\''+nameSafe+'\')" style="width:160px;padding:22px 16px;border:1.5px solid var(--border);border-radius:14px;background:var(--surface);cursor:pointer;transition:all .15s;" onmouseover="this.style.borderColor=\'#4F46E5\';this.style.boxShadow=\'0 4px 16px rgba(79,70,229,.12)\'" onmouseout="this.style.borderColor=\'#E8EAED\';this.style.boxShadow=\'none\'">'+
-      '<div style="font-size:15px;font-weight:600;color:var(--text-primary);">我是 '+String(name).replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</div>'+
-      '<div style="font-size:11px;color:var(--text-tertiary);margin-top:4px;">'+role+'</div>'+
-    '</button>';
-  }).join('');
+  var bpEl = document.getElementById('hrIdentityButtonsBP');
+  var recEl = document.getElementById('hrIdentityButtonsRecruiter');
+  if (!bpEl || !recEl) return;
+  var bpList = hrDirectoryData.filter(function(h){ return h['角色'] === 'BP'; });
+  var recList = hrDirectoryData.filter(function(h){ return h['角色'] !== 'BP'; });
+  bpEl.innerHTML = bpList.length ? bpList.map(function(h){ return buildHRIdentityButton(h['HR姓名']); }).join('') : '<div style="font-size:11px;color:var(--text-tertiary);">尚未設定</div>';
+  recEl.innerHTML = recList.length ? recList.map(function(h){ return buildHRIdentityButton(h['HR姓名']); }).join('') : '<div style="font-size:11px;color:var(--text-tertiary);">尚未設定</div>';
 }
 
 function getUnitsForHR(name) {
@@ -444,8 +441,10 @@ function renderAll(){
 
 // ---- role selection ----
 var ALL_VIEW_TABS = ['kanban','candidateSearch','overview','hc','maintain','trends','schedule','salary','permissions'];
+// 「快速查看」模式：從身分選擇畫面左側直接進入單一分頁（等同管理者權限，但畫面上只看得到這一個分頁、沒有其他分頁與分頁列）
+var restrictedSingleTab = null;
 
-// 實際進入主畫面的共用邏輯：管理者（selectRole('manager')）跟一般 HR（selectHRIdentity）都會走這裡。
+// 實際進入主畫面的共用邏輯：管理者（selectRole('manager')）、一般 HR（selectHRIdentity）、快速查看（enterQuickAccess）都會走這裡。
 // roleToken 決定分頁顯示（recruiter/bp/manager）；hrName 是顯示用的識別名稱；units 是這個身分能看到的「單位」清單（null=不限制）。
 function enterAs(roleToken, hrName, units) {
   userRole = roleToken;
@@ -463,26 +462,39 @@ function enterAs(roleToken, hrName, units) {
     badge.textContent = hrName ? ('👤 ' + hrName + (isAdmin ? '' : '（' + (roleToken==='bp'?'BP':'Recruiter') + '）')) : '';
   }
 
-  // 依角色顯示/隱藏 tab
-  document.querySelectorAll('.tab[data-tab-role]').forEach(function(t){
-    var r = t.getAttribute('data-tab-role');
-    t.style.display = r.split(',').indexOf(roleToken) >= 0 ? '' : 'none';
-  });
+  var tabBar = document.querySelector('.tab-bar');
 
-  // 每次選擇身分都重設到第一個 tab，避免殘留前一個角色的畫面狀態
-  var firstTab = Array.prototype.find.call(document.querySelectorAll('.tab[data-tab-role]'), function(t){
-    return t.getAttribute('data-tab-role').split(',').indexOf(roleToken) >= 0;
-  });
-  document.querySelectorAll('.tab').forEach(function(t){t.classList.remove('active');});
-  if (firstTab) {
-    firstTab.classList.add('active');
-    var onclickAttr = firstTab.getAttribute('onclick');
-    var match = onclickAttr.match(/switchTab\('(\w+)'/);
-    if (match) {
-      currentTab = match[1];
-      ALL_VIEW_TABS.forEach(function(v){
-        document.getElementById('view-'+v).style.display = v===currentTab ? '' : 'none';
-      });
+  if (restrictedSingleTab) {
+    // 快速查看模式：隱藏整條分頁列，只顯示指定的那一個畫面
+    if (tabBar) tabBar.style.display = 'none';
+    document.querySelectorAll('.tab').forEach(function(t){t.classList.remove('active');});
+    currentTab = restrictedSingleTab;
+    ALL_VIEW_TABS.forEach(function(v){
+      document.getElementById('view-'+v).style.display = v===currentTab ? '' : 'none';
+    });
+  } else {
+    if (tabBar) tabBar.style.display = '';
+    // 依角色顯示/隱藏 tab
+    document.querySelectorAll('.tab[data-tab-role]').forEach(function(t){
+      var r = t.getAttribute('data-tab-role');
+      t.style.display = r.split(',').indexOf(roleToken) >= 0 ? '' : 'none';
+    });
+
+    // 每次選擇身分都重設到第一個 tab，避免殘留前一個角色的畫面狀態
+    var firstTab = Array.prototype.find.call(document.querySelectorAll('.tab[data-tab-role]'), function(t){
+      return t.getAttribute('data-tab-role').split(',').indexOf(roleToken) >= 0;
+    });
+    document.querySelectorAll('.tab').forEach(function(t){t.classList.remove('active');});
+    if (firstTab) {
+      firstTab.classList.add('active');
+      var onclickAttr = firstTab.getAttribute('onclick');
+      var match = onclickAttr.match(/switchTab\('(\w+)'/);
+      if (match) {
+        currentTab = match[1];
+        ALL_VIEW_TABS.forEach(function(v){
+          document.getElementById('view-'+v).style.display = v===currentTab ? '' : 'none';
+        });
+      }
     }
   }
 
@@ -511,15 +523,24 @@ function enterAs(roleToken, hrName, units) {
 
 // 「我是管理者」：不限制單位，可看到全部畫面（含權限管理）
 function selectRole(role) {
+  restrictedSingleTab = null;
   enterAs(role, role === 'manager' ? '管理者' : role, null);
 }
 
 // 一般 HR 點選「我是 XXX」：依 HR Directory 的角色決定看得到哪些分頁，依 Unit HR Mapping 決定看得到哪些單位的資料
 function selectHRIdentity(name) {
+  restrictedSingleTab = null;
   var entry = hrDirectoryData.find(function(h){ return h['HR姓名'] === name; });
   var roleToken = (entry && entry['角色'] === 'BP') ? 'bp' : 'recruiter';
   var units = getUnitsForHR(name);
   enterAs(roleToken, name, units);
+}
+
+// 身分選擇畫面左側「快速查看」：不用選身分，直接進入 Headcount Overview 或 Market Salary Records，
+// 權限等同管理者（不限制單位），但畫面上只顯示這一個分頁，沒有其他分頁與分頁列。
+function enterQuickAccess(tab) {
+  restrictedSingleTab = tab;
+  enterAs('manager', '管理者', null);
 }
 
 function switchRole() {
@@ -527,9 +548,12 @@ function switchRole() {
   isAdmin = false;
   currentHRName = null;
   currentHRUnits = null;
+  restrictedSingleTab = null;
   window.scrollTo(0, 0);
   document.getElementById('mainAppWrapper').style.display = 'none';
   document.getElementById('roleScreen').style.display = 'flex';
+  var tabBar = document.querySelector('.tab-bar');
+  if (tabBar) tabBar.style.display = '';
   var badge = document.getElementById('identityBadge');
   if (badge) badge.textContent = '';
   // 回到身分選擇畫面時重新抓一次 HR 名冊，避免管理者剛在權限管理新增完 HR 卻看不到新按鈕
@@ -575,6 +599,8 @@ function goTabHistoryForward() {
 // 在每個畫面的大標題下方插入「上一步／下一步」導覽按鈕（只插入一次，避免重複）
 function initTabHistoryNav() {
   document.querySelectorAll('[id^="view-"] .page-title').forEach(function(titleEl){
+    var viewEl = titleEl.closest('[id^="view-"]');
+    if (viewEl && viewEl.id === 'view-trends') return; // Recruitment Status 畫面不顯示上一步／下一步
     var next = titleEl.nextElementSibling;
     if (next && next.classList && next.classList.contains('tab-history-nav')) return;
     var nav = document.createElement('div');
@@ -733,18 +759,6 @@ function renderKanban() {
   });
 
   document.getElementById('kanbanBoard').innerHTML = buildKanbanPhasesHtml(filtered, false, true);
-
-  // ---- 轉換率計算 ----
-  // 分母：所有狀態非「HR不邀約電訪」的人選；分子：狀態為「錄取」的人選
-  var convBase = allData.filter(function(d){
-    return multiFilterPass('kb-bu', d['單位']) &&
-           multiFilterPass('kb-job', d['Job Function']) &&
-           d.Result !== 'HR不邀約電訪';
-  });
-  var convOffer = convBase.filter(function(d){return d.Result==='錄取';});
-  var convRate = convBase.length ? (convOffer.length/convBase.length*100) : 0;
-  var convEl = document.getElementById('kbConversionRate');
-  if (convEl) convEl.textContent = convBase.length ? convRate.toFixed(1)+'%' : '—';
 }
 
 // ---- CANDIDATE SEARCH ----
@@ -1631,7 +1645,7 @@ async function saveMemo() {
 
 // ===== TRENDS =====
 var TREND_COLORS = ['#F59E0B','#10B981','#3B82F6','#8B5CF6','#EC4899','#14B8A6','#F97316','#6366F1','#84CC16','#06B6D4','#EF4444','#A855F7','#22C55E','#0EA5E9'];
-var trendChartType = { funnel:'line', result:'bar' };
+var trendChartType = { monthly:'bar' };
 var WEEKDAY_CN = ['日','一','二','三','四','五','六'];
 function fmtTrendWeekLabel(d) {
   return (d.getMonth()+1)+'/'+d.getDate()+'('+WEEKDAY_CN[d.getDay()]+')';
@@ -1797,27 +1811,55 @@ function makeTrendSeries(name, recordsPerWeek) {
   return { name: name, data: recordsPerWeek.map(function(r){return r.length;}), records: recordsPerWeek };
 }
 
-// 每週邀約／電訪／面試人數
-function computeFunnelMetrics(data, weeks) {
-  return [
-    makeTrendSeries('邀約', countByDateFields(data, weeks, ['invite_date','invite date'])),
-    makeTrendSeries('電訪', countByDateFields(data, weeks, ['Phone Interview_date'])),
-    makeTrendSeries('面試', countByDateFields(data, weeks, ['Interview_date']))
-  ];
-}
-// 每週招募狀態統計（跟畫面上方字卡口徑一致）
-function computeResultMetrics(data, weeks) {
-  return [
-    makeTrendSeries('邀約', countByDateFields(data, weeks, ['invite_date','invite date'])),
-    makeTrendSeries('邀約未回覆', countByStage(data, weeks, function(r){return r === '104已邀約未回覆';})),
-    makeTrendSeries('已致電未接', countByStage(data, weeks, function(r){return r === '已致電未接';})),
-    makeTrendSeries('人選婉拒電訪', countByStage(data, weeks, function(r){return r === '人選婉拒電訪';})),
-    makeTrendSeries('已關閉履歷', countByStage(data, weeks, function(r){return r === '已關閉履歷';})),
-    makeTrendSeries('其他主管/近期已邀約', countByStage(data, weeks, function(r){return r === '其他主管/近期已邀約';})),
-    makeTrendSeries('待電訪', countByStage(data, weeks, function(r){return r === '待電訪';})),
-    makeTrendSeries('面試', countByDateFields(data, weeks, ['Interview_date'])),
-    makeTrendSeries('婉拒面試', countByStage(data, weeks, function(r){return r === '婉拒面試';}))
-  ];
+// 每月 Headcount（依 Headcount Records「Requisition Date」新增缺額數）＆ Onboard（依 Candidate Records「Onboard date」）
+// 只依目前 tr-bu／tr-job 篩選，不跟著上方時間篩選走（跟「各單位 Headcount 缺額」圖表口徑一致）；固定顯示最近 6 個月。
+function computeMonthlyHeadcountOnboard() {
+  var months = [];
+  var base = new Date(); base.setDate(1); base.setHours(0,0,0,0);
+  for (var i=5;i>=0;i--) months.push(new Date(base.getFullYear(), base.getMonth()-i, 1));
+  var labels = months.map(function(m){ return m.getFullYear()+'/'+String(m.getMonth()+1).padStart(2,'0'); });
+
+  function monthIndexOf(dateVal) {
+    var dt = parseDateTime(dateVal);
+    if (!dt) return -1;
+    for (var i=0;i<months.length;i++) {
+      if (dt.getFullYear()===months[i].getFullYear() && dt.getMonth()===months[i].getMonth()) return i;
+    }
+    return -1;
+  }
+
+  var reqKey = (hcRawData && hcRawData.length)
+    ? (Object.keys(hcRawData[0]).find(function(k){return k.trim()==='Requisition Date';}) || 'Requisition Date')
+    : 'Requisition Date';
+  var divKey = (hcRawData && hcRawData.length) ? (Object.keys(hcRawData[0]).find(function(k){return k.trim()==='Division';}) || 'Division') : 'Division';
+  var jobKeyHc = (hcRawData && hcRawData.length) ? (Object.keys(hcRawData[0]).find(function(k){return k.trim()==='Job Function';}) || 'Job Function') : 'Job Function';
+
+  var hcCounts = months.map(function(){ return 0; });
+  (hcRawData||[]).forEach(function(r){
+    if (!multiFilterPass('tr-bu', r[divKey])) return;
+    if (!multiFilterPass('tr-job', r[jobKeyHc])) return;
+    var idx = monthIndexOf(r[reqKey]);
+    if (idx < 0) return;
+    hcCounts[idx]++;
+  });
+
+  var onboardRecords = months.map(function(){ return []; });
+  allData.forEach(function(d){
+    if (!multiFilterPass('tr-bu', d['單位'])) return;
+    if (!multiFilterPass('tr-job', d['Job Function'])) return;
+    var idx = monthIndexOf(d['Onboard date']);
+    if (idx < 0) return;
+    onboardRecords[idx].push(d);
+  });
+
+  return {
+    labels: labels,
+    // Headcount 這條線不附 records：Headcount Records 的欄位跟候選人卡片格式不同，明細表格點下去不適合用候選人卡片呈現
+    series: [
+      { name:'Headcount（新增缺額）', data: hcCounts },
+      { name:'Onboard', data: onboardRecords.map(function(a){return a.length;}), records: onboardRecords }
+    ]
+  };
 }
 
 // 單位／Job Function 若narrowed到2個以上，兩張圖要分開顯示各自數據、不加總；
@@ -1940,33 +1982,14 @@ function renderTrends() {
   // ---- 各單位 Headcount（缺額）----
   renderTrendHcChart();
 
-  // ---- 週次（最近8週，週日期加上星期）----
-  var today = new Date(); today.setHours(0,0,0,0);
-  var weeks = [];
-  for (var w=7;w>=0;w--) { var we=getWeekEnd(today); we.setDate(we.getDate()-w*7); weeks.push(we); }
-  var weekLabels = weeks.map(fmtTrendWeekLabel);
-
-  // 單位／Job Function 若narrowed到多選，兩張圖都改為分開顯示各自數據，不加總
-  var breakdownField = getTrendBreakdownField();
-  var trendGroups = getTrendGroups(trendData, breakdownField);
-
-  // ---- 每週邀約／電訪／面試人數（合併圖表＋表格）----
-  var funnelSeries = breakdownField ? computeBreakdownSeries(trendGroups, computeFunnelMetrics, weeks) : computeFunnelMetrics(trendData, weeks);
-  var funnelMax = 1;
-  funnelSeries.forEach(function(s){ s.data.forEach(function(v){ if(v>funnelMax) funnelMax=v; }); });
-  funnelMax = Math.ceil(funnelMax*1.2);
-  trendCache.funnel = { labels: weekLabels, series: funnelSeries, maxVal: funnelMax };
-  renderTrendCard('funnel');
-  drawTrendTable('trendFunnelTableHead','trendFunnelTableBody', weekLabels, funnelSeries, 'funnel');
-
-  // ---- 每週招募狀態統計（固定8大類，依 Result Update_date／各自日期欄位，最近8週）----
-  var resultSeries = breakdownField ? computeBreakdownSeries(trendGroups, computeResultMetrics, weeks) : computeResultMetrics(trendData, weeks);
-  var resultMax = 1;
-  resultSeries.forEach(function(s){ s.data.forEach(function(v){ if(v>resultMax) resultMax=v; }); });
-  resultMax = Math.ceil(resultMax*1.2);
-  trendCache.result = { labels: weekLabels, series: resultSeries, maxVal: resultMax };
-  renderTrendCard('result');
-  drawTrendTable('trendResultTableHead','trendResultTableBody', weekLabels, resultSeries, 'result');
+  // ---- 每月 Headcount & Onboard（最近 6 個月）----
+  var monthly = computeMonthlyHeadcountOnboard();
+  var monthlyMax = 1;
+  monthly.series.forEach(function(s){ s.data.forEach(function(v){ if(v>monthlyMax) monthlyMax=v; }); });
+  monthlyMax = Math.ceil(monthlyMax*1.2);
+  trendCache.monthly = { labels: monthly.labels, series: monthly.series, maxVal: monthlyMax };
+  renderTrendCard('monthly');
+  drawTrendTable('trendMonthlyTableHead','trendMonthlyTableBody', monthly.labels, monthly.series, 'monthly');
 }
 
 // ===== 資料維護 =====
