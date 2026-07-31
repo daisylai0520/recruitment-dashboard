@@ -1,6 +1,9 @@
 var APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby0h1OkoC_xNWeAAbuh4cBicbTl4B8g1KDtL-s2YK9f80TYjIyxQtdeu9RkWFQVtY3pnw/exec';
 var userRole = null;
 var allData=[], salaryData=[], scheduleData=[], managerDirectoryData=[], managerInfoData=[], resultOptions=[], positionOptions=[];
+// allDataFull：完整（未依單位過濾）的人選名單，只給「新增人選時檢查是否已有其他 HR/單位約過」這個功能用，
+// 畫面上其他地方（看板、搜尋、篩選…）一律還是用有經過單位過濾的 allData，不會讓 HR 看到不屬於自己單位的完整資料。
+var allDataFull = [];
 var currentTab='kanban';
 
 // ---- 身分 / 權限管理 ----
@@ -273,6 +276,8 @@ async function fetchCoreData() {
   if (!res.ok) throw new Error('HTTP '+res.status);
   var json = await res.json();
   allData=(json.candidates||[]).filter(function(d){return d.Name&&d.Result;});
+  // 保留一份完整（未依單位過濾）名單，只給新增人選時的重複檢查使用
+  allDataFull = allData.slice();
   // 一般 HR 身分（非管理者）：只留下「單位」有落在自己負責範圍內的人選資料
   if (!isAdmin && currentHRUnits) {
     allData = allData.filter(function(d){
@@ -2142,10 +2147,11 @@ function getResultOptions() {
   return base;
 }
 
-// 資料維護畫面專用：Result 下拉選單只列出 Candidate Records 工作表 Result 欄位「實際出現過」的值
-// （不含資料驗證清單裡尚未被使用的選項），供編輯人選資料時使用
+// 資料維護畫面專用：編輯人選資料時的 Result 下拉選單。
+// 統一改用跟篩選欄一樣的 getResultOptions()（來源是「分類Result」工作表），
+// 這樣即使某個 Result 分類目前還沒有任何人選用過，也一樣能被選到，不會漏選項。
 function getActualResultOptions() {
-  return [...new Set(allData.map(function(d){ return String(d.Result||'').trim(); }))].filter(Boolean).sort();
+  return getResultOptions();
 }
 
 // 104_Position 選項：優先用試算表的資料驗證清單（可能列出還沒被用過的職缺），
@@ -3006,7 +3012,9 @@ function getNewCandFormSelector() {
   return '#newCandFields .new-cand-input';
 }
 
-// 輸入姓名或履歷代碼時，即時檢查這位人選是否已經有紀錄，避免重複建檔
+// 輸入姓名或履歷代碼時，即時檢查這位人選是否已經有紀錄，避免重複建檔。
+// 注意：這裡故意查「allDataFull」（完整、未依單位過濾的名單），而不是畫面上其他地方用的 allData，
+// 這樣即使這位人選是其他單位／其他 HR 已經約過的，也能在這裡看得到、避免不同 HR 重複邀約同一人。
 function checkNewCandDuplicate() {
   var name = '', resume = '';
   document.querySelectorAll(getNewCandFormSelector()).forEach(function(inp){
@@ -3018,15 +3026,15 @@ function checkNewCandDuplicate() {
   if (!warnEl) return;
   if (!name && !resume) { warnEl.style.display = 'none'; return; }
 
-  var matched = allData.filter(function(d){
+  var matched = allDataFull.filter(function(d){
     var resumeKey = findResumeCodeKey(d);
     return (name && String(d.Name||'').toLowerCase()===name) || (resume && String(d[resumeKey]||'').toLowerCase()===resume);
   });
   if (matched.length) {
     warnEl.style.display = '';
     warnEl.innerHTML = '⚠️ 已經有相符的紀錄：' + matched.map(function(m){
-      return (m.Name||'') + '（' + (m['履歷代碼']||'') + '）目前狀態：' + (m.Result||'—');
-    }).join('；') + '，請確認是否要繼續新增，避免重複建檔';
+      return (m.Name||'') + '（' + (m['履歷代碼']||'') + '）單位：' + (m['單位']||'—') + '，負責HR：' + (m['負責HR']||'—') + '，目前狀態：' + (m.Result||'—');
+    }).join('；') + '，請確認是否要繼續新增，避免重複建檔／重複邀約';
   } else {
     warnEl.style.display = 'none';
   }
