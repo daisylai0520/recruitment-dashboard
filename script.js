@@ -2944,6 +2944,13 @@ function isPhoneRecordFieldName(h) {
   return /phone\s*interview\s*record/i.test(h);
 }
 
+// 邀約日欄位離開時自動整理成 YYYY/MM/DD（例如手動輸入 6/25、貼上其他格式，甚至不小心貼到瀏覽器原生
+// Date 字串如 "Thu Jun 25 2026 00:00:00 GMT+0800"，都會在離開欄位時被 fmtDateOnly 轉回統一格式）
+function normalizeNewCandDateField(el) {
+  if (!el.value.trim()) return;
+  el.value = fmtDateOnly(el.value);
+}
+
 function renderNewCandidateFields() {
   // 排版要跟「搜尋結果」卡片一致：套用同一個角色欄位過濾（filterCandHeadersForRole，例如 BP 看不到的欄位），
   // 而不是只排除 MAINTAIN_QUERY_HIDDEN_FIELDS
@@ -2972,13 +2979,16 @@ function renderNewCandidateFields() {
     var spanStyle = isPaired ? '' : ((isMultilineField || isHRComment) ? 'grid-column:1/-1;' : (isPosition ? 'grid-column:span 2;' : ''));
     var dupAttr = isNameOrResume ? ' oninput="checkNewCandDuplicate()"' : '';
     // 負責HR：自動帶入這台瀏覽器最近一次填寫過的名字，同一位 HR 不用每次重打
-    var prefillVal = isInviteDate ? todayStr : (h === '負責HR' ? getLastUsedHR() : '');
+    // 邀約日：一律用 fmtDateOnly 正規化成 YYYY/MM/DD（避免不小心存到／貼到瀏覽器原生 Date 字串格式，例如 "Thu Jun 25 2026 00:00:00 GMT+0800"）
+    var prefillVal = isInviteDate ? fmtDateOnly(todayStr) : (h === '負責HR' ? getLastUsedHR() : '');
 
     // Inviter 有填寫時，依 Manager Information 工作表的姓名比對自動帶入 單位
     var inviterAttr = (h === 'Inviter') ? ' oninput="handleInviterInputChange(this)" onchange="handleInviterInputChange(this)"' : '';
     // 104_Position 有填寫時，自動擷取【】內文字帶入 Job Function
     var positionAttr = isPosition ? ' oninput="handlePositionInputChange(this)" onchange="handlePositionInputChange(this)"' : '';
-    var extraAttr = inviterAttr + positionAttr;
+    // 邀約日：手動輸入或不小心貼上其他格式時，離開欄位就自動改回 YYYY/MM/DD；並關閉瀏覽器自動填字建議，避免帶入奇怪格式
+    var inviteDateAttr = isInviteDate ? ' onblur="normalizeNewCandDateField(this)" autocomplete="off"' : '';
+    var extraAttr = inviterAttr + positionAttr + inviteDateAttr;
 
     var fieldHtml;
     if (dropdowns[h]) {
