@@ -92,6 +92,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
 .phase-phone .kanban-col-hdr{background:#FEF3C7;color:#92400E;border-bottom-color:#F59E0B;}
 .phase-interview .kanban-col-hdr{background:#DBEAFE;color:#1E40AF;border-bottom-color:#3B82F6;}
 .phase-offer .kanban-col-hdr{background:#DCFCE7;color:#166534;border-bottom-color:#22C55E;}
+.phase-other .kanban-col-hdr{background:#EDE9FE;color:#5B21B6;border-bottom-color:#8B5CF6;}
 
 /* MODAL */
 .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:200;display:flex;align-items:center;justify-content:center;}

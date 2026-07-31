@@ -27,19 +27,25 @@ var activeFilter=null;
 var selectedCard=null;
 
 // Stage definitions
-var PHONE_STAGES = ['確認主管邀約意願','排電訪','待電訪'];
-// Candidate Overview 不顯示「確認主管邀約意願」欄；Candidate Search 保留完整流程。
-var CANDIDATE_OVERVIEW_PHONE_STAGES = PHONE_STAGES.filter(function(stage){ return stage !== '確認主管邀約意願'; });
-var INTERVIEW_STAGES = ['確認主管面試意願','排面試','待面試'];
+// 2026/07 對齊「分類Result」工作表的 19 個 Result 分類（原本這裡是舊制度的階段名稱，跟現在的
+// Result 選項對不起來，例如「未回覆」「確認主管邀約意願」「HR不邀約電訪」「主管不邀約面試」
+// 這幾個字串現在都不存在於「分類Result」裡了，導致這幾個 Result 值的人選在看板上完全不會出現）
+var PHONE_STAGES = ['排電訪','待電訪','已致電未接'];
+// Candidate Overview／Candidate Search 目前顯示的電訪階段欄位一致（舊制度才會不同），保留這個別名避免動到呼叫端
+var CANDIDATE_OVERVIEW_PHONE_STAGES = PHONE_STAGES;
+var INTERVIEW_STAGES = ['確認主管面試意願','排面試','待面試','已面試，排複試'];
 var OFFER_STAGES = ['確認主管錄取意願','確認人選錄取意願','錄取'];
-var COLLAPSE_STAGES = ['未回覆','HR不邀約電訪','主管不邀約面試','婉拒電訪','婉拒面試','未錄取','婉拒錄取','已關閉履歷'];
+// 「其他」：待確認/暫緩，先不歸類到電訪/面試/錄取，也不算已結束，獨立一欄方便追蹤
+var OTHER_STAGES = ['待確認/暫緩'];
+var COLLAPSE_STAGES = ['104已邀約未回覆','人選婉拒電訪','其他主管/近期已邀約','不建議邀約','婉拒面試','未錄取','婉拒 Offer','已關閉履歷'];
 var ALL_ACTIVE_STAGES = PHONE_STAGES.concat(INTERVIEW_STAGES).concat(OFFER_STAGES);
 
 var STAGE_COLORS = {
-  '未回覆':'#9CA3AF','排電訪':'#F59E0B','確認主管邀約意願':'#FB923C','待電訪':'#10B981',
-  '確認主管面試意願':'#60A5FA','排面試':'#3B82F6','待面試':'#8B5CF6',
+  '104已邀約未回覆':'#9CA3AF','排電訪':'#F59E0B','已致電未接':'#FBBF24','待電訪':'#10B981',
+  '確認主管面試意願':'#60A5FA','排面試':'#3B82F6','待面試':'#8B5CF6','已面試，排複試':'#2563EB',
   '確認主管錄取意願':'#34D399','確認人選錄取意願':'#059669','錄取':'#16A34A',
-  'HR不邀約電訪':'#9CA3AF','主管不邀約面試':'#9CA3AF','婉拒電訪':'#EF4444','婉拒面試':'#EF4444','未錄取':'#EF4444','婉拒錄取':'#EF4444','已關閉履歷':'#6B7280'
+  '待確認/暫緩':'#8B5CF6','其他主管/近期已邀約':'#9CA3AF','不建議邀約':'#9CA3AF',
+  '人選婉拒電訪':'#EF4444','婉拒面試':'#EF4444','未錄取':'#EF4444','婉拒 Offer':'#EF4444','已關閉履歷':'#6B7280'
 };
 
 // ---- helpers ----
@@ -678,7 +684,8 @@ function buildKanbanPhasesHtml(filtered, readOnly, hideManagerInvitationStage) {
   var phases=[
     {label:'電訪階段', cls:'phase-phone', stages:hideManagerInvitationStage ? CANDIDATE_OVERVIEW_PHONE_STAGES : PHONE_STAGES},
     {label:'面試階段', cls:'phase-interview', stages:INTERVIEW_STAGES},
-    {label:'錄取階段', cls:'phase-offer', stages:OFFER_STAGES}
+    {label:'錄取階段', cls:'phase-offer', stages:OFFER_STAGES},
+    {label:'其他', cls:'phase-other', stages:OTHER_STAGES}
   ];
 
   var boardHtml='';
@@ -763,7 +770,7 @@ function renderKanban() {
     if(!multiFilterPass('kb-job', d['Job Function'])) return false;
     if(!dateFilterPass('kanban', d)) return false;
     // 超過7天未回覆不顯示
-    if(d.Result==='未回覆') {
+    if(d.Result==='104已邀約未回覆') {
       var inviteDate=parseDateTime(d.invite_date||d['invite date']||'');
       if(!inviteDate) return false;
       var diff=(now-inviteDate)/(1000*60*60*24);
@@ -846,12 +853,13 @@ function openModal(row, name, pos, bu, currentStage) {
     {label:'電訪階段', stages:PHONE_STAGES},
     {label:'面試階段', stages:INTERVIEW_STAGES},
     {label:'錄取階段', stages:OFFER_STAGES},
+    {label:'其他', stages:OTHER_STAGES},
     {label:'⬇️ 結束/不推進', stages:COLLAPSE_STAGES}
   ];
-  // 試算表裡若有新增、但不在上面四個分類中的 Result 選項，歸到「其他狀態」，確保都能被選到
-  var knownStages = PHONE_STAGES.concat(INTERVIEW_STAGES, OFFER_STAGES, COLLAPSE_STAGES);
+  // 試算表裡若有新增、但不在上面五個分類中的 Result 選項，歸到「未分類」，確保都能被選到
+  var knownStages = PHONE_STAGES.concat(INTERVIEW_STAGES, OFFER_STAGES, OTHER_STAGES, COLLAPSE_STAGES);
   var otherStages = getResultOptions().filter(function(s){ return knownStages.indexOf(s) < 0; });
-  if (otherStages.length) phases.push({label:'其他狀態', stages:otherStages});
+  if (otherStages.length) phases.push({label:'未分類', stages:otherStages});
   var html='';
   phases.forEach(function(phase){
     html+='<div class="modal-stage-group"><div class="modal-stage-group-title">'+phase.label+'</div><div class="modal-stages">';
@@ -2018,8 +2026,9 @@ var maintainBU = 'all';
 // candFilterBU/Job/Result 已改用 multiFilterState（cand-bu / cand-job / cand-result）
 // salaryBU/salaryJob 已改用 multiFilterState（salary-bu / salary-job）
 
-// 備用清單：試算表尚未設定資料驗證、或資料還沒載入完成時使用
-var FALLBACK_RESULT_OPTIONS = ['未回覆','排電訪','待電訪','確認主管邀約意願','確認主管面試意願','排面試','待面試','確認主管錄取意願','確認人選錄取意願','婉拒電訪','HR不邀約電訪','HR不邀約面試','主管不邀約面試','婉拒面試','錄取','未錄取','婉拒錄取','已面試，排複試','已關閉履歷','思考一下','???'];
+// 備用清單：只有在「分類Result」工作表讀不到（或欄位是空的）時才會用到，內容需跟「分類Result」工作表的
+// 「Result」欄位保持一致（2026/07 對齊，共19項），避免備援清單跟正式分類對不起來
+var FALLBACK_RESULT_OPTIONS = ['104已邀約未回覆','已致電未接','其他主管/近期已邀約','人選婉拒電訪','已關閉履歷','不建議邀約','待確認/暫緩','排電訪','待電訪','確認主管面試意願','排面試','待面試','已面試，排複試','確認主管錄取意願','確認人選錄取意願','錄取','未錄取','婉拒 Offer','婉拒面試'];
 
 // Result 選項一律以 Google 試算表 Candidate Records 的「Result」欄位資料驗證規則為主，若讀不到才用備用清單
 // ============================================================
