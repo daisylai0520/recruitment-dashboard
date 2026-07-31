@@ -18,6 +18,10 @@ var isAdmin = false;
 function splitMultiValue(s) {
   return String(s||'').split('、').map(function(v){ return v.trim(); }).filter(Boolean);
 }
+
+// Candidate 畫面的時間篩選：使用者按過「清除」（或手動把日期都清空）之後，就不要再自動幫忙補「本週」，
+// 直到他自己又設定了一個新的時間範圍為止。切換身分／重新登入時會重設。
+var candMaintenanceDateCleared = false;
 // 舊的單選篩選狀態變數已改用 multiFilterState（見下方通用多選篩選元件），這裡保留 activeFilter 給 Recruitment Status 用
 var activeFilter=null;
 var selectedCard=null;
@@ -156,6 +160,7 @@ function quickDateFilter(pageKey, range) {
     end: new Date(end.getFullYear(),end.getMonth(),end.getDate(),23,59,59),
     quickRange: range
   };
+  if (pageKey === 'candidateMaintenance') candMaintenanceDateCleared = false;
   updateDateQuickBtnActive(pageKey);
   triggerPageRerender(pageKey);
 }
@@ -174,11 +179,11 @@ function applyDateFilter(pageKey) {
   var fieldEl = document.getElementById('df-field-'+pageKey);
   var startEl = document.getElementById('df-start-'+pageKey);
   var endEl = document.getElementById('df-end-'+pageKey);
-  dateFilterState[pageKey] = {
-    field: fieldEl.value,
-    start: startEl.value ? new Date(startEl.value+'T00:00:00') : null,
-    end: endEl.value ? new Date(endEl.value+'T23:59:59') : null
-  };
+  var start = startEl.value ? new Date(startEl.value+'T00:00:00') : null;
+  var end = endEl.value ? new Date(endEl.value+'T23:59:59') : null;
+  dateFilterState[pageKey] = { field: fieldEl.value, start: start, end: end };
+  // 手動把起訖日期都清空也算是「使用者主動清除」，跟按「清除」連結一樣，不要再自動幫忙補本週
+  if (pageKey === 'candidateMaintenance') candMaintenanceDateCleared = !start && !end;
   updateDateQuickBtnActive(pageKey);
   triggerPageRerender(pageKey);
 }
@@ -189,6 +194,7 @@ function clearDateFilter(pageKey) {
   if (startEl) startEl.value = '';
   if (endEl) endEl.value = '';
   delete dateFilterState[pageKey];
+  if (pageKey === 'candidateMaintenance') candMaintenanceDateCleared = true;
   updateDateQuickBtnActive(pageKey);
   triggerPageRerender(pageKey);
 }
@@ -458,6 +464,7 @@ function enterAs(roleToken, hrName, units) {
   isAdmin = (roleToken === 'manager');
   currentHRName = hrName;
   currentHRUnits = units;
+  candMaintenanceDateCleared = false; // 每次切換身分都重新開始，Candidate 畫面回到「還沒篩選」的初始狀態
 
   // 切換身分時回到頁首，確保上方分頁導覽會立即出現在視窗中。
   window.scrollTo(0, 0);
@@ -2341,6 +2348,7 @@ function matchesAnySearchTerm(text, terms) {
 
 function renderCandQuery() {
   if (isMaintainCellFocused('Candidate Records')) return;
+  renderSearchAllCandidatesResults(); // 跨單位搜尋結果（若目前有開啟）跟著搜尋框內容一起更新
   var search = (document.getElementById('candQuerySearch').value || '').trim().toLowerCase();
   var searchTerms = splitSearchTerms(search);
   var container = document.getElementById('candQueryResults');
@@ -2362,7 +2370,8 @@ function renderCandQuery() {
 
   // 使用者第一次真正套用篩選（搜尋文字／單位／Job Function／目前狀態／Inviter 任一項），但還沒設定時間範圍時，
   // 自動補上「本週」再重新渲染一次；quickDateFilter 內部會自己觸發重新渲染，這裡直接 return 避免重複計算。
-  if (!hasDateFilter) {
+  // 但如果使用者已經按過「清除」，就尊重他的選擇，不要再自動補回本週。
+  if (!hasDateFilter && !candMaintenanceDateCleared) {
     quickDateFilter('candidateMaintenance', 'thisWeek');
     return;
   }
@@ -2929,24 +2938,38 @@ function addFormInviterMsName(uid) {
   runFormAutoSyncIfNeeded(hidden);
 }
 
+// 判斷是否為「電訪紀錄(HR)／(主管)」欄位——跟 buildCandQueryCardsHtml 共用同一套判斷規則，
+// 兩個表單的排版才會完全一致（並排顯示、HR 固定在左、主管固定在右）
+function isPhoneRecordFieldName(h) {
+  return /phone\s*interview\s*record/i.test(h);
+}
+
 function renderNewCandidateFields() {
-  var headers = (maintainHeaders['Candidate Records'] || ['invite_date','單位','Job Function','104_Position','Name','性別','年齡','最高學歷','學校','科系','履歷代碼','Source','Inviter','Phone Interview_date','Interview_date','Result','Result Update_date','Onboard date','負責HR','Memo'])
-    .filter(function(h){ return MAINTAIN_QUERY_HIDDEN_FIELDS.indexOf(h) < 0; });
+  // 排版要跟「搜尋結果」卡片一致：套用同一個角色欄位過濾（filterCandHeadersForRole，例如 BP 看不到的欄位），
+  // 而不是只排除 MAINTAIN_QUERY_HIDDEN_FIELDS
+  var headers = filterCandHeadersForMaintenance(maintainHeaders['Candidate Records'] || ['invite_date','單位','Job Function','104_Position','Name','性別','年齡','最高學歷','學校','科系','履歷代碼','Source','Inviter','Phone Interview_date','Interview_date','Result','Result Update_date','Onboard date','負責HR','Memo']);
   var dropdowns = MAINTAIN_DROPDOWNS['Candidate Records'] || {};
   var requiredFields = ['Name','Result','invite_date'];
   var todayStr = getTodayDateStr();
 
-  document.getElementById('newCandFields').innerHTML = headers.map(function(h){
+  // 電訪紀錄(HR)／(主管) 欄位並排顯示邏輯，跟 buildCandQueryCardsHtml 完全比照
+  var phoneRecordFields = headers.filter(isPhoneRecordFieldName).sort(function(a,b){
+    return (/hr/i.test(a)?0:1) - (/hr/i.test(b)?0:1); // HR 固定在左，主管固定在右
+  });
+  var pairedPhoneRecordDone = false;
+
+  function buildOneField(h, isPaired) {
     var isRequired = requiredFields.indexOf(h) >= 0;
     var label = h + (isRequired ? ' <span style="color:#EF4444;">*</span>' : '');
     var isInviteDate = (h === 'invite_date' || h === 'invite date');
     var isMemo = h.indexOf('Memo') >= 0;
-    var isPhoneRecord = /phone\s*interview\s*record/i.test(h);
+    var isPhoneRecord = isPhoneRecordFieldName(h);
     var isMultilineField = isMemo || isPhoneRecord;
     var isHRComment = /^hr\s*comment$/i.test(h.trim());
     var isPosition = h === '104_Position';
     var isNameOrResume = (h === 'Name' || h.indexOf('履歷代碼') >= 0);
-    var spanStyle = (isMultilineField || isHRComment) ? 'grid-column:1/-1;' : (isPosition ? 'grid-column:span 2;' : '');
+    // 並排的電訪紀錄欄位不要再各自佔滿整排（外層已經是整排的兩欄容器了）
+    var spanStyle = isPaired ? '' : ((isMultilineField || isHRComment) ? 'grid-column:1/-1;' : (isPosition ? 'grid-column:span 2;' : ''));
     var dupAttr = isNameOrResume ? ' oninput="checkNewCandDuplicate()"' : '';
     // 負責HR：自動帶入這台瀏覽器最近一次填寫過的名字，同一位 HR 不用每次重打
     var prefillVal = isInviteDate ? todayStr : (h === '負責HR' ? getLastUsedHR() : '');
@@ -2978,6 +3001,19 @@ function renderNewCandidateFields() {
     // Memo 欄位下方加一條分隔線，把表單分成前後兩區
     if (isMemo) fieldHtml += '<div style="grid-column:1/-1;border-top:1px solid var(--border);margin:6px 0 2px;"></div>';
     return fieldHtml;
+  }
+
+  document.getElementById('newCandFields').innerHTML = headers.map(function(h){
+    if (isPhoneRecordFieldName(h)) {
+      if (pairedPhoneRecordDone) return ''; // 另一個欄位已經跟第一個並排畫在同一排了
+      pairedPhoneRecordDone = true;
+      if (phoneRecordFields.length >= 2) {
+        var pairHtml = phoneRecordFields.map(function(pf){ return buildOneField(pf, true); }).join('');
+        return '<div style="grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:14px;">'+pairHtml+'</div>';
+      }
+      return buildOneField(h, false);
+    }
+    return buildOneField(h, false);
   }).join('');
 
   document.getElementById('newCandFields').querySelectorAll('textarea.new-cand-input').forEach(autoGrowTextarea);
@@ -3024,42 +3060,99 @@ function getNewCandFormSelector() {
 // ---- 搜尋全部人選（跨單位）----
 // 查詢範圍是 allDataFull（完整、未依單位過濾的名單），不受目前身分的單位權限限制，
 // 用來確認其他單位／其他 HR 是否已經約過某個人，避免重複邀約。
-function openSearchAllCandidatesModal() {
-  var input = document.getElementById('searchAllCandidatesInput');
-  var mainSearch = document.getElementById('candQuerySearch');
-  if (input) input.value = mainSearch ? mainSearch.value : '';
-  document.getElementById('searchAllCandidatesModal').style.display = 'flex';
-  renderSearchAllCandidatesResults();
-  if (input) input.focus();
-}
+// 顯示位置：直接顯示在搜尋框下方（不跳出視窗），欄位排版與下方「本單位搜尋結果」完全一致；
+// 但這些是其他單位、不在目前身分權限範圍內的資料，所以用唯讀方式呈現（不可編輯／不可刪除），
+// 只保留「選取以複製」功能，讓使用者可以把這筆資料複製到下方「新增人選資料」表單。
+var searchAllCandidatesOpen = false;
 
-function closeSearchAllCandidatesModal() {
-  document.getElementById('searchAllCandidatesModal').style.display = 'none';
+function toggleSearchAllCandidates() {
+  searchAllCandidatesOpen = !searchAllCandidatesOpen;
+  var btn = document.getElementById('searchAllCandidatesBtn');
+  if (btn) btn.textContent = searchAllCandidatesOpen ? '✕ 關閉全部單位搜尋結果' : '🔍 搜尋全部人選（含其他單位）';
+  renderSearchAllCandidatesResults();
 }
 
 function renderSearchAllCandidatesResults() {
-  var listEl = document.getElementById('searchAllCandidatesList');
-  if (!listEl) return;
-  var search = (document.getElementById('searchAllCandidatesInput').value || '').trim().toLowerCase();
+  var container = document.getElementById('searchAllCandidatesResults');
+  if (!container) return;
+  if (!searchAllCandidatesOpen) { container.innerHTML = ''; return; }
+
+  var searchInput = document.getElementById('candQuerySearch');
+  var search = (searchInput ? searchInput.value : '').trim().toLowerCase();
   var terms = splitSearchTerms(search);
   if (!terms.length) {
-    listEl.innerHTML = '<div class="empty" style="padding:20px 0;text-align:center;">請輸入姓名或履歷代碼查詢</div>';
+    container.innerHTML = '<div class="empty" style="padding:16px 0;text-align:center;">請在上方輸入姓名或履歷代碼，查詢是否有其他單位約過這位人選</div>';
     return;
   }
+
+  // 本單位（allData）已經在下方顯示過的紀錄，這裡不重複列出，只顯示「其他單位」才有的紀錄
+  var scopedRows = {};
+  allData.forEach(function(d){ scopedRows[d._row] = true; });
   var matched = allDataFull.filter(function(d){
+    if (scopedRows[d._row]) return false;
     var resumeKey = findResumeCodeKey(d);
     return matchesAnySearchTerm(d.Name, terms) || matchesAnySearchTerm(d[resumeKey], terms);
   });
+
+  var header = '<div style="font-size:12px;font-weight:700;color:var(--text-secondary);margin:6px 0 8px;">🔍 其他單位搜尋結果'+(matched.length?'（共 '+matched.length+' 筆，唯讀，僅供比對／複製）':'')+'</div>';
   if (!matched.length) {
-    listEl.innerHTML = '<div class="empty" style="padding:20px 0;text-align:center;">找不到符合的人選（所有單位都沒有）</div>';
+    container.innerHTML = header + '<div class="empty" style="padding:16px 0;text-align:center;">其他單位沒有符合的人選</div>';
     return;
   }
-  listEl.innerHTML = matched.map(function(d){
-    var resumeKey = findResumeCodeKey(d);
-    return '<div class="mini-card"><div class="mini-card-top"><div class="mini-card-name">'+(d.Name||'')+'</div><div class="mini-card-bu">'+(d['單位']||'—')+'</div></div>'+
-      '<div class="mini-card-pos">'+(d['Job Function']||'')+(d[resumeKey]?' · '+d[resumeKey]:'')+'</div>'+
-      '<div style="font-size:11px;color:var(--text-secondary);margin-top:2px;">負責HR：'+(d['負責HR']||'—')+' · 邀約日：'+(d.invite_date||'—')+' · 目前狀態：'+(d.Result||'—')+'</div></div>';
+  container.innerHTML = header + buildReadOnlyCandCardsHtml(matched);
+}
+
+// 唯讀版人選資料卡：欄位與排版邏輯跟 buildCandQueryCardsHtml 完全一致（含電訪紀錄(HR)/(主管)並排），
+// 但用純文字顯示、不可編輯；也不提供「刪除」按鈕（其他單位資料不在目前身分權限內，只保留「選取以複製」）
+function buildReadOnlyCandCardsHtml(matched) {
+  return matched.map(function(cand){
+    var candHeaders = filterCandHeadersForMaintenance(maintainHeaders['Candidate Records'] || Object.keys(cand).filter(function(k){return k!=='_row';}));
+    var isSelected = selectedCandForCopy && selectedCandForCopy._row === cand._row;
+
+    var isPhoneRecordHeader = function(h){ return /phone\s*interview\s*record/i.test(h); };
+    var phoneRecordFields = candHeaders.filter(isPhoneRecordHeader).sort(function(a,b){
+      return (/hr/i.test(a)?0:1) - (/hr/i.test(b)?0:1); // HR 固定在左，主管固定在右
+    });
+    var pairedPhoneRecordDone = false;
+    var fieldsHtml = candHeaders.map(function(h){
+      if (isPhoneRecordHeader(h)) {
+        if (pairedPhoneRecordDone) return '';
+        pairedPhoneRecordDone = true;
+        if (phoneRecordFields.length >= 2) {
+          var pairHtml = phoneRecordFields.map(function(pf){ return renderReadOnlyQueryField(cand, pf, false); }).join('');
+          return '<div style="grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:14px;">'+pairHtml+'</div>';
+        }
+        return renderReadOnlyQueryField(cand, h, true);
+      }
+      var isFullWidth = h.indexOf('Memo') >= 0;
+      var isWide = h === '104_Position';
+      return renderReadOnlyQueryField(cand, h, isFullWidth ? true : (isWide ? 'span2' : false));
+    }).join('');
+
+    return '<div class="mini-card" style="padding:20px 22px;margin-bottom:16px;background:var(--bg2);'+(isSelected?'border-color:var(--accent);box-shadow:0 0 0 2px var(--accent);':'')+'">'+
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px;">'+
+        '<div style="font-size:16px;font-weight:700;">'+cand.Name+(isSelected?' <span style="font-size:11px;font-weight:600;color:var(--accent);">（已選取，將用於複製）</span>':'')+
+          ' <span style="font-size:11px;font-weight:600;color:var(--text-tertiary);">（其他單位・唯讀）</span></div>'+
+        '<div style="display:flex;gap:8px;">'+
+          '<button class="refresh-btn" style="margin-left:0;" onclick="selectCandForCopy('+cand._row+')">📌 選取以複製</button>'+
+        '</div>'+
+      '</div>'+
+      '<div class="maintain-candidate-grid">'+fieldsHtml+'</div>'+
+    '</div>';
   }).join('');
+}
+
+// 唯讀欄位顯示：跟 renderQueryField 用一樣的欄寬／日期格式規則，只是用純文字取代可編輯的 input/textarea
+function renderReadOnlyQueryField(rec, field, fullWidth) {
+  var rawVal = rec[field] !== undefined ? rec[field] : '';
+  var isDateField = MAINTAIN_DATE_FIELDS.indexOf(field) >= 0;
+  var isDateOnlyField = MAINTAIN_DATEONLY_FIELDS.indexOf(field) >= 0;
+  var displayVal = isDateOnlyField ? fmtDateOnly(rawVal) : isDateField ? fmtDateTimeStrict(rawVal) : rawVal;
+  var wrapStyle = fullWidth === 'span2' ? 'grid-column:span 2;' : fullWidth ? 'grid-column:1/-1;' : '';
+  var displaySafe = (displayVal===undefined||displayVal===null||displayVal==='') ? '—' :
+    String(displayVal).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  return '<div style="'+wrapStyle+'"><div style="font-size:10px;font-weight:600;color:var(--text-tertiary);margin-bottom:4px;">'+field+'</div>'+
+    '<div style="width:100%;font-size:13px;padding:6px 8px;border:1.5px solid var(--border);border-radius:8px;background:var(--surface);box-sizing:border-box;min-height:20px;white-space:pre-wrap;word-break:break-word;color:var(--text-secondary);">'+displaySafe+'</div></div>';
 }
 
 // 輸入姓名或履歷代碼時，即時檢查這位人選是否已經有紀錄，避免重複建檔。
@@ -3100,8 +3193,10 @@ function checkNewCandDuplicate() {
 }
 
 // 點選人選資料卡，標記為「要複製的來源」
+// 注意：這裡故意查「allDataFull」而不是 allData——搜尋全部人選（跨單位）顯示的紀錄本來就不在
+// 目前身分的 allData 範圍內，若只查 allData 會導致跨單位那筆資料選取以複製時失敗。
 function selectCandForCopy(row) {
-  var cand = allData.find(function(d){ return d._row === row; });
+  var cand = allDataFull.find(function(d){ return d._row === row; });
   if (!cand) return;
   selectedCandForCopy = cand;
   var hintText = '已選取「'+(cand.Name||'')+'」，可用「複製人選資料」套用到新增表單';
