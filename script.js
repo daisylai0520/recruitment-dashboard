@@ -230,7 +230,9 @@ function initDateFilterSlots() {
     'kbDateFilterSlot': {key:'kanban', fields:candFields, quickRanges:maintainQuickRanges, defaultQuickRange:'thisWeek'},
     'ovDateFilterSlot': {key:'overview', fields:candFields, quickRanges:maintainQuickRanges, defaultQuickRange:'thisWeek'},
     'csDateFilterSlot': {key:'candidateSearch', fields:candFields, quickRanges:maintainQuickRanges, defaultQuickRange:'thisWeek'},
-    'candDateFilterSlot': {key:'candidateMaintenance', fields:candFields, quickRanges:maintainQuickRanges, defaultQuickRange:'thisWeek'},
+    // Candidate 畫面不自動預設時間範圍：一打開先不顯示任何人選，等使用者第一次套用篩選（含手動選時間）時，
+    // renderCandQuery() 裡才會在還沒設定時間範圍的情況下自動補上「本週」
+    'candDateFilterSlot': {key:'candidateMaintenance', fields:candFields, quickRanges:maintainQuickRanges},
     'trDateFilterSlot': {key:'trends', fields:candFields, quickRanges:maintainQuickRanges, defaultQuickRange:'thisWeek'},
     'expDateFilterSlot': {key:'export', fields:candFields, quickRanges:maintainQuickRanges, defaultQuickRange:'thisWeek'},
     'hcDateFilterSlot': {key:'hc', fields:[{value:'Update_date',label:'Update_date（缺額更新時間，依異動記錄推算暫不支援）'}], disabled:true}
@@ -2358,6 +2360,13 @@ function renderCandQuery() {
     return;
   }
 
+  // 使用者第一次真正套用篩選（搜尋文字／單位／Job Function／目前狀態／Inviter 任一項），但還沒設定時間範圍時，
+  // 自動補上「本週」再重新渲染一次；quickDateFilter 內部會自己觸發重新渲染，這裡直接 return 避免重複計算。
+  if (!hasDateFilter) {
+    quickDateFilter('candidateMaintenance', 'thisWeek');
+    return;
+  }
+
   var matched = allData.filter(function(d){
     var resumeKey = findResumeCodeKey(d);
     var textMatch = !searchTerms.length || matchesAnySearchTerm(d.Name, searchTerms) || matchesAnySearchTerm(d[resumeKey], searchTerms);
@@ -3012,6 +3021,47 @@ function getNewCandFormSelector() {
   return '#newCandFields .new-cand-input';
 }
 
+// ---- 搜尋全部人選（跨單位）----
+// 查詢範圍是 allDataFull（完整、未依單位過濾的名單），不受目前身分的單位權限限制，
+// 用來確認其他單位／其他 HR 是否已經約過某個人，避免重複邀約。
+function openSearchAllCandidatesModal() {
+  var input = document.getElementById('searchAllCandidatesInput');
+  var mainSearch = document.getElementById('candQuerySearch');
+  if (input) input.value = mainSearch ? mainSearch.value : '';
+  document.getElementById('searchAllCandidatesModal').style.display = 'flex';
+  renderSearchAllCandidatesResults();
+  if (input) input.focus();
+}
+
+function closeSearchAllCandidatesModal() {
+  document.getElementById('searchAllCandidatesModal').style.display = 'none';
+}
+
+function renderSearchAllCandidatesResults() {
+  var listEl = document.getElementById('searchAllCandidatesList');
+  if (!listEl) return;
+  var search = (document.getElementById('searchAllCandidatesInput').value || '').trim().toLowerCase();
+  var terms = splitSearchTerms(search);
+  if (!terms.length) {
+    listEl.innerHTML = '<div class="empty" style="padding:20px 0;text-align:center;">請輸入姓名或履歷代碼查詢</div>';
+    return;
+  }
+  var matched = allDataFull.filter(function(d){
+    var resumeKey = findResumeCodeKey(d);
+    return matchesAnySearchTerm(d.Name, terms) || matchesAnySearchTerm(d[resumeKey], terms);
+  });
+  if (!matched.length) {
+    listEl.innerHTML = '<div class="empty" style="padding:20px 0;text-align:center;">找不到符合的人選（所有單位都沒有）</div>';
+    return;
+  }
+  listEl.innerHTML = matched.map(function(d){
+    var resumeKey = findResumeCodeKey(d);
+    return '<div class="mini-card"><div class="mini-card-top"><div class="mini-card-name">'+(d.Name||'')+'</div><div class="mini-card-bu">'+(d['單位']||'—')+'</div></div>'+
+      '<div class="mini-card-pos">'+(d['Job Function']||'')+(d[resumeKey]?' · '+d[resumeKey]:'')+'</div>'+
+      '<div style="font-size:11px;color:var(--text-secondary);margin-top:2px;">負責HR：'+(d['負責HR']||'—')+' · 邀約日：'+(d.invite_date||'—')+' · 目前狀態：'+(d.Result||'—')+'</div></div>';
+  }).join('');
+}
+
 // 輸入姓名或履歷代碼時，即時檢查這位人選是否已經有紀錄，避免重複建檔。
 // 注意：這裡故意查「allDataFull」（完整、未依單位過濾的名單），而不是畫面上其他地方用的 allData，
 // 這樣即使這位人選是其他單位／其他 HR 已經約過的，也能在這裡看得到、避免不同 HR 重複邀約同一人。
@@ -3032,9 +3082,18 @@ function checkNewCandDuplicate() {
   });
   if (matched.length) {
     warnEl.style.display = '';
-    warnEl.innerHTML = '⚠️ 已經有相符的紀錄：' + matched.map(function(m){
-      return (m.Name||'') + '（' + (m['履歷代碼']||'') + '）單位：' + (m['單位']||'—') + '，負責HR：' + (m['負責HR']||'—') + '，目前狀態：' + (m.Result||'—');
-    }).join('；') + '，請確認是否要繼續新增，避免重複建檔／重複邀約';
+    // 同一個人可能有多筆歷史紀錄（例如應徵過不同單位／職缺），每一筆都要各自列出來，不要只顯示一筆
+    var rowsHtml = matched.map(function(m){
+      return '<div style="padding:4px 0;border-top:1px dashed rgba(146,64,14,.25);">'+
+        '<b>'+(m.Name||'')+'</b>（'+(m['履歷代碼']||'—')+'）'+
+        ' · 單位：'+(m['單位']||'—')+
+        ' · Job Function：'+(m['Job Function']||'—')+
+        ' · 負責HR：'+(m['負責HR']||'—')+
+        ' · 邀約日：'+(m.invite_date||'—')+
+        ' · 目前狀態：'+(m.Result||'—')+
+      '</div>';
+    }).join('');
+    warnEl.innerHTML = '⚠️ 已經有 '+matched.length+' 筆相符的紀錄，請確認是否要繼續新增，避免重複建檔／重複邀約：' + rowsHtml;
   } else {
     warnEl.style.display = 'none';
   }
