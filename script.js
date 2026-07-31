@@ -2947,13 +2947,29 @@ function clearFormInviterMsSelection(uid) {
   hidden.value = '';
   var summaryEl = container.querySelector('.invms-summary');
   if (summaryEl) summaryEl.textContent = '未選擇';
+  runFormAutoSyncIfNeeded(hidden);
 }
 // 只有 Inviter／104_Position 這兩個欄位改動時才需要觸發「自動帶入單位／Job Function」，
-// 其他欄位（單位、Job Function、負責HR、面試主管）改成多選勾選後，不應該誤觸這兩個自動帶入邏輯。
+// 其他欄位（單位、Job Function、負責HR、面試主管）改成多選勾選後，不應該誤觸這兩個自動帶入邏輯；
+// 但「單位」改動時，需要重新整理 Inviter 的選項，讓 Inviter 只顯示這個單位底下的人。
 function runFormAutoSyncIfNeeded(hidden) {
   var field = hidden.getAttribute('data-field');
   if (field === 'Inviter') handleInviterInputChange(hidden);
   if (field === '104_Position') handlePositionInputChange(hidden);
+  if (field === '單位') refreshNewCandInviterOptions();
+}
+
+// 「單位」改變時（勾選／新增／清除），依 Manager Information 重新篩出這個單位的 Inviter 名單，
+// 並重建 Inviter 的勾選下拉元件（保留使用者已勾選的名字，即使不在篩選後的名單裡也不會消失）
+function refreshNewCandInviterOptions() {
+  var invHidden = document.querySelector(getNewCandFormSelector() + '[data-field="Inviter"]');
+  if (!invHidden) return;
+  var wrapper = invHidden.closest('.ms-dropdown');
+  if (!wrapper) return;
+  var buHidden = document.querySelector(getNewCandFormSelector() + '[data-field="單位"]');
+  var unitVal = buHidden ? buHidden.value : '';
+  var options = MAINTAIN_DROPDOWNS['Candidate Records']['Inviter'](unitVal);
+  wrapper.outerHTML = buildFormInviterMultiSelectInput('new-cand-input', 'Inviter', options, invHidden.value);
 }
 function toggleFormInviterMsOption(uid, checkboxEl) {
   var container = document.getElementById(uid);
@@ -3225,6 +3241,7 @@ function applyCopyToNewCandidateForm() {
     applyFieldDisplayValue(inp, selectedCandForCopy[f] || '');
     if (inp.tagName === 'TEXTAREA') autoGrowTextarea(inp);
   });
+  refreshNewCandInviterOptions(); // 複製過來的單位可能跟原本不同，重新篩一次 Inviter 選項
   showToast('✓ 已複製「'+(selectedCandForCopy.Name||'')+'」的資料，可修改後再新增');
   checkNewCandDuplicate();
 }
