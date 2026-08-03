@@ -1979,34 +1979,31 @@ function renderProgressTree(trendData) {
     '<div class="metric-val">'+invitedCount+'</div>'+
   '</div></div>';
 
+  // 「其他」是獨立分支（例如待確認/暫緩），跟前面錄取階段等主流程沒有先後關係，中間不畫箭頭
   var stagesHtml = stages.map(function(s){
     var stageResults = s.results;
     var stageTotal = trendData.filter(function(d){ return stageResults.indexOf(d.Result) >= 0; }).length;
+    var showArrow = s.stage !== '其他';
 
-    var itemsHtml;
-    if (s.subGroups.length) {
-      itemsHtml = s.subGroups.map(function(sub){
-        var idx = _progressTreeDrilldown.length;
-        _progressTreeDrilldown.push({ label: s.stage+'－'+sub.label, test: function(d){ return sub.results.indexOf(d.Result) >= 0; } });
-        var n = trendData.filter(function(d){ return sub.results.indexOf(d.Result) >= 0; }).length;
-        return '<div class="metric metric-sm" style="cursor:pointer;flex:1;" onclick="showProgressTreeDrilldown('+idx+')">'+
-          '<div class="metric-top"><span class="metric-label">'+sub.label+'</span></div>'+
-          '<div class="metric-val">'+n+'</div>'+
-        '</div>';
-      }).join('');
-    } else {
-      var idx2 = _progressTreeDrilldown.length;
-      _progressTreeDrilldown.push({ label: s.stage, test: function(d){ return stageResults.indexOf(d.Result) >= 0; } });
-      itemsHtml = '<div class="metric metric-sm" style="cursor:pointer;" onclick="showProgressTreeDrilldown('+idx2+')">'+
-        '<div class="metric-top"><span class="metric-label">'+s.stage+'</span></div>'+
-        '<div class="metric-val">'+stageTotal+'</div>'+
+    var idx0 = _progressTreeDrilldown.length;
+    _progressTreeDrilldown.push({ label: s.stage, test: function(d){ return stageResults.indexOf(d.Result) >= 0; } });
+
+    // 重點放大：階段的總人數（次要才是進行中／已結案這些子分類，字放小、上下排列）
+    var subItemsHtml = s.subGroups.length ? s.subGroups.map(function(sub){
+      var idx = _progressTreeDrilldown.length;
+      _progressTreeDrilldown.push({ label: s.stage+'－'+sub.label, test: function(d){ return sub.results.indexOf(d.Result) >= 0; } });
+      var n = trendData.filter(function(d){ return sub.results.indexOf(d.Result) >= 0; }).length;
+      return '<div class="metric metric-sm" style="cursor:pointer;" onclick="showProgressTreeDrilldown('+idx+')">'+
+        '<div class="metric-top"><span class="metric-label">'+sub.label+'</span></div>'+
+        '<div class="metric-val">'+n+'</div>'+
       '</div>';
-    }
+    }).join('') : '';
 
-    return '<div class="tree-h-arrow">→</div>'+
+    return (showArrow ? '<div class="tree-h-arrow">→</div>' : '<div class="tree-h-gap"></div>')+
       '<div class="tree-h-stage">'+
-        '<div class="tree-h-stage-label"><span>'+s.stage+'</span><span class="metric-group-total">共 '+stageTotal+' 人</span></div>'+
-        '<div class="tree-h-stage-items">'+itemsHtml+'</div>'+
+        '<div class="tree-h-stage-label">'+s.stage+'</div>'+
+        '<div class="tree-h-stage-total" style="cursor:pointer;" onclick="showProgressTreeDrilldown('+idx0+')">'+stageTotal+'<span class="tree-h-stage-total-unit">人</span></div>'+
+        (subItemsHtml ? '<div class="tree-h-stage-items">'+subItemsHtml+'</div>' : '')+
       '</div>';
   }).join('');
 

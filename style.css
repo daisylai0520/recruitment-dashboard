@@ -168,11 +168,18 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
 .tree-h-root{display:flex;align-items:center;flex-shrink:0;}
 .tree-h-root .metric{min-width:140px;}
 .tree-h-arrow{display:flex;align-items:center;justify-content:center;flex-shrink:0;width:34px;font-size:18px;color:var(--text-tertiary);}
-.tree-h-stage{flex-shrink:0;background:var(--bg);border:1.5px solid var(--border);border-radius:14px;padding:14px;min-width:200px;}
-.tree-h-stage-label{font-size:13px;font-weight:700;color:var(--text-primary);margin-bottom:10px;display:flex;justify-content:space-between;align-items:baseline;gap:8px;white-space:nowrap;}
-.tree-h-stage-items{display:flex;gap:8px;}
-.tree-h-stage-items .metric-sm{flex:1;min-width:90px;}
-@media (max-width:900px){.tree-h-stage{min-width:170px;}.tree-h-stage-items{flex-direction:column;}}
+.tree-h-gap{flex-shrink:0;width:34px;}
+.tree-h-stage{flex-shrink:0;background:var(--bg);border:1.5px solid var(--border);border-radius:14px;padding:14px;min-width:180px;}
+.tree-h-stage-label{font-size:13px;font-weight:700;color:var(--text-primary);white-space:nowrap;}
+/* 重點：階段總人數要放大，是這張圖最主要看的數字 */
+.tree-h-stage-total{font-size:32px;font-weight:700;line-height:1.1;color:var(--text-primary);margin:4px 0 10px;}
+.tree-h-stage-total-unit{font-size:13px;font-weight:500;color:var(--text-tertiary);margin-left:4px;}
+/* 次要：進行中／已結案這些子分類，上下排列、字放小 */
+.tree-h-stage-items{display:flex;flex-direction:column;gap:6px;}
+.tree-h-stage-items .metric-sm{padding:6px 10px;}
+.tree-h-stage-items .metric-sm .metric-val{font-size:15px;font-weight:600;}
+.tree-h-stage-items .metric-sm .metric-label{font-size:11px;}
+@media (max-width:900px){.tree-h-stage{min-width:170px;}}
 
 /* STAGES */
 .stages-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
