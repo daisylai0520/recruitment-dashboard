@@ -603,9 +603,12 @@ function enterAs(roleToken, hrName, units) {
 }
 
 // 「我是管理者」：不限制單位，可看到全部畫面（含權限管理）
+// 「我是BP」／「我是Recruiter」：不指定特定的人，不限制單位（可看到全部單位的資料），
+// 但分頁跟一般 HR 一樣依角色決定（BP／Recruiter 看得到的分頁不同），方便不想（或不用）挑自己名字的人快速進入。
 function selectRole(role) {
   restrictedSingleTab = null;
-  enterAs(role, role === 'manager' ? '管理者' : role, null);
+  var displayName = role === 'manager' ? '管理者' : role === 'bp' ? 'BP' : role === 'recruiter' ? 'Recruiter' : role;
+  enterAs(role, displayName, null);
 }
 
 // 一般 HR 點選「我是 XXX」：依 HR Directory 的角色決定看得到哪些分頁，依 Unit HR Mapping 決定看得到哪些單位的資料
