@@ -161,17 +161,18 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
 .metric-sm .metric-val{font-size:22px;}
 @media (max-width:900px){.metrics-grouped{grid-template-columns:1fr 1fr;justify-content:stretch;}}
 
-/* Analysis「人選進度統計」樹狀圖：邀約(root) 往下分三支，用簡單的連接線畫出樹狀結構 */
+/* Analysis「人選進度統計」樹狀圖：橫向流程，邀約(root) 在最左邊，依「分類Result」工作表的
+   「階段」順序由左到右依序排開，每個階段內若有「分類1」則並排顯示兩個子項 */
 .tree-section-title{font-size:14px;font-weight:700;color:var(--text-primary);margin-bottom:4px;}
-.tree-root-row{display:flex;justify-content:center;}
-.tree-root-row .metric{min-width:180px;text-align:center;}
-.tree-root-row .metric-top{justify-content:center;}
-.tree-connector-v{width:1.5px;height:22px;background:var(--border-strong);margin:0 auto;}
-.tree-branches{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;position:relative;padding-top:22px;}
-.tree-branches::before{content:'';position:absolute;top:0;left:16.6667%;right:16.6667%;height:1.5px;background:var(--border-strong);}
-.tree-branch{position:relative;}
-.tree-branch::before{content:'';position:absolute;top:-22px;left:50%;width:1.5px;height:22px;background:var(--border-strong);transform:translateX(-50%);}
-@media (max-width:900px){.tree-branches{grid-template-columns:1fr;gap:28px;}.tree-branches::before{display:none;}.tree-branch::before{display:none;}}
+.tree-h-wrap{display:flex;align-items:stretch;gap:0;overflow-x:auto;padding-bottom:6px;}
+.tree-h-root{display:flex;align-items:center;flex-shrink:0;}
+.tree-h-root .metric{min-width:140px;}
+.tree-h-arrow{display:flex;align-items:center;justify-content:center;flex-shrink:0;width:34px;font-size:18px;color:var(--text-tertiary);}
+.tree-h-stage{flex-shrink:0;background:var(--bg);border:1.5px solid var(--border);border-radius:14px;padding:14px;min-width:200px;}
+.tree-h-stage-label{font-size:13px;font-weight:700;color:var(--text-primary);margin-bottom:10px;display:flex;justify-content:space-between;align-items:baseline;gap:8px;white-space:nowrap;}
+.tree-h-stage-items{display:flex;gap:8px;}
+.tree-h-stage-items .metric-sm{flex:1;min-width:90px;}
+@media (max-width:900px){.tree-h-stage{min-width:170px;}.tree-h-stage-items{flex-direction:column;}}
 
 /* STAGES */
 .stages-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}

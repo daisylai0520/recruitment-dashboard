@@ -1,6 +1,8 @@
 var APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby0h1OkoC_xNWeAAbuh4cBicbTl4B8g1KDtL-s2YK9f80TYjIyxQtdeu9RkWFQVtY3pnw/exec';
 var userRole = null;
 var allData=[], salaryData=[], scheduleData=[], managerDirectoryData=[], managerInfoData=[], resultOptions=[], positionOptions=[];
+// 「分類Result」工作表的 階段／分類1／分類2／Result 對照，人選進度統計樹狀圖依這個動態分組顯示
+var resultCategories = [];
 // allDataFull：完整（未依單位過濾）的人選名單，只給「新增人選時檢查是否已有其他 HR/單位約過」這個功能用，
 // 畫面上其他地方（看板、搜尋、篩選…）一律還是用有經過單位過濾的 allData，不會讓 HR 看到不屬於自己單位的完整資料。
 var allDataFull = [];
@@ -301,6 +303,8 @@ async function fetchCoreData() {
     });
   }
   resultOptions=(json.resultOptions||[]).map(function(v){return String(v).trim();}).filter(Boolean);
+  // 「分類Result」工作表的 階段／分類1／分類2 欄位，人選進度統計樹狀圖靠這個動態分組（不再寫死在程式裡）
+  resultCategories=(json.resultCategories||[]).filter(function(rc){return rc && rc.Result;});
   positionOptions=(json.positionOptions||[]).map(function(v){return String(v).trim();}).filter(Boolean);
   managerInfoData=(json.managerInfo||[]).filter(function(d){return d.Name;});
   Object.assign(maintainHeaders, json.sheetHeaders || {});
@@ -1915,31 +1919,100 @@ function computeBreakdownSeries(groups, computeFn, weeks) {
   return out;
 }
 
-// ---- 人選進度統計（樹狀圖）：定義與畫面計算數字共用同一組條件，點節點也用同一組條件做鑽取 ----
-// 2026/08 簡化：「有聯繫上」只算還在電訪流程中的「排電訪／待電訪」兩個狀態，分成「已安排／待安排」
-// （待電訪＝已安排電訪時間、排電訪＝還在排等安排）；
-// 「沒連繫上」分成「已結案」（已致電未接、其他主管/近期已邀約、不建議邀約、人選婉拒電訪、已關閉履歷：
-// 都不再繼續推進）與「未結案」（104已邀約未回覆：還在等待回應，還會繼續嘗試）。
-var TREND_STAT_DEFS = [
-  {id:'tr-invited', label:'邀約', test:function(d){return !!(d.invite_date || d['invite date']);}},
-  {id:'tr-arranged', label:'已安排', test:function(d){return d.Result === '待電訪';}},
-  {id:'tr-waitpi', label:'待安排', test:function(d){return d.Result === '排電訪';}},
-  {id:'tr-notconnect-closed', label:'已結案', test:function(d){return ['已致電未接','其他主管/近期已邀約','不建議邀約','人選婉拒電訪','已關閉履歷'].indexOf(d.Result) >= 0;}},
-  {id:'tr-notconnect-open', label:'未結案', test:function(d){return d.Result === '104已邀約未回覆';}},
-  {id:'tr-interview', label:'面試', test:function(d){return !!d.Interview_date;}},
-  {id:'tr-declineinterview', label:'婉拒面試', test:function(d){return d.Result === '婉拒面試';}}
-];
-// 「有聯繫上」「沒連繫上」兩個分支標題旁要顯示的總人數，由底下這些字卡加總而來
-var TREND_GROUP_TOTALS = {
-  'tr-group-connected': ['tr-arranged','tr-waitpi'],
-  'tr-group-noconnect': ['tr-notconnect-closed','tr-notconnect-open']
-};
+// ---- 人選進度統計（樹狀圖，橫向）----
+// 完全依「分類Result」工作表的「階段」「分類1」欄位動態分組計算，不再寫死在程式裡：
+// 「階段」決定樹狀圖橫向由左到右有哪幾個節點（依工作表列出的先後順序）；
+// 「分類2」目前沒有使用，之後如果要再細分可以再擴充。
 var lastTrendData = [];
-function showTrendStatDrilldown(defId) {
-  var def = TREND_STAT_DEFS.find(function(x){return x.id===defId;});
-  if (!def) return;
-  showTrendDrilldown(def.label, lastTrendData.filter(def.test));
+
+// 把 resultCategories（每個 Result 各一列）依「階段」分組，同一階段內再依「分類1」分組
+function buildProgressTreeStages() {
+  var stages = [];
+  var stageIdx = {};
+  resultCategories.forEach(function(rc){
+    var stage = String(rc.stage||'').trim();
+    if (!stage) return;
+    if (!(stage in stageIdx)) {
+      stageIdx[stage] = stages.length;
+      stages.push({ stage: stage, results: [], subGroups: [], subIdx: {} });
+    }
+    var s = stages[stageIdx[stage]];
+    s.results.push(rc.Result);
+    var cat1 = String(rc.cat1||'').trim();
+    if (cat1) {
+      if (!(cat1 in s.subIdx)) {
+        s.subIdx[cat1] = s.subGroups.length;
+        s.subGroups.push({ label: cat1, results: [] });
+      }
+      s.subGroups[s.subIdx[cat1]].results.push(rc.Result);
+    }
+  });
+  return stages;
 }
+
+// 每次 render 都重新建立，index 對應到目前畫面上每個節點的「標題＋篩選條件」，供點擊鑽取使用
+var _progressTreeDrilldown = [];
+function showProgressTreeDrilldown(idx) {
+  var g = _progressTreeDrilldown[idx];
+  if (!g) return;
+  showTrendDrilldown(g.label, lastTrendData.filter(g.test));
+}
+
+function renderProgressTree(trendData) {
+  var wrap = document.getElementById('progressTreeFlow');
+  if (!wrap) return;
+  _progressTreeDrilldown = [];
+
+  var invitedTest = function(d){ return !!(d.invite_date || d['invite date']); };
+  var rootIdx = _progressTreeDrilldown.length;
+  _progressTreeDrilldown.push({ label:'邀約', test: invitedTest });
+  var invitedCount = trendData.filter(invitedTest).length;
+
+  var stages = buildProgressTreeStages();
+  if (!stages.length) {
+    wrap.innerHTML = '<div class="empty" style="padding:20px 0;">「分類Result」工作表還沒有設定「階段」欄位，樹狀圖暫時無法顯示，請參考先前討論的分類方式填寫</div>';
+    return;
+  }
+
+  var rootHtml = '<div class="tree-h-root"><div class="metric" style="cursor:pointer;min-width:140px;text-align:center;" onclick="showProgressTreeDrilldown('+rootIdx+')">'+
+    '<div class="metric-top" style="justify-content:center;"><div class="metric-dot" style="background:#4F46E5"></div><span class="metric-label">邀約</span></div>'+
+    '<div class="metric-val">'+invitedCount+'</div>'+
+  '</div></div>';
+
+  var stagesHtml = stages.map(function(s){
+    var stageResults = s.results;
+    var stageTotal = trendData.filter(function(d){ return stageResults.indexOf(d.Result) >= 0; }).length;
+
+    var itemsHtml;
+    if (s.subGroups.length) {
+      itemsHtml = s.subGroups.map(function(sub){
+        var idx = _progressTreeDrilldown.length;
+        _progressTreeDrilldown.push({ label: s.stage+'－'+sub.label, test: function(d){ return sub.results.indexOf(d.Result) >= 0; } });
+        var n = trendData.filter(function(d){ return sub.results.indexOf(d.Result) >= 0; }).length;
+        return '<div class="metric metric-sm" style="cursor:pointer;flex:1;" onclick="showProgressTreeDrilldown('+idx+')">'+
+          '<div class="metric-top"><span class="metric-label">'+sub.label+'</span></div>'+
+          '<div class="metric-val">'+n+'</div>'+
+        '</div>';
+      }).join('');
+    } else {
+      var idx2 = _progressTreeDrilldown.length;
+      _progressTreeDrilldown.push({ label: s.stage, test: function(d){ return stageResults.indexOf(d.Result) >= 0; } });
+      itemsHtml = '<div class="metric metric-sm" style="cursor:pointer;" onclick="showProgressTreeDrilldown('+idx2+')">'+
+        '<div class="metric-top"><span class="metric-label">'+s.stage+'</span></div>'+
+        '<div class="metric-val">'+stageTotal+'</div>'+
+      '</div>';
+    }
+
+    return '<div class="tree-h-arrow">→</div>'+
+      '<div class="tree-h-stage">'+
+        '<div class="tree-h-stage-label"><span>'+s.stage+'</span><span class="metric-group-total">共 '+stageTotal+' 人</span></div>'+
+        '<div class="tree-h-stage-items">'+itemsHtml+'</div>'+
+      '</div>';
+  }).join('');
+
+  wrap.innerHTML = rootHtml + stagesHtml;
+}
+
 function showTrendDrilldown(title, records) {
   document.getElementById('trendDrilldownTitle').textContent = title + '（共 '+records.length+' 人）';
   var listEl = document.getElementById('trendDrilldownList');
@@ -1994,19 +2067,8 @@ function renderTrends() {
   });
   lastTrendData = trendData;
 
-  // ---- 統計字卡 ----
-  var trendStatCounts = {};
-  TREND_STAT_DEFS.forEach(function(def){
-    var n = trendData.filter(def.test).length;
-    trendStatCounts[def.id] = n;
-    document.getElementById('c-'+def.id).textContent = n;
-  });
-  // 「未連繫上」「已連繫上」群組標題旁顯示該區塊總人數
-  Object.keys(TREND_GROUP_TOTALS).forEach(function(groupId){
-    var total = TREND_GROUP_TOTALS[groupId].reduce(function(sum, id){ return sum + (trendStatCounts[id]||0); }, 0);
-    var el = document.getElementById('c-'+groupId);
-    if (el) el.textContent = '（共 '+total+' 人）';
-  });
+  // ---- 人選進度統計（橫向樹狀圖，依「分類Result」工作表動態產生）----
+  renderProgressTree(trendData);
 
   // ---- 各單位 Headcount（缺額）----
   renderTrendHcChart();
@@ -2164,12 +2226,12 @@ function toggleMultiFilterAll(filterId) {
   if (fn) fn();
 }
 
+// Result 選項嚴格只來自「分類Result」工作表的「Result」欄位（找不到工作表時才退回 FALLBACK_RESULT_OPTIONS）。
+// 不再額外把資料裡實際出現過、但不在清單中的舊值加進選項——這樣所有畫面的 Result 選項才會跟工作表完全一致。
+// 個別人選若剛好是這種不在清單內的舊值，該筆資料自己的編輯欄位仍會正常顯示與保留（buildDropdownSelectInput
+// 內建了「目前值不在選項裡就補插一個」的保險機制），只是不會出現在共用的下拉選單／篩選清單裡。
 function getResultOptions() {
-  var base = (resultOptions && resultOptions.length) ? resultOptions.slice() : FALLBACK_RESULT_OPTIONS.slice();
-  // 保險：不管試算表的資料驗證有沒有讀取成功，畫面上實際出現過的 Result 值一定要能被篩選/選到
-  var actualValues = [...new Set(allData.map(function(d){ return String(d.Result||'').trim(); }))].filter(Boolean);
-  actualValues.forEach(function(v){ if (base.indexOf(v) < 0) base.push(v); });
-  return base;
+  return (resultOptions && resultOptions.length) ? resultOptions.slice() : FALLBACK_RESULT_OPTIONS.slice();
 }
 
 // 資料維護畫面專用：編輯人選資料時的 Result 下拉選單。
