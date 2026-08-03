@@ -153,13 +153,25 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
 /* Recruitment Status：分組統計字卡（邀約／未連繫上／已連繫上／面試，四個區塊並列） */
 .metrics-grouped{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,220px));align-items:stretch;justify-content:start;gap:14px;}
 .metrics-grouped>.metric{display:flex;flex-direction:column;justify-content:center;}
-.metric-group{background:var(--bg);border:1.5px solid var(--border);border-radius:14px;padding:14px;}
+.metric-group{background:var(--bg);border:1.5px solid var(--border);border-radius:14px;padding:14px;height:100%;box-sizing:border-box;}
 .metric-group-label{font-size:13px;font-weight:700;color:var(--text-primary);margin-bottom:10px;}
 .metric-group-total{font-size:11px;font-weight:500;color:var(--text-tertiary);}
 .metric-group-items{display:flex;flex-direction:column;gap:8px;}
 .metric-sm{padding:10px 14px;}
 .metric-sm .metric-val{font-size:22px;}
 @media (max-width:900px){.metrics-grouped{grid-template-columns:1fr 1fr;justify-content:stretch;}}
+
+/* Analysis「人選進度統計」樹狀圖：邀約(root) 往下分三支，用簡單的連接線畫出樹狀結構 */
+.tree-section-title{font-size:14px;font-weight:700;color:var(--text-primary);margin-bottom:4px;}
+.tree-root-row{display:flex;justify-content:center;}
+.tree-root-row .metric{min-width:180px;text-align:center;}
+.tree-root-row .metric-top{justify-content:center;}
+.tree-connector-v{width:1.5px;height:22px;background:var(--border-strong);margin:0 auto;}
+.tree-branches{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;position:relative;padding-top:22px;}
+.tree-branches::before{content:'';position:absolute;top:0;left:16.6667%;right:16.6667%;height:1.5px;background:var(--border-strong);}
+.tree-branch{position:relative;}
+.tree-branch::before{content:'';position:absolute;top:-22px;left:50%;width:1.5px;height:22px;background:var(--border-strong);transform:translateX(-50%);}
+@media (max-width:900px){.tree-branches{grid-template-columns:1fr;gap:28px;}.tree-branches::before{display:none;}.tree-branch::before{display:none;}}
 
 /* STAGES */
 .stages-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
