@@ -1916,21 +1916,25 @@ function computeBreakdownSeries(groups, computeFn, weeks) {
 }
 
 // ---- 統計字卡：定義與畫面計算數字共用同一組條件，點字卡也用同一組條件做鑽取 ----
+// 2026/08 簡化：「有聯繫上」只算還在電訪流程中的「排電訪／待電訪」兩個狀態，分成「已安排／待安排」；
+// 「沒連繫上」分成「已結案」（已致電未接、其他主管/近期已邀約、不建議邀約：都不再繼續推進）
+// 與「未結案」（104已邀約未回覆：還在等待回應，還會繼續嘗試）。
+// 人選婉拒電訪／已關閉履歷維持原本各自獨立的字卡，不併入這兩個分組。
 var TREND_STAT_DEFS = [
   {id:'tr-invited', label:'邀約', test:function(d){return !!(d.invite_date || d['invite date']);}},
-  {id:'tr-noreply', label:'邀約未回覆', test:function(d){return d.Result === '104已邀約未回覆';}},
-  {id:'tr-noanswer', label:'已致電未接', test:function(d){return d.Result === '已致電未接';}},
+  {id:'tr-arranged', label:'已安排', test:function(d){return d.Result === '排電訪';}},
+  {id:'tr-waitpi', label:'待安排', test:function(d){return d.Result === '待電訪';}},
+  {id:'tr-notconnect-closed', label:'已結案', test:function(d){return ['已致電未接','其他主管/近期已邀約','不建議邀約'].indexOf(d.Result) >= 0;}},
+  {id:'tr-notconnect-open', label:'未結案', test:function(d){return d.Result === '104已邀約未回覆';}},
   {id:'tr-declinepi', label:'人選婉拒電訪', test:function(d){return d.Result === '人選婉拒電訪';}},
   {id:'tr-closed', label:'已關閉履歷', test:function(d){return d.Result === '已關閉履歷';}},
-  {id:'tr-othermgr', label:'其他主管/近期已邀約', test:function(d){return d.Result === '其他主管/近期已邀約';}},
-  {id:'tr-waitpi', label:'待電訪', test:function(d){return d.Result === '待電訪';}},
   {id:'tr-interview', label:'面試', test:function(d){return !!d.Interview_date;}},
   {id:'tr-declineinterview', label:'婉拒面試', test:function(d){return d.Result === '婉拒面試';}}
 ];
-// 「未連繫上」「已連繫上」兩個群組字卡標題旁要顯示的總人數，由底下這些字卡加總而來
+// 「有聯繫上」「沒連繫上」兩個群組字卡標題旁要顯示的總人數，由底下這些字卡加總而來
 var TREND_GROUP_TOTALS = {
-  'tr-group-noconnect': ['tr-noreply','tr-noanswer','tr-othermgr'],
-  'tr-group-connected': ['tr-waitpi','tr-declinepi','tr-closed']
+  'tr-group-connected': ['tr-arranged','tr-waitpi'],
+  'tr-group-noconnect': ['tr-notconnect-closed','tr-notconnect-open']
 };
 var lastTrendData = [];
 function showTrendStatDrilldown(defId) {

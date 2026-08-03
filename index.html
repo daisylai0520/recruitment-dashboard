@@ -241,39 +241,41 @@
       </div>
 
       <div class="metric-group">
-        <div class="metric-group-label">未連繫上 <span class="metric-group-total" id="c-tr-group-noconnect"></span></div>
+        <div class="metric-group-label">有聯繫上 <span class="metric-group-total" id="c-tr-group-connected"></span></div>
         <div class="metric-group-items">
-          <div class="metric metric-sm" id="m-tr-noreply" style="cursor:pointer;" onclick="showTrendStatDrilldown('tr-noreply')">
-            <div class="metric-top"><div class="metric-dot" style="background:#F59E0B"></div><span class="metric-label">邀約未回覆</span></div>
-            <div class="metric-val" id="c-tr-noreply">—</div>
+          <div class="metric metric-sm" id="m-tr-arranged" style="cursor:pointer;" onclick="showTrendStatDrilldown('tr-arranged')">
+            <div class="metric-top"><div class="metric-dot" style="background:#14B8A6"></div><span class="metric-label">已安排</span></div>
+            <div class="metric-val" id="c-tr-arranged">—</div>
           </div>
-          <div class="metric metric-sm" id="m-tr-noanswer" style="cursor:pointer;" onclick="showTrendStatDrilldown('tr-noanswer')">
-            <div class="metric-top"><div class="metric-dot" style="background:#6366F1"></div><span class="metric-label">已致電未接</span></div>
-            <div class="metric-val" id="c-tr-noanswer">—</div>
-          </div>
-          <div class="metric metric-sm" id="m-tr-othermgr" style="cursor:pointer;" onclick="showTrendStatDrilldown('tr-othermgr')">
-            <div class="metric-top"><div class="metric-dot" style="background:#F97316"></div><span class="metric-label">其他主管/近期已邀約</span></div>
-            <div class="metric-val" id="c-tr-othermgr">—</div>
+          <div class="metric metric-sm" id="m-tr-waitpi" style="cursor:pointer;" onclick="showTrendStatDrilldown('tr-waitpi')">
+            <div class="metric-top"><div class="metric-dot" style="background:#0D9488"></div><span class="metric-label">待安排</span></div>
+            <div class="metric-val" id="c-tr-waitpi">—</div>
           </div>
         </div>
       </div>
 
       <div class="metric-group">
-        <div class="metric-group-label">已連繫上 <span class="metric-group-total" id="c-tr-group-connected"></span></div>
+        <div class="metric-group-label">沒連繫上 <span class="metric-group-total" id="c-tr-group-noconnect"></span></div>
         <div class="metric-group-items">
-          <div class="metric metric-sm" id="m-tr-waitpi" style="cursor:pointer;" onclick="showTrendStatDrilldown('tr-waitpi')">
-            <div class="metric-top"><div class="metric-dot" style="background:#14B8A6"></div><span class="metric-label">待電訪</span></div>
-            <div class="metric-val" id="c-tr-waitpi">—</div>
+          <div class="metric metric-sm" id="m-tr-notconnect-closed" style="cursor:pointer;" onclick="showTrendStatDrilldown('tr-notconnect-closed')">
+            <div class="metric-top"><div class="metric-dot" style="background:#9CA3AF"></div><span class="metric-label">已結案</span></div>
+            <div class="metric-val" id="c-tr-notconnect-closed">—</div>
           </div>
-          <div class="metric metric-sm" id="m-tr-declinepi" style="cursor:pointer;" onclick="showTrendStatDrilldown('tr-declinepi')">
-            <div class="metric-top"><div class="metric-dot" style="background:#EC4899"></div><span class="metric-label">人選婉拒電訪</span></div>
-            <div class="metric-val" id="c-tr-declinepi">—</div>
-          </div>
-          <div class="metric metric-sm" id="m-tr-closed" style="cursor:pointer;" onclick="showTrendStatDrilldown('tr-closed')">
-            <div class="metric-top"><div class="metric-dot" style="background:#6B7280"></div><span class="metric-label">已關閉履歷</span></div>
-            <div class="metric-val" id="c-tr-closed">—</div>
+          <div class="metric metric-sm" id="m-tr-notconnect-open" style="cursor:pointer;" onclick="showTrendStatDrilldown('tr-notconnect-open')">
+            <div class="metric-top"><div class="metric-dot" style="background:#F59E0B"></div><span class="metric-label">未結案</span></div>
+            <div class="metric-val" id="c-tr-notconnect-open">—</div>
           </div>
         </div>
+      </div>
+
+      <div class="metric" id="m-tr-declinepi" style="cursor:pointer;" onclick="showTrendStatDrilldown('tr-declinepi')">
+        <div class="metric-top"><div class="metric-dot" style="background:#EC4899"></div><span class="metric-label">人選婉拒電訪</span></div>
+        <div class="metric-val" id="c-tr-declinepi">—</div>
+      </div>
+
+      <div class="metric" id="m-tr-closed" style="cursor:pointer;" onclick="showTrendStatDrilldown('tr-closed')">
+        <div class="metric-top"><div class="metric-dot" style="background:#6B7280"></div><span class="metric-label">已關閉履歷</span></div>
+        <div class="metric-val" id="c-tr-closed">—</div>
       </div>
 
       <div class="metric" id="m-tr-interview" style="cursor:pointer;" onclick="showTrendStatDrilldown('tr-interview')">
