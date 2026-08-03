@@ -2,6 +2,16 @@
 // 本身造成的，因為這類 URL 改寫比較適合「瀏覽器直接開網址」，不一定適合這裡用 fetch() 背景呼叫的情境），
 // 先改回最原始、最單純的網址，避免節外生枝。真正原因需要看 Apps Script 執行記錄才能確定（見對話回覆）。
 var APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby0h1OkoC_xNWeAAbuh4cBicbTl4B8g1KDtL-s2YK9f80TYjIyxQtdeu9RkWFQVtY3pnw/exec';
+
+// Apps Script 的 /exec 網址背後其實會先轉址到一個「一次性」的 script.googleusercontent.com 網址才是真正的內容
+//（Google 官方文件說明如此）。如果瀏覽器把這次轉址結果快取住、下次同樣網址直接重用快取，那個一次性網址
+// 可能已經失效，就會出現 HTTP 404——但因為根本沒有真的再呼叫一次 Apps Script，所以「執行記錄」會看起來完全正常，
+// 這也是為什麼查執行記錄都顯示「已完成」、卻還是常常跳出 404 的原因。
+// 這裡讓每一次呼叫都帶一個不會重複的參數＋明確關閉快取，確保每次都是真正重新請求，不會誤用到過期的轉址結果。
+function noCacheUrl(url) {
+  return url + (url.indexOf('?') >= 0 ? '&' : '?') + '_cb=' + Date.now() + Math.random().toString(36).slice(2);
+}
+
 var userRole = null;
 var allData=[], salaryData=[], scheduleData=[], managerDirectoryData=[], managerInfoData=[], resultOptions=[], positionOptions=[];
 // 「分類Result」工作表的 階段／分類1／分類2／Result 對照，人選進度統計樹狀圖依這個動態分組顯示
@@ -330,7 +340,7 @@ function setSyncStatus(state, msg) {
 }
 
 async function fetchCoreData() {
-  var res = await fetch(APPS_SCRIPT_URL + '?action=getCoreData');
+  var res = await fetch(noCacheUrl(APPS_SCRIPT_URL + '?action=getCoreData'), {cache:'no-store'});
   if (!res.ok) throw new Error('HTTP '+res.status);
   var json = await res.json();
   allData=(json.candidates||[]).filter(function(d){return d.Name&&d.Result;});
@@ -357,7 +367,7 @@ async function fetchCoreData() {
 // ---- 身分選擇畫面：一開始就抓 HR 名冊 + 單位對應表，用來畫出「我是 XXX」的按鈕 ----
 async function fetchIdentityData() {
   try {
-    var res = await fetch(APPS_SCRIPT_URL + '?action=getIdentityData');
+    var res = await fetch(noCacheUrl(APPS_SCRIPT_URL + '?action=getIdentityData'), {cache:'no-store'});
     if (!res.ok) throw new Error('HTTP '+res.status);
     var json = await res.json();
     hrDirectoryData = (json.hrDirectory||[]).filter(function(d){return d['HR姓名'];});
@@ -406,7 +416,7 @@ function findBUByInviterName(name) {
 }
 
 async function fetchHeadcountData() {
-  var res = await fetch(APPS_SCRIPT_URL + '?action=getHeadcountData');
+  var res = await fetch(noCacheUrl(APPS_SCRIPT_URL + '?action=getHeadcountData'), {cache:'no-store'});
   if (!res.ok) throw new Error('HTTP '+res.status);
   var json = await res.json();
   headcountDropdownData = json.headcountDropdowns || {};
@@ -419,7 +429,7 @@ async function fetchHeadcountData() {
 }
 
 async function fetchSalaryData() {
-  var res = await fetch(APPS_SCRIPT_URL + '?action=getSalaryData');
+  var res = await fetch(noCacheUrl(APPS_SCRIPT_URL + '?action=getSalaryData'), {cache:'no-store'});
   if (!res.ok) throw new Error('HTTP '+res.status);
   var json = await res.json();
   salaryData=(json.salaryRecords||[]).filter(function(d){return d.Company;});
@@ -429,7 +439,7 @@ async function fetchSalaryData() {
 }
 
 async function fetchSchedulingData() {
-  var res = await fetch(APPS_SCRIPT_URL + '?action=getSchedulingData');
+  var res = await fetch(noCacheUrl(APPS_SCRIPT_URL + '?action=getSchedulingData'), {cache:'no-store'});
   if (!res.ok) throw new Error('HTTP '+res.status);
   var json = await res.json();
   scheduleData=(json.scheduleRecords||[]).filter(function(d){return d.Token;});
@@ -439,7 +449,7 @@ async function fetchSchedulingData() {
 
 // 權限管理畫面：Candidate Records 目前實際出現過的「單位」「負責HR」選項 + 目前的對應表／HR 名冊設定
 async function fetchPermissionData() {
-  var res = await fetch(APPS_SCRIPT_URL + '?action=getPermissionData');
+  var res = await fetch(noCacheUrl(APPS_SCRIPT_URL + '?action=getPermissionData'), {cache:'no-store'});
   if (!res.ok) throw new Error('HTTP '+res.status);
   var json = await res.json();
   permUnitOptions = (json.unitOptions||[]).map(function(v){return String(v).trim();}).filter(Boolean);
@@ -963,7 +973,7 @@ async function changeStage(newStage) {
     console.log('Sending:', JSON.stringify(payload));
     // 用 GET + URL 參數，no-cors 模式，Apps Script 用 doGet 處理寫入
     var url = APPS_SCRIPT_URL + '?action=update&row=' + encodeURIComponent(card.row) + '&result=' + encodeURIComponent(newStage);
-    var res=await fetch(url, {mode:'no-cors'});
+    var res=await fetch(noCacheUrl(url), {mode:'no-cors', cache:'no-store'});
     console.log('Response status:', res.status, res.type);
     showToast('✓ 已更新：'+card.name+' → '+newStage);
     var d=allData.find(function(x){return x._row===card.row;});
@@ -1723,7 +1733,7 @@ async function saveMemo() {
   showToast('儲存中...');
   try {
     var url = APPS_SCRIPT_URL + '?action=updateMemo&row=' + encodeURIComponent(row) + '&memo=' + encodeURIComponent(memo);
-    await fetch(url, {mode:'no-cors'});
+    await fetch(noCacheUrl(url), {mode:'no-cors', cache:'no-store'});
     showToast('✓ 備註已儲存');
     // 本地更新
     var rec = hcRawData.find(function(r){return r._row===row;});
@@ -2855,7 +2865,7 @@ async function deleteSalaryRow(row) {
   if (statusEl) statusEl.textContent = '刪除中...';
   try {
     var url = APPS_SCRIPT_URL + '?action=deleteRow&sheet=' + encodeURIComponent('Market Salary Records') + '&row=' + encodeURIComponent(row);
-    await fetch(url, {mode:'no-cors'});
+    await fetch(noCacheUrl(url), {mode:'no-cors', cache:'no-store'});
     await fetchData();
     if (currentTab === 'salary') renderSalaryScreen();
     if (statusEl) { statusEl.textContent = '✓ 已刪除'; setTimeout(function(){statusEl.textContent='';}, 2000); }
@@ -2899,7 +2909,7 @@ async function submitNewSalaryRow() {
   try {
     var url = APPS_SCRIPT_URL + '?action=addRow&sheet=' + encodeURIComponent('Market Salary Records') +
       '&values=' + encodeURIComponent(JSON.stringify(orderedValues));
-    await fetch(url, {mode:'no-cors'});
+    await fetch(noCacheUrl(url), {mode:'no-cors', cache:'no-store'});
     await fetchData();
     renderNewSalaryFields();
     renderSalaryScreen();
@@ -2932,7 +2942,7 @@ async function saveMaintainField(sheet, row, col, field, idx, newVal) {
   try {
     var url = APPS_SCRIPT_URL + '?action=editCell&sheet=' + encodeURIComponent(sheet) +
       '&row=' + encodeURIComponent(row) + '&col=' + encodeURIComponent(col) + '&value=' + encodeURIComponent(newVal);
-    await fetch(url, {mode:'no-cors'});
+    await fetch(noCacheUrl(url), {mode:'no-cors', cache:'no-store'});
     var records = getMaintainRecords(sheet);
     var rec = records[idx];
     // 跨單位搜尋結果（其他單位的人選資料）不在目前身分的 allData 範圍內，idx 指的是 allDataFull 的位置，
@@ -3450,7 +3460,7 @@ async function submitNewCandidateForm() {
   try {
     var url = APPS_SCRIPT_URL + '?action=addRow&sheet=' + encodeURIComponent('Candidate Records') +
       '&values=' + encodeURIComponent(JSON.stringify(orderedValues));
-    await fetch(url, {mode:'no-cors'});
+    await fetch(noCacheUrl(url), {mode:'no-cors', cache:'no-store'});
     await fetchData();
     selectedCandForCopy = null;
     document.getElementById('newCandSelectedHint').textContent = '';
@@ -3542,7 +3552,7 @@ async function submitHcNewRow() {
   try {
     var url = APPS_SCRIPT_URL + '?action=addRow&sheet=' + encodeURIComponent('Headcount Records') +
       '&values=' + encodeURIComponent(JSON.stringify(orderedValues));
-    await fetch(url, {mode:'no-cors'});
+    await fetch(noCacheUrl(url), {mode:'no-cors', cache:'no-store'});
     await fetchData();
     if (currentTab === 'hc') renderHeadcount();
     showToast('✓ 已新增 Headcount 資料');
@@ -3591,7 +3601,7 @@ async function submitAddRow() {
   try {
     var url = APPS_SCRIPT_URL + '?action=addRow&sheet=' + encodeURIComponent(targetSheet) +
       '&values=' + encodeURIComponent(JSON.stringify(orderedValues));
-    await fetch(url, {mode:'no-cors'});
+    await fetch(noCacheUrl(url), {mode:'no-cors', cache:'no-store'});
     if (statusEl) statusEl.textContent = '正在同步...';
     await fetchData();
     if (currentTab === 'maintain') renderMaintain();
@@ -3609,7 +3619,7 @@ async function deleteMaintainRow(row) {
   showToast('刪除中...');
   try {
     var url = APPS_SCRIPT_URL + '?action=deleteRow&sheet=' + encodeURIComponent(maintainSheet) + '&row=' + encodeURIComponent(row);
-    await fetch(url, {mode:'no-cors'});
+    await fetch(noCacheUrl(url), {mode:'no-cors', cache:'no-store'});
     await fetchData();
     if (currentTab === 'maintain') { if (maintainSheet==='Candidate Records') renderCandQuery(); else renderMaintain(); }
     if (statusEl) { statusEl.textContent = '✓ 已刪除'; setTimeout(function(){statusEl.textContent='';}, 2000); }
@@ -3832,7 +3842,7 @@ async function submitCreateSchedule() {
       + '&createdByName=' + encodeURIComponent(creatorName)
       + '&createdByEmail=' + encodeURIComponent(creatorEmail)
       + '&createdBy=' + encodeURIComponent(userRole||'');
-    await fetch(url, {mode:'no-cors'});
+    await fetch(noCacheUrl(url), {mode:'no-cors', cache:'no-store'});
     await fetchData();
     if (currentTab === 'schedule') renderSchedule();
     showToast('✓ 已建立邀約並寄信給 '+managersToSend.length+' 位主管');
@@ -3861,7 +3871,7 @@ async function saveCandAvailability(btn) {
   showToast('儲存中...');
   try {
     var url = APPS_SCRIPT_URL + '?action=updateCandidateAvailability&token=' + encodeURIComponent(token) + '&text=' + encodeURIComponent(text);
-    await fetch(url, {mode:'no-cors'});
+    await fetch(noCacheUrl(url), {mode:'no-cors', cache:'no-store'});
     await fetchData();
     if (currentTab === 'schedule') renderSchedule();
     showToast('✓ 已儲存候選人／HR 方便時間');
@@ -3878,7 +3888,7 @@ async function saveFinalTime(btn) {
   showToast('儲存中...');
   try {
     var url = APPS_SCRIPT_URL + '?action=updateFinalTime&token=' + encodeURIComponent(token) + '&text=' + encodeURIComponent(text);
-    await fetch(url, {mode:'no-cors'});
+    await fetch(noCacheUrl(url), {mode:'no-cors', cache:'no-store'});
     await fetchData();
     if (currentTab === 'schedule') renderSchedule();
     showToast('✓ 已標記最終確認時間，請自行通知三方');
@@ -3895,7 +3905,7 @@ async function saveManagerAvailability(btn) {
   showToast('儲存中...');
   try {
     var url = APPS_SCRIPT_URL + '?action=updateManagerAvailability&token=' + encodeURIComponent(token) + '&text=' + encodeURIComponent(text);
-    await fetch(url, {mode:'no-cors'});
+    await fetch(noCacheUrl(url), {mode:'no-cors', cache:'no-store'});
     await fetchData();
     if (currentTab === 'schedule') renderSchedule();
     showToast('✓ 已儲存主管方便時間');
@@ -4221,7 +4231,7 @@ async function savePermCell(sheet, row, col, value) {
   try {
     var url = APPS_SCRIPT_URL + '?action=editCell&sheet=' + encodeURIComponent(sheet) +
       '&row=' + encodeURIComponent(row) + '&col=' + encodeURIComponent(col) + '&value=' + encodeURIComponent(value);
-    await fetch(url, {mode:'no-cors'});
+    await fetch(noCacheUrl(url), {mode:'no-cors', cache:'no-store'});
     return true;
   } catch(e) {
     showToast('❌ 儲存失敗：'+e.message);
@@ -4313,7 +4323,7 @@ async function addUnitMappingRow() {
   try {
     var url = APPS_SCRIPT_URL + '?action=addRow&sheet=' + encodeURIComponent('Unit HR Mapping') +
       '&values=' + encodeURIComponent(JSON.stringify(['','']));
-    await fetch(url, {mode:'no-cors'});
+    await fetch(noCacheUrl(url), {mode:'no-cors', cache:'no-store'});
     showToast('新增中...');
     await fetchPermissionData();
     renderPermissions();
@@ -4328,7 +4338,7 @@ async function deleteUnitMappingRow(idx) {
   if (!confirm('確定要刪除「'+(rec['單位']||'（未設定單位）')+'」這筆單位設定嗎？')) return;
   try {
     var url = APPS_SCRIPT_URL + '?action=deleteRow&sheet=' + encodeURIComponent('Unit HR Mapping') + '&row=' + encodeURIComponent(rec._row);
-    await fetch(url, {mode:'no-cors'});
+    await fetch(noCacheUrl(url), {mode:'no-cors', cache:'no-store'});
     await fetchPermissionData();
     renderPermissions();
     showToast('✓ 已刪除');
@@ -4381,7 +4391,7 @@ async function addHrDirectoryRow() {
   try {
     var url = APPS_SCRIPT_URL + '?action=addRow&sheet=' + encodeURIComponent('HR Directory') +
       '&values=' + encodeURIComponent(JSON.stringify(['','']));
-    await fetch(url, {mode:'no-cors'});
+    await fetch(noCacheUrl(url), {mode:'no-cors', cache:'no-store'});
     showToast('新增中...');
     await fetchPermissionData();
     renderPermissions();
@@ -4396,7 +4406,7 @@ async function deleteHrDirectoryRow(idx) {
   if (!confirm('確定要刪除「'+(rec['HR姓名']||'（未設定姓名）')+'」這筆 HR 資料嗎？')) return;
   try {
     var url = APPS_SCRIPT_URL + '?action=deleteRow&sheet=' + encodeURIComponent('HR Directory') + '&row=' + encodeURIComponent(rec._row);
-    await fetch(url, {mode:'no-cors'});
+    await fetch(noCacheUrl(url), {mode:'no-cors', cache:'no-store'});
     await fetchPermissionData();
     renderPermissions();
     showToast('✓ 已刪除');
