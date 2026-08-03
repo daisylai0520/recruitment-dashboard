@@ -1,6 +1,8 @@
-// 網址加上 /a/~/ 是為了避免使用者瀏覽器同時登入多個 Google 帳號時，被導向錯誤的帳號路徑而出現 404
-// （這是 Google Apps Script 已知的怪現象，跟資料量、程式邏輯無關）；如果測試後仍有問題可以再改回原本網址。
-var APPS_SCRIPT_URL = 'https://script.google.com/a/~/macros/s/AKfycby0h1OkoC_xNWeAAbuh4cBicbTl4B8g1KDtL-s2YK9f80TYjIyxQtdeu9RkWFQVtY3pnw/exec';
+// 之前試過網址加 /a/~/，結果反而更常 404 就改回來了（那個格式是給公司網域帳號「強制用目前網域身分」用的，
+// 這個工具是用個人新建的 Google 帳號，不適用）。這次改用 /a/gmail.com/：這個格式是明確指定「gmail.com」這個域，
+// 讓 Google 不管瀏覽器目前有沒有登入、登入哪個帳號，都用匿名方式存取這個「任何人」都能開的網頁應用程式，
+// 不會再被導去跟瀏覽器目前登入帳號有關的路徑。如果測試後還是常出現 404，麻煩讓我知道，再改回原本網址。
+var APPS_SCRIPT_URL = 'https://script.google.com/a/gmail.com/macros/s/AKfycby0h1OkoC_xNWeAAbuh4cBicbTl4B8g1KDtL-s2YK9f80TYjIyxQtdeu9RkWFQVtY3pnw/exec';
 var userRole = null;
 var allData=[], salaryData=[], scheduleData=[], managerDirectoryData=[], managerInfoData=[], resultOptions=[], positionOptions=[];
 // 「分類Result」工作表的 階段／分類1／分類2／Result 對照，人選進度統計樹狀圖依這個動態分組顯示
