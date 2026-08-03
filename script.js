@@ -1916,13 +1916,14 @@ function computeBreakdownSeries(groups, computeFn, weeks) {
 }
 
 // ---- 人選進度統計（樹狀圖）：定義與畫面計算數字共用同一組條件，點節點也用同一組條件做鑽取 ----
-// 2026/08 簡化：「有聯繫上」只算還在電訪流程中的「排電訪／待電訪」兩個狀態，分成「已安排／待安排」；
+// 2026/08 簡化：「有聯繫上」只算還在電訪流程中的「排電訪／待電訪」兩個狀態，分成「已安排／待安排」
+// （待電訪＝已安排電訪時間、排電訪＝還在排等安排）；
 // 「沒連繫上」分成「已結案」（已致電未接、其他主管/近期已邀約、不建議邀約、人選婉拒電訪、已關閉履歷：
 // 都不再繼續推進）與「未結案」（104已邀約未回覆：還在等待回應，還會繼續嘗試）。
 var TREND_STAT_DEFS = [
   {id:'tr-invited', label:'邀約', test:function(d){return !!(d.invite_date || d['invite date']);}},
-  {id:'tr-arranged', label:'已安排', test:function(d){return d.Result === '排電訪';}},
-  {id:'tr-waitpi', label:'待安排', test:function(d){return d.Result === '待電訪';}},
+  {id:'tr-arranged', label:'已安排', test:function(d){return d.Result === '待電訪';}},
+  {id:'tr-waitpi', label:'待安排', test:function(d){return d.Result === '排電訪';}},
   {id:'tr-notconnect-closed', label:'已結案', test:function(d){return ['已致電未接','其他主管/近期已邀約','不建議邀約','人選婉拒電訪','已關閉履歷'].indexOf(d.Result) >= 0;}},
   {id:'tr-notconnect-open', label:'未結案', test:function(d){return d.Result === '104已邀約未回覆';}},
   {id:'tr-interview', label:'面試', test:function(d){return !!d.Interview_date;}},
