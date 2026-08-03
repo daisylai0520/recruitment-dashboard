@@ -354,25 +354,31 @@
 
     <div id="permWarningBanner" style="display:none;font-size:12px;background:var(--amber-bg);color:var(--amber-text);padding:10px 14px;border-radius:8px;margin-bottom:20px;"></div>
 
-    <div style="font-size:14px;font-weight:700;margin-bottom:10px;">單位 → 負責 HR 對應表</div>
-    <div class="page-sub" style="margin-top:-4px;">「單位」選項來自 Candidate Records 的「單位」欄位；「負責HR」可複選，選項來自 Candidate Records 的「負責HR」欄位。同一位 HR 可以出現在多個單位裡（代表他負責多個單位）</div>
-    <div class="table-wrap" style="margin-bottom:10px;">
-      <table class="pi-table">
-        <thead><tr><th style="width:32%;">單位</th><th>負責 HR（可複選）</th><th style="width:70px;"></th></tr></thead>
-        <tbody id="permUnitMappingBody"></tbody>
-      </table>
-    </div>
-    <button class="refresh-btn" style="margin-left:0;margin-bottom:28px;" onclick="addUnitMappingRow()">＋ 新增單位</button>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:start;">
+      <div>
+        <div style="font-size:14px;font-weight:700;margin-bottom:10px;">單位 → 負責 HR 對應表</div>
+        <div class="page-sub" style="margin-top:-4px;">「單位」選項來自 Candidate Records 的「單位」欄位；「負責HR」可複選，選項來自 Candidate Records 的「負責HR」欄位。同一位 HR 可以出現在多個單位裡（代表他負責多個單位）</div>
+        <div class="table-wrap" style="margin-bottom:10px;">
+          <table class="pi-table">
+            <thead><tr><th style="width:32%;">單位</th><th>負責 HR（可複選）</th><th style="width:70px;"></th></tr></thead>
+            <tbody id="permUnitMappingBody"></tbody>
+          </table>
+        </div>
+        <button class="refresh-btn" style="margin-left:0;" onclick="addUnitMappingRow()">＋ 新增單位</button>
+      </div>
 
-    <div style="font-size:14px;font-weight:700;margin-bottom:10px;">HR 名冊管理</div>
-    <div class="page-sub" style="margin-top:-4px;">「HR 姓名」選項來自 Candidate Records 的「負責HR」欄位；設定角色後，該 HR 在「選擇身分」畫面點選自己名字時，就會依此角色顯示對應的分頁</div>
-    <div class="table-wrap" style="margin-bottom:10px;">
-      <table class="pi-table">
-        <thead><tr><th style="width:40%;">HR 姓名</th><th>角色</th><th style="width:70px;"></th></tr></thead>
-        <tbody id="permHrDirectoryBody"></tbody>
-      </table>
+      <div>
+        <div style="font-size:14px;font-weight:700;margin-bottom:10px;">HR 名冊管理</div>
+        <div class="page-sub" style="margin-top:-4px;">「HR 姓名」選項來自 Candidate Records 的「負責HR」欄位；設定角色後，該 HR 在「選擇身分」畫面點選自己名字時，就會依此角色顯示對應的分頁</div>
+        <div class="table-wrap" style="margin-bottom:10px;">
+          <table class="pi-table">
+            <thead><tr><th style="width:40%;">HR 姓名</th><th>角色</th><th style="width:70px;"></th></tr></thead>
+            <tbody id="permHrDirectoryBody"></tbody>
+          </table>
+        </div>
+        <button class="refresh-btn" style="margin-left:0;" onclick="addHrDirectoryRow()">＋ 新增 HR</button>
+      </div>
     </div>
-    <button class="refresh-btn" style="margin-left:0;" onclick="addHrDirectoryRow()">＋ 新增 HR</button>
   </div>
 
   <!-- ===== DATA MAINTENANCE ===== -->

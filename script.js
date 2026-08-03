@@ -1,4 +1,6 @@
-var APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby0h1OkoC_xNWeAAbuh4cBicbTl4B8g1KDtL-s2YK9f80TYjIyxQtdeu9RkWFQVtY3pnw/exec';
+// 網址加上 /a/~/ 是為了避免使用者瀏覽器同時登入多個 Google 帳號時，被導向錯誤的帳號路徑而出現 404
+// （這是 Google Apps Script 已知的怪現象，跟資料量、程式邏輯無關）；如果測試後仍有問題可以再改回原本網址。
+var APPS_SCRIPT_URL = 'https://script.google.com/a/~/macros/s/AKfycby0h1OkoC_xNWeAAbuh4cBicbTl4B8g1KDtL-s2YK9f80TYjIyxQtdeu9RkWFQVtY3pnw/exec';
 var userRole = null;
 var allData=[], salaryData=[], scheduleData=[], managerDirectoryData=[], managerInfoData=[], resultOptions=[], positionOptions=[];
 // 「分類Result」工作表的 階段／分類1／分類2／Result 對照，人選進度統計樹狀圖依這個動態分組顯示
@@ -19,6 +21,28 @@ var isAdmin = false;
 // 依現有多選欄位的儲存慣例（用「、」分隔多個值，見 MULTI_SELECT_FIELDS）拆成陣列
 function splitMultiValue(s) {
   return String(s||'').split('、').map(function(v){ return v.trim(); }).filter(Boolean);
+}
+
+// 剛存檔的欄位短時間內的保護機制：每 5 分鐘會有一次背景自動同步（見底部 setInterval(fetchData,...)），
+// 如果使用者剛編輯完某個欄位、儲存動作跟這次背景同步前後腳發生，抓回來的那份資料有可能是「同步當下」的舊快照
+// （還沒反映剛剛的編輯），直接整批覆蓋回 allData／allDataFull 的話，畫面上剛打好的內容會像是突然消失或被還原。
+// 所以剛存檔的欄位在這個保護視窗內（20 秒），重新整理資料時會用剛剛存的值蓋回去，而不是照單全收剛抓到的舊值；
+// 超過保護時間就不再特別處理，讓資料照正常流程以伺服器最新版本為準（例如真的被別人改過）。
+var recentFieldEdits = {};
+var EDIT_PROTECTION_MS = 20000;
+function rememberRecentEdit(sheet, row, field, value) {
+  recentFieldEdits[sheet+'|'+row+'|'+field] = { value: value, ts: Date.now() };
+}
+function reapplyRecentEdits(sheet, records) {
+  var now = Date.now();
+  Object.keys(recentFieldEdits).forEach(function(key){
+    var parts = key.split('|');
+    if (parts[0] !== sheet) return;
+    var entry = recentFieldEdits[key];
+    if (now - entry.ts > EDIT_PROTECTION_MS) { delete recentFieldEdits[key]; return; }
+    var rec = records.find(function(r){ return String(r._row) === String(parts[1]); });
+    if (rec) rec[parts[2]] = entry.value;
+  });
 }
 
 // Job Function 欄位可能是多選（用「、」分隔存多個值），篩選選項要把每筆資料拆開再去重，
@@ -311,6 +335,8 @@ async function fetchCoreData() {
   allData=(json.candidates||[]).filter(function(d){return d.Name&&d.Result;});
   // 保留一份完整（未依單位過濾）名單，只給新增人選時的重複檢查使用
   allDataFull = allData.slice();
+  // 剛編輯完的欄位如果還在保護時間內，用剛存的值蓋掉這次抓回來的（可能較舊的）快照，避免看起來像是自動被存成別的值／被還原
+  reapplyRecentEdits('Candidate Records', allDataFull);
   // 一般 HR 身分（非管理者）：只留下「單位」有落在自己負責範圍內的人選資料
   if (!isAdmin && currentHRUnits) {
     allData = allData.filter(function(d){
@@ -385,7 +411,9 @@ async function fetchHeadcountData() {
   headcountDropdownData = json.headcountDropdowns || {};
   rebuildHeadcountDropdowns();
   Object.assign(maintainHeaders, json.sheetHeaders || {});
-  loadHeadcountData(json.headcount||[]);
+  var newHcRecords = json.headcount||[];
+  reapplyRecentEdits('Headcount Records', newHcRecords);
+  loadHeadcountData(newHcRecords);
   loadedResources.headcount = true;
 }
 
@@ -394,6 +422,7 @@ async function fetchSalaryData() {
   if (!res.ok) throw new Error('HTTP '+res.status);
   var json = await res.json();
   salaryData=(json.salaryRecords||[]).filter(function(d){return d.Company;});
+  reapplyRecentEdits('Market Salary Records', salaryData);
   Object.assign(maintainHeaders, json.sheetHeaders || {});
   loadedResources.salary = true;
 }
@@ -1049,7 +1078,9 @@ function splitDateFieldValue(val) {
 
 var _minidpState = null; // {input, year, month, selectedDay, rest, needsTime, hour, minute}
 
-function openMiniDatePicker(inputEl) {
+// isDraft：新增人選表單用（欄位還沒存到試算表、也沒有 data-row），選完日期／時間只更新輸入框的值，
+// 不會呼叫 commitMaintainCellTA 存檔，等使用者按「＋ 新增人選資料」送出時才會一起收集進去。
+function openMiniDatePicker(inputEl, isDraft) {
   if (!inputEl) return;
   closeMiniDatePicker();
   var field = inputEl.getAttribute('data-field');
@@ -1065,7 +1096,7 @@ function openMiniDatePicker(inputEl) {
     parsed = { y: t.getFullYear(), m: t.getMonth()+1, d: t.getDate(), rest: '' };
     if (needsTime) { hour = t.getHours(); minute = Math.floor(t.getMinutes()/5)*5; }
   }
-  _minidpState = { input: inputEl, year: parsed.y, month: parsed.m, selectedDay: parsed.d, rest: parsed.rest, needsTime: needsTime, hour: hour, minute: minute };
+  _minidpState = { input: inputEl, year: parsed.y, month: parsed.m, selectedDay: parsed.d, rest: parsed.rest, needsTime: needsTime, hour: hour, minute: minute, isDraft: !!isDraft };
 
   // 外殼（上/下月按鈕、月份文字、星期標題列、日期格子容器、時間選單容器、底部按鈕）只在這裡建立一次；
   // 之後切換月份／選日期／改時間都只改裡面的內容（textContent／innerHTML 局部更新），
@@ -1103,10 +1134,15 @@ function minidpOutsideClickHandler(e) {
   var path = typeof e.composedPath === 'function' ? e.composedPath() : [];
   if (_minidpState && path.indexOf(_minidpState.input) >= 0) return;
   if (path.indexOf(pop) >= 0) return;
-  closeMiniDatePicker();
+  closeMiniDatePicker(true); // 點旁邊空白處才視為「選完了」，這時候才真正存檔
 }
 
-function closeMiniDatePicker() {
+function closeMiniDatePicker(shouldSave) {
+  // Phone Interview_date／Interview_date 需要日期＋時間都選完才算完整，中途（例如剛選完日期、還沒選時間）
+  // 存檔的話會存到不完整的值；改成只有真的要關閉面板（點旁邊空白處）時才把目前選到的日期＋時間存檔。
+  if (shouldSave && _minidpState && _minidpState.needsTime && !_minidpState.isDraft) {
+    commitMaintainCellTA(_minidpState.input);
+  }
   var pop = document.getElementById('minidpPopup');
   if (pop) pop.remove();
   document.removeEventListener('click', minidpOutsideClickHandler);
@@ -1162,8 +1198,10 @@ function renderMiniDatePickerBody() {
   }
 }
 
-// 組合目前選到的年/月/日（＋時間欄位的話再加上時:分）寫回輸入框並存檔
-function applyMiniDatePickerValue() {
+// 組合目前選到的年/月/日（＋時間欄位的話再加上時:分）寫回輸入框；
+// shouldSave 為 true 才會真的存檔——Phone Interview_date／Interview_date 要日期＋時間都選完，
+// 點旁邊空白處關閉面板時才存檔，避免只選了日期、還沒選時間就先存到不完整的值。
+function applyMiniDatePickerValue(shouldSave) {
   if (!_minidpState) return;
   var input = _minidpState.input;
   var dateStr = _minidpState.year+'/'+String(_minidpState.month).padStart(2,'0')+'/'+String(_minidpState.selectedDay).padStart(2,'0');
@@ -1171,30 +1209,31 @@ function applyMiniDatePickerValue() {
     ? dateStr+' '+String(_minidpState.hour).padStart(2,'0')+':'+String(_minidpState.minute).padStart(2,'0')
     : (_minidpState.rest ? dateStr+' '+_minidpState.rest : dateStr);
   input.value = valueStr;
-  commitMaintainCellTA(input);
+  if (shouldSave && !_minidpState.isDraft) commitMaintainCellTA(input);
 }
 
 function selectMiniDatePickerDate(y, m, d) {
   if (!_minidpState) return;
   _minidpState.year = y; _minidpState.month = m; _minidpState.selectedDay = d;
-  applyMiniDatePickerValue();
   if (_minidpState.needsTime) {
-    // Phone Interview_date／Interview_date：選完日期先別關面板，讓使用者接著選時間
+    // Phone Interview_date／Interview_date：先只更新面板顯示，日期＋時間都選完、點旁邊空白處時才存檔
+    applyMiniDatePickerValue(false);
     renderMiniDatePickerBody();
   } else {
+    applyMiniDatePickerValue(true);
     closeMiniDatePicker();
   }
 }
 
-// Phone Interview_date／Interview_date 專用：調整時間下拉選單後即時存檔（面板保持開啟）
+// Phone Interview_date／Interview_date 專用：調整時間下拉選單後先更新面板顯示，面板保持開啟，
+// 等使用者點旁邊空白處關閉面板時（見 minidpOutsideClickHandler／closeMiniDatePicker）才真正存檔
 function updateMiniDatePickerTime() {
   if (!_minidpState) return;
   var hEl = document.getElementById('minidpHour');
   var mEl = document.getElementById('minidpMinute');
   if (hEl) _minidpState.hour = parseInt(hEl.value);
   if (mEl) _minidpState.minute = parseInt(mEl.value);
-  applyMiniDatePickerValue();
-  closeMiniDatePicker();
+  applyMiniDatePickerValue(false);
 }
 
 function selectMiniDatePickerToday() {
@@ -1205,9 +1244,10 @@ function selectMiniDatePickerToday() {
 function clearMiniDatePickerDate() {
   if (!_minidpState) return;
   var input = _minidpState.input;
+  var isDraft = _minidpState.isDraft;
   input.value = '';
-  closeMiniDatePicker();
-  commitMaintainCellTA(input);
+  closeMiniDatePicker(false);
+  if (!isDraft) commitMaintainCellTA(input);
 }
 
 // 嚴格下拉選單欄位（Candidate Records）：只能從清單中選擇，不提供手動輸入
@@ -2902,11 +2942,13 @@ async function saveMaintainField(sheet, row, col, field, idx, newVal) {
     }
     if (rec) {
       rec[field] = newVal;
+      rememberRecentEdit(sheet, row, field, newVal); // 短時間內保護剛存的值，避免背景自動同步把它蓋回舊的
       // 跟後端一致：Candidate Records / Market Salary Records 只要有任何欄位被改動，畫面上也立即帶出今天的更新日期
       var updateFieldName = sheet === 'Candidate Records' ? 'Result Update_date' : (sheet === 'Market Salary Records' ? 'Update date' : null);
       if (updateFieldName && field !== updateFieldName) {
         var todayStr = getTodayDateStr();
         rec[updateFieldName] = todayStr;
+        rememberRecentEdit(sheet, row, updateFieldName, todayStr);
         var updEl = document.querySelector('[data-sheet="'+sheet+'"][data-row="'+row+'"][data-field="'+updateFieldName+'"]');
         if (updEl) {
           updEl.setAttribute('data-raw', todayStr);
@@ -2920,6 +2962,7 @@ async function saveMaintainField(sheet, row, col, field, idx, newVal) {
       if (scheduledFieldName) {
         var scheduledToday = getTodayDateStr();
         rec[scheduledFieldName] = scheduledToday;
+        rememberRecentEdit(sheet, row, scheduledFieldName, scheduledToday);
         var scheduledEl = document.querySelector('[data-sheet="'+sheet+'"][data-row="'+row+'"][data-field="'+scheduledFieldName+'"]');
         if (scheduledEl) {
           scheduledEl.setAttribute('data-raw', scheduledToday);
@@ -3011,6 +3054,18 @@ function buildFormDatalistInput(className, field, options, prefillVal, extraAttr
   var optHtml = options.map(function(o){ return '<option value="'+String(o).replace(/"/g,'&quot;')+'">'; }).join('');
   return '<input type="text" list="'+dlId+'" class="'+className+'" data-field="'+field+'" value="'+String(prefillVal||'').replace(/"/g,'&quot;')+'" onfocus="dlInputFocus(this)" onblur="dlInputRestoreIfEmpty(this)"'+(extraAttrs||'')+' style="width:100%;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;box-sizing:border-box;">'+
     '<datalist id="'+dlId+'">'+optHtml+'</datalist>';
+}
+
+// 共用元件：給「填寫中、尚未存檔」的表單用的日期欄位——跟搜尋結果卡片的 buildDateFieldInput 一樣有月曆圖示可以點選，
+// 差別是這裡選完只會更新輸入框的值（見 openMiniDatePicker 的 isDraft 參數），不會馬上存檔，等按「＋ 新增人選資料」送出時才一起收集。
+function buildFormDateFieldInput(className, field, prefillVal, extraAttrs) {
+  var uid = 'dtf_form_' + (_dlIdCounter++);
+  var dispSafe = String(prefillVal||'').replace(/"/g,'&quot;');
+  return '<div class="date-field-wrap">'+
+    '<input type="text" id="'+uid+'" class="'+className+'" data-field="'+field+'" value="'+dispSafe+'" autocomplete="off"'+(extraAttrs||'')+' '+
+      'style="width:100%;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;box-sizing:border-box;">'+
+    '<button type="button" class="date-field-cal-btn" title="選擇日期" onmousedown="event.preventDefault()" onclick="openMiniDatePicker(document.getElementById(\''+uid+'\'), true)">📅</button>'+
+  '</div>';
 }
 
 // 共用元件：給「填寫中、尚未存檔」的表單用的嚴格下拉選單（不可手動輸入），送出時才收集
@@ -3152,6 +3207,7 @@ function renderNewCandidateFields() {
     var isPhoneRecord = isPhoneRecordFieldName(h);
     var isMultilineField = isMemo || isPhoneRecord;
     var isHRComment = /^hr\s*comment$/i.test(h.trim());
+    var isDateField = MAINTAIN_DATE_FIELDS.indexOf(h) >= 0;
     var isPosition = h === '104_Position';
     var isNameOrResume = (h === 'Name' || h.indexOf('履歷代碼') >= 0);
     // 並排的電訪紀錄欄位不要再各自佔滿整排（外層已經是整排的兩欄容器了）
@@ -3184,6 +3240,10 @@ function renderNewCandidateFields() {
       fieldHtml = '<div style="'+spanStyle+'"><div class="modal-label" style="margin-bottom:4px;">'+label+'</div>'+
         '<textarea class="new-cand-input" data-field="'+h+'" rows="2" oninput="autoGrowTextarea(this)" '+
         'style="width:100%;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;box-sizing:border-box;font-family:inherit;resize:vertical;overflow:hidden;min-height:38px;">'+escapedVal+'</textarea></div>';
+    } else if (isDateField) {
+      // 日期欄位跟搜尋結果卡片一樣有月曆圖示可以點選（見 buildFormDateFieldInput），選完只更新這裡的顯示值，
+      // 送出「＋ 新增人選資料」時才會一起存檔；還是可以手動打字，邀約日離開欄位時一樣會自動整理成 YYYY/MM/DD。
+      fieldHtml = '<div style="'+spanStyle+'"><div class="modal-label" style="margin-bottom:4px;">'+label+'</div>'+buildFormDateFieldInput('new-cand-input', h, prefillVal, extraAttr)+'</div>';
     } else {
       fieldHtml = '<div style="'+spanStyle+'"><div class="modal-label" style="margin-bottom:4px;">'+label+'</div><input type="text" class="new-cand-input" data-field="'+h+'" value="'+prefillVal+'"'+dupAttr+extraAttr+' style="width:100%;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;box-sizing:border-box;"></div>';
     }
