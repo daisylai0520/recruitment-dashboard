@@ -1493,15 +1493,16 @@ function renderHeadcount() {
     return;
   }
   var divKey = Object.keys(hcRawData[0]).find(function(k){return k.trim()==='Division';}) || 'Division';
-  var deptKey = Object.keys(hcRawData[0]).find(function(k){return k.trim()==='Department';}) || 'Department';
-  var sectionKey = Object.keys(hcRawData[0]).find(function(k){return k.trim()==='Section';}) || 'Section';
   var jobKey = Object.keys(hcRawData[0]).find(function(k){return k.trim()==='Job Function';}) || 'Job Function';
   var gradeKey = Object.keys(hcRawData[0]).find(function(k){return k.trim()==='職等';}) || '職等';
-  var dutiesKey = Object.keys(hcRawData[0]).find(function(k){return k.trim()==='Duties';}) || 'Duties';
-  var reasonKey = Object.keys(hcRawData[0]).find(function(k){return k.includes('Reason');}) || 'Reason for Request';
-  var predKey = Object.keys(hcRawData[0]).find(function(k){return k.includes('Predecessor')||k.trim()==='原任';}) || 'Predecessor';
   var succKey = Object.keys(hcRawData[0]).find(function(k){return k.includes('Successor')||k.trim()==='遞補人員';}) || 'Successor';
-  var memoKey = Object.keys(hcRawData[0]).find(function(k){return k.trim()==='Memo';}) || 'Memo';
+
+  // 表格顯示欄位：跟「Headcount Records」工作表保持一致，不再寫死清單，工作表增減/改名欄位這裡會自動跟著變。
+  // Division／Job Function 已經是卡片分組依據（上面的單位標題／職稱區塊），這裡不重複顯示；PS 開頭的內部欄位也不顯示。
+  var allHeaders = maintainHeaders['Headcount Records'] || Object.keys(hcRawData[0]).filter(function(k){return k!=='_row';});
+  var displayHeaders = allHeaders.filter(function(h){
+    return h && h !== divKey && h !== jobKey && !h.includes('PS');
+  });
 
   var hcBuOptions = [...new Set(hcRawData.map(function(r){return String(r[divKey]||'').trim();}))].filter(Boolean).sort();
   renderMultiFilterBar('hcBuBar', 'hc-bu', hcBuOptions);
@@ -1528,13 +1529,6 @@ function renderHeadcount() {
     if (isPastFilled) groups[div].pastTotal++;
     groups[div].jobs[job].rows.push({
       raw: r,
-      unit: [String(r[deptKey]||'').trim(), String(r[sectionKey]||'').trim()].filter(Boolean).join(' / '),
-      grade: grade || '—',
-      duties: String(r[dutiesKey]||'').trim() || '—',
-      reason: String(r[reasonKey]||'').trim() || '—',
-      pred: String(r[predKey]||'').trim() || '—',
-      succ: succ,
-      memo: String(r[memoKey]||'').trim(),
       vacant: isVacant,
       pastFilled: isPastFilled
     });
@@ -1563,17 +1557,10 @@ function renderHeadcount() {
       var rowsHtml = displayRows.map(function(rr){
         var r = rr.raw;
         var idx = hcRawData.indexOf(r);
-        return '<tr>'+
-          '<td style="padding:2px;">'+renderTableCellInput('Headcount Records', r, deptKey, idx, '100%')+'</td>'+
-          '<td style="padding:2px;">'+renderTableCellInput('Headcount Records', r, sectionKey, idx, '100%')+'</td>'+
-          '<td style="padding:2px;">'+renderTableCellInput('Headcount Records', r, dutiesKey, idx, '100%')+'</td>'+
-          '<td style="padding:2px;">'+renderTableCellInput('Headcount Records', r, reasonKey, idx, '100%')+'</td>'+
-          '<td style="padding:2px;">'+renderTableCellInput('Headcount Records', r, gradeKey, idx, '100%')+'</td>'+
-          (isPastMode
-            ? '<td style="padding:2px;">'+renderTableCellInput('Headcount Records', r, succKey, idx, '100%')+'</td>'
-            : '<td style="padding:2px;">'+renderTableCellInput('Headcount Records', r, predKey, idx, '100%')+'</td>')+
-          '<td style="padding:2px;">'+renderTableCellInput('Headcount Records', r, memoKey, idx, '100%')+'</td>'+
-        '</tr>';
+        var cells = displayHeaders.map(function(h){
+          return '<td style="padding:2px;">'+renderTableCellInput('Headcount Records', r, h, idx, '100%')+'</td>';
+        }).join('');
+        return '<tr>'+cells+'</tr>';
       }).join('');
 
       return '<div style="margin-bottom:10px;">'+
@@ -1581,18 +1568,10 @@ function renderHeadcount() {
           '<span style="font-size:12px;font-weight:600;">'+j.job+'</span>'+
           '<span style="font-size:11px;font-weight:700;color:'+jc+';background:'+jc+'18;padding:1px 8px;border-radius:10px;">'+countInJob+(isPastMode?' 已補實':' 缺額')+'</span>'+
         '</div>'+
-        '<div style="border:1px solid var(--border);border-radius:8px;">'+
-          '<table style="width:100%;table-layout:fixed;border-collapse:collapse;">'+
+        '<div style="border:1px solid var(--border);border-radius:8px;overflow-x:auto;">'+
+          '<table style="width:100%;min-width:'+Math.max(displayHeaders.length*110, 100)+'px;table-layout:fixed;border-collapse:collapse;">'+
             '<thead><tr style="background:var(--bg);">'+
-              '<th style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-align:left;padding:5px 6px;">部門</th>'+
-              '<th style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-align:left;padding:5px 6px;">單位</th>'+
-              '<th style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-align:left;padding:5px 6px;">Duties</th>'+
-              '<th style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-align:left;padding:5px 6px;">原因</th>'+
-              '<th style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-align:left;padding:5px 6px;">職等</th>'+
-              (isPastMode
-                ? '<th style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-align:left;padding:5px 6px;">遞補人員</th>'
-                : '<th style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-align:left;padding:5px 6px;">原任</th>')+
-              '<th style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-align:left;padding:5px 6px;">備註</th>'+
+              displayHeaders.map(function(h){ return '<th style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-align:left;padding:5px 6px;white-space:nowrap;">'+h+'</th>'; }).join('')+
             '</tr></thead>'+
             '<tbody>'+rowsHtml+'</tbody>'+
           '</table>'+
