@@ -21,6 +21,16 @@ function splitMultiValue(s) {
   return String(s||'').split('、').map(function(v){ return v.trim(); }).filter(Boolean);
 }
 
+// Job Function 欄位可能是多選（用「、」分隔存多個值），篩選選項要把每筆資料拆開再去重，
+// 不要把整串「A、B、C」當成一個選項；單選的資料 splitMultiValue 會直接回傳單一值，不受影響。
+function buildMultiValueOptions(records, getValue) {
+  var set = new Set();
+  records.forEach(function(r){
+    splitMultiValue(getValue(r)).forEach(function(v){ if (v) set.add(v); });
+  });
+  return [...set].sort();
+}
+
 // Candidate 畫面的時間篩選：使用者按過「清除」（或手動把日期都清空）之後，就不要再自動幫忙補「本週」，
 // 直到他自己又設定了一個新的時間範圍為止。切換身分／重新登入時會重設。
 var candMaintenanceDateCleared = false;
@@ -138,6 +148,12 @@ function buildDateFilterHtml(pageKey, fieldOptions, quickRanges) {
 // yyyy-mm-dd，給 <input type="date"> 用（跟 getTodayDateStr 的 yyyy/mm/dd 格式分開，避免混用出錯）
 function fmtISODate(d) {
   return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+// 把試算表存的日期（例如 2026/08/15）轉成 <input type="date"> 需要的 yyyy-mm-dd；解析不出來就留空白，不擋輸入
+function dateOnlyToISO(raw) {
+  if (!raw) return '';
+  var d = parseDateTime(String(raw));
+  return d ? fmtISODate(d) : '';
 }
 
 // 快速時間區間按鈕：本月／過去一個月，點擊後直接帶入起訖日期並套用篩選
@@ -766,13 +782,13 @@ function renderKanban() {
 
   var kbBuOptions = [...new Set(allData.map(function(d){return String(d['單位']||'').trim();}))].filter(Boolean).sort();
   renderMultiFilterBar('kbBuBar', 'kb-bu', kbBuOptions);
-  var kbJobOptions = [...new Set(allData.map(function(d){return String(d['Job Function']||'').trim();}))].filter(Boolean).sort();
+  var kbJobOptions = buildMultiValueOptions(allData, function(d){return d['Job Function'];});
   renderMultiFilterBar('kbJobBar', 'kb-job', kbJobOptions);
   renderKbCardFieldsDropdown();
 
   var filtered=allData.filter(function(d){
     if(!multiFilterPass('kb-bu', d['單位'])) return false;
-    if(!multiFilterPass('kb-job', d['Job Function'])) return false;
+    if(!multiFilterPassMulti('kb-job', d['Job Function'])) return false;
     if(!dateFilterPass('kanban', d)) return false;
     // 超過7天未回覆不顯示
     if(d.Result==='104已邀約未回覆') {
@@ -935,12 +951,12 @@ function renderOverview() {
 
   var ovBuOptions = [...new Set(allData.map(function(d){return String(d['單位']||'').trim();}))].filter(Boolean).sort();
   renderMultiFilterBar('ovBuBar', 'ov-bu', ovBuOptions);
-  var ovJobOptions = [...new Set(allData.map(function(d){return String(d['Job Function']||'').trim();}))].filter(Boolean).sort();
+  var ovJobOptions = buildMultiValueOptions(allData, function(d){return d['Job Function'];});
   renderMultiFilterBar('ovJobBar', 'ov-job', ovJobOptions);
 
   var filtered=allData.filter(function(d){
     return multiFilterPass('ov-bu', d['單位']) &&
-           multiFilterPass('ov-job', d['Job Function']) &&
+           multiFilterPassMulti('ov-job', d['Job Function']) &&
            (!searchTerms.length||matchesAnySearchTerm(d.Name, searchTerms)) &&
            dateFilterPass('overview', d);
   });
@@ -1420,6 +1436,14 @@ function renderTableCellInput(sheetName, rec, field, idx, customWidth) {
       'font-size:12px;padding:5px 6px;border:1px solid var(--border);border-radius:6px;background:var(--surface);'+(customWidth?('width:'+customWidth+';'):'max-width:170px;width:100%;')+'box-sizing:border-box;');
   }
 
+  if (isDateOnlyField && sheetName === 'Headcount Records') {
+    // Headcount Records 的日期欄位（目前是 Requisition Date）改用原生日期選擇器，點一下就能從月曆挑日期，
+    // 不用再手動打字；value 需要 yyyy-mm-dd 格式，儲存回試算表時再轉回 yyyy/mm/dd（跟其他日期欄位一致）。
+    return '<input type="date" data-sheet="'+sheetName+'" data-row="'+rec._row+'" data-col="'+col+'" data-field="'+field+'" data-idx="'+idx+'" data-raw="'+rawSafe+'" '+
+      'value="'+dateOnlyToISO(rawVal)+'" onchange="commitMaintainDateCell(this)" '+
+      'style="font-size:12px;padding:5px 7px;border:1px solid var(--border);border-radius:6px;cursor:pointer;'+widthStyle+'">';
+  }
+
   if (isDateField || isDateOnlyField) {
     // 日期類欄位維持單行 contenteditable，才能套用日期格式清理邏輯
     return '<div contenteditable="true" data-sheet="'+sheetName+'" data-row="'+rec._row+'" data-col="'+col+'" data-field="'+field+'" data-idx="'+idx+'" data-raw="'+rawSafe+'" '+
@@ -1429,10 +1453,13 @@ function renderTableCellInput(sheetName, rec, field, idx, customWidth) {
   }
 
   // 一般文字欄位改用 textarea：支援分行、像 Excel 儲存格一樣可以換行顯示與編輯
+  // Headcount Records 只有 Duties、Memo 這兩個欄位開放使用者自己拖拉調整欄寬（其他欄位寬度是固定的，見 renderHeadcount 的 colgroup 設定）
+  var textareaResize = 'resize:vertical;';
+  if (sheetName === 'Headcount Records') textareaResize = (field === 'Duties' || field === 'Memo') ? 'resize:both;' : 'resize:none;';
   var escapedForTextarea = String(rawVal||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   return '<textarea data-sheet="'+sheetName+'" data-row="'+rec._row+'" data-col="'+col+'" data-field="'+field+'" data-idx="'+idx+'" data-raw="'+rawSafe+'" '+
     'onfocus="enterMaintainEditTA(this)" onblur="commitMaintainCellTA(this)" '+
-    'style="font-size:12px;padding:5px 7px;border:1px solid transparent;border-radius:6px;min-height:32px;cursor:text;font-family:inherit;resize:vertical;white-space:pre-wrap;word-break:break-word;'+widthStyle+'" '+
+    'style="font-size:12px;padding:5px 7px;border:1px solid transparent;border-radius:6px;min-height:32px;cursor:text;font-family:inherit;'+textareaResize+'white-space:pre-wrap;word-break:break-word;'+widthStyle+'" '+
     'onfocusin="this.style.borderColor=\'var(--border)\'" onfocusout="this.style.borderColor=\'transparent\'">'+escapedForTextarea+'</textarea>';
 }
 
@@ -1506,11 +1533,11 @@ function renderHeadcount() {
 
   var hcBuOptions = [...new Set(hcRawData.map(function(r){return String(r[divKey]||'').trim();}))].filter(Boolean).sort();
   renderMultiFilterBar('hcBuBar', 'hc-bu', hcBuOptions);
-  var hcJobOptions = [...new Set(hcRawData.map(function(r){return String(r[jobKey]||'').trim();}))].filter(Boolean).sort();
+  var hcJobOptions = buildMultiValueOptions(hcRawData, function(r){return r[jobKey];});
   renderMultiFilterBar('hcJobBar', 'hc-job', hcJobOptions);
 
   var filtered = hcRawData.filter(function(r){
-    return multiFilterPass('hc-bu', r[divKey]) && multiFilterPass('hc-job', r[jobKey]);
+    return multiFilterPass('hc-bu', r[divKey]) && multiFilterPassMulti('hc-job', r[jobKey]);
   });
 
   var groups = {};
@@ -1554,6 +1581,21 @@ function renderHeadcount() {
 
       if (countInJob === 0) return ''; // 沒有符合目前模式的資料就不顯示
 
+      // 欄寬設定：Department／Section／Location／開缺理由縮窄，職等／遞補人員職等再縮窄一次，
+      // Duties／Memo 則依目前顯示資料的實際內容長度自動加長（像 Excel 欄位一樣），其他欄位可以寬一點。
+      var colWidths = displayHeaders.map(function(h){
+        if (h === 'Duties' || h === 'Memo') {
+          var maxLen = 6;
+          displayRows.forEach(function(rr){
+            String(rr.raw[h]||'').split('\n').forEach(function(line){ if (line.length > maxLen) maxLen = line.length; });
+          });
+          return Math.max(160, Math.min(480, maxLen*8+28));
+        }
+        if (h==='Department' || h==='Section' || h==='Location' || h==='開缺理由' || h.includes('Reason')) return 85;
+        if (h.includes('職等')) return 55;
+        return 190;
+      });
+
       var rowsHtml = displayRows.map(function(rr){
         var r = rr.raw;
         var idx = hcRawData.indexOf(r);
@@ -1569,9 +1611,10 @@ function renderHeadcount() {
           '<span style="font-size:11px;font-weight:700;color:'+jc+';background:'+jc+'18;padding:1px 8px;border-radius:10px;">'+countInJob+(isPastMode?' 已補實':' 缺額')+'</span>'+
         '</div>'+
         '<div style="border:1px solid var(--border);border-radius:8px;overflow-x:auto;">'+
-          '<table style="width:100%;min-width:'+Math.max(displayHeaders.length*110, 100)+'px;table-layout:fixed;border-collapse:collapse;">'+
+          '<table style="table-layout:fixed;border-collapse:collapse;">'+
+            '<colgroup>'+colWidths.map(function(w){ return '<col style="width:'+w+'px;">'; }).join('')+'</colgroup>'+
             '<thead><tr style="background:var(--bg);">'+
-              displayHeaders.map(function(h){ return '<th style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-align:left;padding:5px 6px;white-space:nowrap;">'+h+'</th>'; }).join('')+
+              displayHeaders.map(function(h){ return '<th style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-align:left;padding:5px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+h+'</th>'; }).join('')+
             '</tr></thead>'+
             '<tbody>'+rowsHtml+'</tbody>'+
           '</table>'+
@@ -1847,7 +1890,7 @@ function computeMonthlyHeadcountOnboard() {
   var hcCounts = months.map(function(){ return 0; });
   (hcRawData||[]).forEach(function(r){
     if (!multiFilterPass('tr-bu', r[divKey])) return;
-    if (!multiFilterPass('tr-job', r[jobKeyHc])) return;
+    if (!multiFilterPassMulti('tr-job', r[jobKeyHc])) return;
     var idx = monthIndexOf(r[reqKey]);
     if (idx < 0) return;
     hcCounts[idx]++;
@@ -1856,7 +1899,7 @@ function computeMonthlyHeadcountOnboard() {
   var onboardRecords = months.map(function(){ return []; });
   allData.forEach(function(d){
     if (!multiFilterPass('tr-bu', d['單位'])) return;
-    if (!multiFilterPass('tr-job', d['Job Function'])) return;
+    if (!multiFilterPassMulti('tr-job', d['Job Function'])) return;
     var idx = monthIndexOf(d['Onboard date']);
     if (idx < 0) return;
     onboardRecords[idx].push(d);
@@ -2017,7 +2060,7 @@ function renderTrendHcChart() {
     var div = String(r[divKey]||'').trim();
     if (!div) return;
     if (!multiFilterPass('tr-bu', div)) return;
-    if (!multiFilterPass('tr-job', r[jobKey])) return;
+    if (!multiFilterPassMulti('tr-job', r[jobKey])) return;
     var succ = String(r[succKey]||'').trim();
     if (succ) return; // 只算尚未遞補的缺額
     counts[div] = (counts[div]||0) + 1;
@@ -2031,13 +2074,13 @@ function renderTrendHcChart() {
 function renderTrends() {
   var trBuOptions = [...new Set(allData.map(function(d){return String(d['單位']||'').trim();}))].filter(Boolean).sort();
   renderMultiFilterBar('trBuBar', 'tr-bu', trBuOptions);
-  var trJobOptions = [...new Set(allData.map(function(d){return String(d['Job Function']||'').trim();}))].filter(Boolean).sort();
+  var trJobOptions = buildMultiValueOptions(allData, function(d){return d['Job Function'];});
   renderMultiFilterBar('trJobBar', 'tr-job', trJobOptions);
   renderMultiFilterDropdown('trResultBar', 'tr-result', getResultOptions(), '目前狀態');
 
   var trendData = allData.filter(function(d){
     return multiFilterPass('tr-bu', d['單位']) &&
-           multiFilterPass('tr-job', d['Job Function']) &&
+           multiFilterPassMulti('tr-job', d['Job Function']) &&
            multiFilterPass('tr-result', d.Result) &&
            dateFilterPass('trends', d);
   });
@@ -2240,7 +2283,8 @@ function rebuildHeadcountDropdowns() {
 var MAINTAIN_DROPDOWNS = {
   'Candidate Records': {
     '單位': function(){ return [...new Set(allData.map(function(d){return String(d['單位']||'').trim();}))].filter(Boolean).sort(); },
-    'Job Function': function(){ return [...new Set(allData.map(function(d){return String(d['Job Function']||'').trim();}))].filter(Boolean).sort(); },
+    // Job Function 可能多選（用「、」分隔存多個值），選項要拆開顯示，不要把整串「A、B、C」當成一個選項（比照下面 Source 的做法）
+    'Job Function': function(){ return buildMultiValueOptions(allData, function(d){return d['Job Function'];}); },
     '104_Position': function(){ return getPositionOptions(); },
     'Source': function(){ return [...new Set(allData.flatMap(function(d){return String(d.Source||'').split('、').map(function(s){return s.trim();});}))].filter(Boolean).sort(); },
     // Inviter：選項改抓 Manager Information 工作表的 Name 欄位（不是只抓歷史上打過的值），
@@ -2286,7 +2330,7 @@ function saveLastUsedHR(name) {
 }
 
 var MAINTAIN_DATE_FIELDS = ['invite_date','invite date','Phone Interview_date','Interview_date','Phone Interview Scheduled','Interview Scheduled','Result Update_date','Update_date','Update date','Onboard date'];
-var MAINTAIN_DATEONLY_FIELDS = ['invite_date','invite date','Phone Interview Scheduled','Interview Scheduled','Result Update_date','Update_date','Update date','Onboard date'];
+var MAINTAIN_DATEONLY_FIELDS = ['invite_date','invite date','Phone Interview Scheduled','Interview Scheduled','Result Update_date','Update_date','Update date','Onboard date','Requisition Date'];
 var SCHEDULED_DATE_FIELD_MAP = {
   'Phone Interview_date': 'Phone Interview Scheduled',
   'Interview_date': 'Interview Scheduled'
@@ -2423,7 +2467,7 @@ function renderCandQuery() {
 
   var candBuOptions = [...new Set(allData.map(function(d){return String(d['單位']||'').trim();}))].filter(Boolean).sort();
   renderMultiFilterBar('candBuBar', 'cand-bu', candBuOptions);
-  var candJobOptions = [...new Set(allData.map(function(d){return String(d['Job Function']||'').trim();}))].filter(Boolean).sort();
+  var candJobOptions = buildMultiValueOptions(allData, function(d){return d['Job Function'];});
   renderMultiFilterBar('candJobBar', 'cand-job', candJobOptions);
   renderMultiFilterDropdown('candResultBar', 'cand-result', getActualResultOptions(), '目前狀態');
   var candInviterOptions = [...new Set(allData.flatMap(function(d){return String(d.Inviter||'').split('、').map(function(s){return s.trim();});}))].filter(Boolean).sort();
@@ -2451,7 +2495,7 @@ function renderCandQuery() {
     var textMatch = !searchTerms.length || matchesAnySearchTerm(d.Name, searchTerms) || matchesAnySearchTerm(d[resumeKey], searchTerms);
     // 有輸入搜尋文字（姓名／履歷代碼）時，一律不套用時間篩選，確保只要有這個人就找得到，不受時間範圍限制
     var dateOk = searchTerms.length ? true : dateFilterPass('candidateMaintenance', d);
-    return textMatch && multiFilterPass('cand-bu', d['單位']) && multiFilterPass('cand-job', d['Job Function']) && multiFilterPass('cand-result', d.Result) && multiFilterPassMulti('cand-inviter', d.Inviter) && dateOk;
+    return textMatch && multiFilterPass('cand-bu', d['單位']) && multiFilterPassMulti('cand-job', d['Job Function']) && multiFilterPass('cand-result', d.Result) && multiFilterPassMulti('cand-inviter', d.Inviter) && dateOk;
   });
 
   if (!matched.length) {
@@ -2731,7 +2775,7 @@ function renderSalaryScreen() {
 
   var jobKey = headers.find(function(h){return h==='Job Function';});
   if (jobKey) {
-    var jobs = [...new Set(salaryData.map(function(r){return String(r[jobKey]||'').trim();}))].filter(Boolean).sort();
+    var jobs = buildMultiValueOptions(salaryData, function(r){return r[jobKey];});
     renderMultiFilterBar('salaryJobBar', 'salary-job', jobs);
   } else {
     var jobBarEl = document.getElementById('salaryJobBar');
@@ -2741,7 +2785,7 @@ function renderSalaryScreen() {
   var search = (document.getElementById('salarySearch')?document.getElementById('salarySearch').value:'').toLowerCase();
   var records = salaryData.filter(function(r){
     var buMatch = !buKey || multiFilterPass('salary-bu', r[buKey]);
-    var jobMatch = !jobKey || multiFilterPass('salary-job', r[jobKey]);
+    var jobMatch = !jobKey || multiFilterPassMulti('salary-job', r[jobKey]);
     var searchMatch = !search || headers.some(function(h){return String(r[h]||'').toLowerCase().includes(search);});
     return buMatch && jobMatch && searchMatch;
   });
@@ -2917,6 +2961,26 @@ async function commitMaintainCell(el) {
   if (ok) {
     el.setAttribute('data-raw', newVal.replace(/"/g,'&quot;'));
     el.textContent = isDateOnlyField ? fmtDateOnly(newVal) : isDateField ? fmtDate(newVal) : newVal;
+  }
+}
+
+// 原生日期選擇器（<input type="date">）的儲存邏輯：value 本身就是 yyyy-mm-dd，轉成 yyyy/mm/dd 存回試算表即可，
+// 不用像 contenteditable 版本那樣處理各種手動輸入格式。
+async function commitMaintainDateCell(el) {
+  var newVal = el.value ? fmtDateOnly(el.value) : '';
+  var original = el.dataset.original !== undefined ? el.dataset.original : fmtDateOnly(el.getAttribute('data-raw')||'');
+  if (newVal === original) return;
+
+  var sheet = el.getAttribute('data-sheet');
+  var row = el.getAttribute('data-row');
+  var col = el.getAttribute('data-col');
+  var field = el.getAttribute('data-field');
+  var idx = parseInt(el.getAttribute('data-idx'));
+
+  var ok = await saveMaintainField(sheet, row, col, field, idx, newVal);
+  if (ok) {
+    el.setAttribute('data-raw', newVal.replace(/"/g,'&quot;'));
+    el.dataset.original = newVal;
   }
 }
 
@@ -3378,6 +3442,10 @@ function openHcNewRowModal(divisionName) {
     if (dropdowns[h]) {
       var options = dropdowns[h]();
       return '<div><div class="modal-label" style="margin-bottom:4px;">'+label+'</div>'+buildFormDatalistInput('hc-new-row-input', h, options, prefillVal)+'</div>';
+    }
+    if (MAINTAIN_DATEONLY_FIELDS.indexOf(h) >= 0) {
+      // Requisition Date 等日期欄位改用原生月曆選擇器，跟 Headcount Overview 表格內的編輯體驗一致
+      return '<div><div class="modal-label" style="margin-bottom:4px;">'+label+'</div><input type="date" data-field="'+h+'" class="hc-new-row-input" style="width:100%;font-size:13px;padding:6px 10px;border:1.5px solid var(--border);border-radius:8px;box-sizing:border-box;"></div>';
     }
     var valAttr = prefillVal ? ' value="'+String(prefillVal).replace(/"/g,'&quot;')+'"' : '';
     return '<div><div class="modal-label" style="margin-bottom:4px;">'+label+'</div><input type="text" data-field="'+h+'" class="hc-new-row-input" style="width:100%;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;box-sizing:border-box;"'+valAttr+'></div>';
@@ -3949,7 +4017,7 @@ function closeExportCandModal() {
 function renderExportModalFilters() {
   var buOptions = [...new Set(allData.map(function(d){return String(d['單位']||'').trim();}))].filter(Boolean).sort();
   renderMultiFilterBar('expBuBar', 'exp-bu', buOptions);
-  var jobOptions = [...new Set(allData.map(function(d){return String(d['Job Function']||'').trim();}))].filter(Boolean).sort();
+  var jobOptions = buildMultiValueOptions(allData, function(d){return d['Job Function'];});
   renderMultiFilterBar('expJobBar', 'exp-job', jobOptions);
   var inviterOptions = [...new Set(allData.flatMap(function(d){return String(d.Inviter||'').split('、').map(function(s){return s.trim();});}))].filter(Boolean).sort();
   renderMultiFilterDropdown('expInviterBar', 'exp-inviter', inviterOptions, 'Inviter');
@@ -3958,7 +4026,7 @@ function renderExportModalFilters() {
 
 function getExportMatchedRecords() {
   return allData.filter(function(d){
-    return multiFilterPass('exp-bu', d['單位']) && multiFilterPass('exp-job', d['Job Function']) &&
+    return multiFilterPass('exp-bu', d['單位']) && multiFilterPassMulti('exp-job', d['Job Function']) &&
       multiFilterPassMulti('exp-inviter', d.Inviter) && multiFilterPass('exp-result', d.Result) &&
       dateFilterPass('export', d);
   });
