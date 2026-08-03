@@ -31,20 +31,21 @@ var selectedCard=null;
 // Result 選項對不起來，例如「未回覆」「確認主管邀約意願」「HR不邀約電訪」「主管不邀約面試」
 // 這幾個字串現在都不存在於「分類Result」裡了，導致這幾個 Result 值的人選在看板上完全不會出現）
 var PHONE_STAGES = ['排電訪','待電訪','已致電未接'];
-// Candidate Overview／Candidate Search 目前顯示的電訪階段欄位一致（舊制度才會不同），保留這個別名避免動到呼叫端
-var CANDIDATE_OVERVIEW_PHONE_STAGES = PHONE_STAGES;
-var INTERVIEW_STAGES = ['確認主管面試意願','排面試','待面試','已面試，排複試'];
+// Overview 畫面的看板不顯示「已致電未接」這一欄；Candidate Search 保留完整電訪流程
+var CANDIDATE_OVERVIEW_PHONE_STAGES = PHONE_STAGES.filter(function(stage){ return stage !== '已致電未接'; });
+var INTERVIEW_STAGES = ['確認主管面試意願','排面試','待面試'];
 var OFFER_STAGES = ['確認主管錄取意願','確認人選錄取意願','錄取'];
 // 「其他」：待確認/暫緩，先不歸類到電訪/面試/錄取，也不算已結束，獨立一欄方便追蹤
 var OTHER_STAGES = ['待確認/暫緩'];
-var COLLAPSE_STAGES = ['104已邀約未回覆','人選婉拒電訪','其他主管/近期已邀約','不建議邀約','婉拒面試','未錄取','婉拒 Offer','已關閉履歷'];
+// 「已面試，排複試」歸到結束/不推進（複試改由主管直接安排，這個階段對 HR 來說已經結束追蹤）
+var COLLAPSE_STAGES = ['104已邀約未回覆','人選婉拒電訪','其他主管/近期已邀約','不建議邀約','已面試，排複試','婉拒面試','未錄取','婉拒 Offer','已關閉履歷'];
 var ALL_ACTIVE_STAGES = PHONE_STAGES.concat(INTERVIEW_STAGES).concat(OFFER_STAGES);
 
 var STAGE_COLORS = {
   '104已邀約未回覆':'#9CA3AF','排電訪':'#F59E0B','已致電未接':'#FBBF24','待電訪':'#10B981',
-  '確認主管面試意願':'#60A5FA','排面試':'#3B82F6','待面試':'#8B5CF6','已面試，排複試':'#2563EB',
+  '確認主管面試意願':'#60A5FA','排面試':'#3B82F6','待面試':'#8B5CF6',
   '確認主管錄取意願':'#34D399','確認人選錄取意願':'#059669','錄取':'#16A34A',
-  '待確認/暫緩':'#8B5CF6','其他主管/近期已邀約':'#9CA3AF','不建議邀約':'#9CA3AF',
+  '待確認/暫緩':'#8B5CF6','其他主管/近期已邀約':'#9CA3AF','不建議邀約':'#9CA3AF','已面試，排複試':'#6B7280',
   '人選婉拒電訪':'#EF4444','婉拒面試':'#EF4444','未錄取':'#EF4444','婉拒 Offer':'#EF4444','已關閉履歷':'#6B7280'
 };
 
