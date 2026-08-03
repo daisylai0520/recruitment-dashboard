@@ -1,8 +1,7 @@
-// 之前試過網址加 /a/~/，結果反而更常 404 就改回來了（那個格式是給公司網域帳號「強制用目前網域身分」用的，
-// 這個工具是用個人新建的 Google 帳號，不適用）。這次改用 /a/gmail.com/：這個格式是明確指定「gmail.com」這個域，
-// 讓 Google 不管瀏覽器目前有沒有登入、登入哪個帳號，都用匿名方式存取這個「任何人」都能開的網頁應用程式，
-// 不會再被導去跟瀏覽器目前登入帳號有關的路徑。如果測試後還是常出現 404，麻煩讓我知道，再改回原本網址。
-var APPS_SCRIPT_URL = 'https://script.google.com/a/gmail.com/macros/s/AKfycby0h1OkoC_xNWeAAbuh4cBicbTl4B8g1KDtL-s2YK9f80TYjIyxQtdeu9RkWFQVtY3pnw/exec';
+// 試過 /a/~/ 和 /a/gmail.com/ 兩種網址寫法，都沒有解決持續出現 404 的問題（甚至可能是這幾次改網址
+// 本身造成的，因為這類 URL 改寫比較適合「瀏覽器直接開網址」，不一定適合這裡用 fetch() 背景呼叫的情境），
+// 先改回最原始、最單純的網址，避免節外生枝。真正原因需要看 Apps Script 執行記錄才能確定（見對話回覆）。
+var APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby0h1OkoC_xNWeAAbuh4cBicbTl4B8g1KDtL-s2YK9f80TYjIyxQtdeu9RkWFQVtY3pnw/exec';
 var userRole = null;
 var allData=[], salaryData=[], scheduleData=[], managerDirectoryData=[], managerInfoData=[], resultOptions=[], positionOptions=[];
 // 「分類Result」工作表的 階段／分類1／分類2／Result 對照，人選進度統計樹狀圖依這個動態分組顯示
