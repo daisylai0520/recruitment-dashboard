@@ -231,9 +231,22 @@
       <div id="trDateFilterSlot"></div>
     </div>
 
-    <div class="tree-section-title">人選進度統計</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
+      <div class="cal-outer" id="trendCard-progress">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+          <div style="font-size:14px;font-weight:600;">人選進度統計</div>
+        </div>
+        <div class="tree-h-wrap" id="progressTreeFlow"></div>
+      </div>
 
-    <div class="tree-h-wrap" id="progressTreeFlow" style="margin-bottom:20px;"></div>
+      <div class="cal-outer" id="trendCard-hc">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+          <div style="font-size:14px;font-weight:600;">各單位 Headcount（缺額）</div>
+        </div>
+        <div style="font-size:11px;color:var(--text-secondary);margin-bottom:10px;">依目前單位／Job Function 篩選統計</div>
+        <div id="trendHcChart" style="overflow-x:auto;"></div>
+      </div>
+    </div>
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
       <div class="cal-outer" id="trendCard-funnel">
@@ -253,28 +266,18 @@
       </div>
     </div>
 
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
-      <div class="cal-outer" id="trendCard-hc">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
-          <div style="font-size:14px;font-weight:600;">各單位 Headcount（缺額）</div>
+    <div class="cal-outer" id="trendCard-monthly">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+        <div style="font-size:14px;font-weight:600;">每月 Headcount & Onboard</div>
+        <div class="trend-toggle-group" data-card="monthly">
+          <button class="pos-btn" onclick="setTrendChartType('monthly','line',this)" style="font-size:11px;padding:3px 10px;">折線</button>
+          <button class="pos-btn active" onclick="setTrendChartType('monthly','bar',this)" style="font-size:11px;padding:3px 10px;">長條</button>
         </div>
-        <div style="font-size:11px;color:var(--text-secondary);margin-bottom:10px;">依目前單位／Job Function 篩選統計</div>
-        <div id="trendHcChart" style="overflow-x:auto;"></div>
       </div>
-
-      <div class="cal-outer" id="trendCard-monthly">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
-          <div style="font-size:14px;font-weight:600;">每月 Headcount & Onboard</div>
-          <div class="trend-toggle-group" data-card="monthly">
-            <button class="pos-btn" onclick="setTrendChartType('monthly','line',this)" style="font-size:11px;padding:3px 10px;">折線</button>
-            <button class="pos-btn active" onclick="setTrendChartType('monthly','bar',this)" style="font-size:11px;padding:3px 10px;">長條</button>
-          </div>
-        </div>
-        <div style="font-size:11px;color:var(--text-secondary);margin-bottom:10px;">Headcount Records「Requisition Date」新增缺額數 vs Candidate Records「Onboard date」到職人數 · 最近 6 個月</div>
-        <div id="trendMonthlyChart" style="overflow-x:auto;"></div>
-        <div style="margin-top:8px;"><span style="font-size:11px;color:var(--accent);cursor:pointer;text-decoration:underline;" onclick="toggleTrendDetail('monthly')">查看明細表格</span></div>
-        <div class="table-wrap" id="trendMonthlyDetail" style="display:none;margin-top:10px;"><table class="pi-table"><thead><tr id="trendMonthlyTableHead"></tr></thead><tbody id="trendMonthlyTableBody"></tbody></table></div>
-      </div>
+      <div style="font-size:11px;color:var(--text-secondary);margin-bottom:10px;">Headcount Records「Requisition Date」新增缺額數 vs Candidate Records「Onboard date」到職人數 · 最近 6 個月</div>
+      <div id="trendMonthlyChart" style="overflow-x:auto;"></div>
+      <div style="margin-top:8px;"><span style="font-size:11px;color:var(--accent);cursor:pointer;text-decoration:underline;" onclick="toggleTrendDetail('monthly')">查看明細表格</span></div>
+      <div class="table-wrap" id="trendMonthlyDetail" style="display:none;margin-top:10px;"><table class="pi-table"><thead><tr id="trendMonthlyTableHead"></tr></thead><tbody id="trendMonthlyTableBody"></tbody></table></div>
     </div>
   </div>
 
