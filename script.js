@@ -2558,7 +2558,7 @@ function renderCandQuery() {
   }
 
   container.innerHTML = buildCandQueryCardsHtml(matched);
-  container.querySelectorAll('textarea').forEach(autoGrowTextarea);
+  container.querySelectorAll('textarea:not(.ta-scrollable)').forEach(autoGrowTextarea);
 }
 
 // 完整可編輯人選資料卡（含選取以複製／刪除按鈕）：資料維護的查詢結果、
@@ -2656,9 +2656,13 @@ function renderQueryField(sheetName, rec, field, idx, fullWidth, strictDateForma
     inputHtml = buildDateFieldInput(sheetName, rec, field, col, idx, displayVal, rawSafe);
   } else if (isLongTextField) {
     var taUid = 'ta_' + (_dlIdCounter++);
-    inputHtml = '<textarea id="'+(isPhoneRecordField?taUid:'')+'" data-sheet="'+sheetName+'" data-row="'+rec._row+'" data-col="'+col+'" data-field="'+field+'" data-idx="'+idx+'" data-raw="'+rawSafe+'" '+
-      'onfocus="this.dataset.original=this.value;'+(isPhoneRecordField?'initTextHistoryOnFocus(this);':'')+'" onblur="commitMaintainTextarea(this)" oninput="autoGrowTextarea(this);'+(isPhoneRecordField?'recordTextHistory(this);':'')+'" rows="2" '+
-      'style="width:100%;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;box-sizing:border-box;resize:vertical;font-family:inherit;white-space:pre-wrap;word-break:break-word;overflow:hidden;">'+(rawVal||'')+'</textarea>';
+    // Phone Interview Record(HR)／(主管) 欄位內容常常越記越長，不要跟著內容自動一直長高（像 Memo 那樣），
+    // 但也不要固定死高度——預設給一個不會太小的起始高度，使用者可以自己拖拉右下角調整要多高，
+    // 拉的高度不夠時欄位本身還是能上下捲動看完整內容（textarea 原生行為）。
+    inputHtml = '<textarea id="'+(isPhoneRecordField?taUid:'')+'" class="'+(isPhoneRecordField?'ta-scrollable':'')+'" data-sheet="'+sheetName+'" data-row="'+rec._row+'" data-col="'+col+'" data-field="'+field+'" data-idx="'+idx+'" data-raw="'+rawSafe+'" '+
+      'onfocus="this.dataset.original=this.value;'+(isPhoneRecordField?'initTextHistoryOnFocus(this);':'')+'" onblur="commitMaintainTextarea(this)" oninput="'+(isPhoneRecordField?'recordTextHistory(this);':'autoGrowTextarea(this);')+'" rows="2" '+
+      'style="width:100%;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;box-sizing:border-box;resize:vertical;font-family:inherit;white-space:pre-wrap;word-break:break-word;'+
+      (isPhoneRecordField ? 'min-height:70px;' : 'overflow:hidden;')+'">'+(rawVal||'')+'</textarea>';
     if (isPhoneRecordField) {
       inputHtml += '<div class="ta-history-toolbar">'+
         '<button type="button" onmousedown="event.preventDefault()" onclick="saveTextFieldNow(\''+taUid+'\')">💾 儲存</button>'+
@@ -3249,11 +3253,13 @@ function renderNewCandidateFields() {
         : buildFormDatalistInput('new-cand-input', h, options, prefillVal, extraAttr);
       fieldHtml = '<div style="'+spanStyle+'"><div class="modal-label" style="margin-bottom:4px;">'+label+'</div>'+inputHtml+'</div>';
     } else if (isMultilineField) {
-      // Memo、Phone Interview Record(HR)／(主管)：像 Excel 儲存格一樣，Enter 直接換下一行，且高度依內容自動變長
+      // Memo：像 Excel 儲存格一樣，Enter 直接換下一行，且高度依內容自動變長。
+      // Phone Interview Record(HR)／(主管)：不跟著內容自動長高，但也不固定死高度，使用者可以自己拖拉調整要多高。
       var escapedVal = String(prefillVal||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
       fieldHtml = '<div style="'+spanStyle+'"><div class="modal-label" style="margin-bottom:4px;">'+label+'</div>'+
-        '<textarea class="new-cand-input" data-field="'+h+'" rows="2" oninput="autoGrowTextarea(this)" '+
-        'style="width:100%;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;box-sizing:border-box;font-family:inherit;resize:vertical;overflow:hidden;min-height:38px;">'+escapedVal+'</textarea></div>';
+        '<textarea class="new-cand-input'+(isPhoneRecord?' ta-scrollable':'')+'" data-field="'+h+'" rows="2" '+(isPhoneRecord?'':'oninput="autoGrowTextarea(this)" ')+
+        'style="width:100%;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;box-sizing:border-box;font-family:inherit;resize:vertical;'+
+        (isPhoneRecord ? 'min-height:70px;' : 'min-height:38px;overflow:hidden;')+'">'+escapedVal+'</textarea></div>';
     } else if (isDateField) {
       // 日期欄位跟搜尋結果卡片一樣有月曆圖示可以點選（見 buildFormDateFieldInput），選完只更新這裡的顯示值，
       // 送出「＋ 新增人選資料」時才會一起存檔；還是可以手動打字，邀約日離開欄位時一樣會自動整理成 YYYY/MM/DD。
@@ -3279,7 +3285,7 @@ function renderNewCandidateFields() {
     return buildOneField(h, false);
   }).join('');
 
-  document.getElementById('newCandFields').querySelectorAll('textarea.new-cand-input').forEach(autoGrowTextarea);
+  document.getElementById('newCandFields').querySelectorAll('textarea.new-cand-input:not(.ta-scrollable)').forEach(autoGrowTextarea);
   document.getElementById('newCandDupWarning').style.display = 'none';
 }
 
@@ -3363,7 +3369,7 @@ function renderSearchAllCandidatesResults() {
     return;
   }
   container.innerHTML = header + buildCrossUnitCandCardsHtml(matched);
-  container.querySelectorAll('textarea').forEach(autoGrowTextarea);
+  container.querySelectorAll('textarea:not(.ta-scrollable)').forEach(autoGrowTextarea);
 }
 
 // 輸入姓名或履歷代碼時，即時檢查這位人選是否已經有紀錄，避免重複建檔。
@@ -3427,7 +3433,7 @@ function applyCopyToNewCandidateForm() {
     if (isInviteDate) { applyFieldDisplayValue(inp, todayStr); return; }
     if (isPosition || COPY_CLEAR_FIELDS.indexOf(f) >= 0) { applyFieldDisplayValue(inp, ''); return; }
     applyFieldDisplayValue(inp, selectedCandForCopy[f] || '');
-    if (inp.tagName === 'TEXTAREA') autoGrowTextarea(inp);
+    if (inp.tagName === 'TEXTAREA' && !inp.classList.contains('ta-scrollable')) autoGrowTextarea(inp);
   });
   refreshNewCandInviterOptions(); // 複製過來的單位可能跟原本不同，重新篩一次 Inviter 選項
   showToast('✓ 已複製「'+(selectedCandForCopy.Name||'')+'」的資料，可修改後再新增');
