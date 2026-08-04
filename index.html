@@ -235,9 +235,23 @@
 
     <div class="tree-h-wrap" id="progressTreeFlow" style="margin-bottom:20px;"></div>
 
-    <div class="tree-section-title">階段轉換率</div>
-    <div style="font-size:11px;color:var(--text-secondary);margin-bottom:10px;">依 invite_date／Phone Interview Scheduled／Interview Scheduled／Onboard date 是否有值，計算邀約→電訪→面試→錄取各階段人數與占邀約比例</div>
-    <div id="stageConversionFunnel" class="cal-outer" style="margin-bottom:20px;"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
+      <div class="cal-outer" id="trendCard-funnel">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+          <div style="font-size:14px;font-weight:600;">階段轉換率</div>
+        </div>
+        <div style="font-size:11px;color:var(--text-secondary);margin-bottom:10px;">依 invite_date／Phone Interview Scheduled／Interview Scheduled／Hired date 是否有值，計算邀約→電訪→面試→錄取各階段人數與占邀約比例</div>
+        <div id="stageConversionFunnel"></div>
+      </div>
+
+      <div class="cal-outer" id="trendCard-days">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+          <div style="font-size:14px;font-weight:600;">進入下一階段平均天數</div>
+        </div>
+        <div style="font-size:11px;color:var(--text-secondary);margin-bottom:10px;">同一人前後兩個里程碑欄位都有值時，取日期差計算平均天數</div>
+        <div id="stageConversionDays"></div>
+      </div>
+    </div>
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
       <div class="cal-outer" id="trendCard-hc">

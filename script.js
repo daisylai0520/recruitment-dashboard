@@ -2110,8 +2110,8 @@ function renderProgressTree(trendData) {
 }
 
 // 階段轉換率漏斗圖：直接依「里程碑欄位是否有值」判斷每個人是否到達該階段，
-// 邀約＝invite_date有值；電訪＝Phone Interview Scheduled有值；面試＝Interview Scheduled有值；錄取＝Onboard date有值
-// （Phone/Interview Scheduled 會在對應日期欄位被修改時自動更新為當天日期，等於「曾到達該階段」的累計記錄）
+// 邀約＝invite_date有值；電訪＝Phone Interview Scheduled有值；面試＝Interview Scheduled有值；錄取＝Hired date有值
+// （Phone/Interview Scheduled、Hired date 都是後端在對應欄位變動時自動蓋上當天日期，等於「曾到達該階段」的累計記錄）
 function renderStageConversionFunnel(trendData) {
   var wrap = document.getElementById('stageConversionFunnel');
   if (!wrap) return;
@@ -2120,7 +2120,7 @@ function renderStageConversionFunnel(trendData) {
     { label:'邀約', count: trendData.filter(function(d){ return hasVal(d.invite_date || d['invite date']); }).length },
     { label:'電訪', count: trendData.filter(function(d){ return hasVal(d['Phone Interview Scheduled']); }).length },
     { label:'面試', count: trendData.filter(function(d){ return hasVal(d['Interview Scheduled']); }).length },
-    { label:'錄取', count: trendData.filter(function(d){ return hasVal(d['Onboard date']); }).length }
+    { label:'錄取', count: trendData.filter(function(d){ return hasVal(d['Hired date']); }).length }
   ];
   var invitedCount = steps[0].count;
   if (!invitedCount) {
@@ -2131,20 +2131,56 @@ function renderStageConversionFunnel(trendData) {
     var pct = Math.round(s.count/invitedCount*1000)/10;
     var prevCount = i === 0 ? null : steps[i-1].count;
     var step = prevCount ? Math.round(s.count/prevCount*1000)/10 : null;
-    return { label: s.label, count: s.count, pct: pct, step: step };
+    return { label: s.label, count: s.count, pct: pct, step: step, isFirst: i === 0 };
   });
   wrap.innerHTML = rows.map(function(r){
     var barWidth = Math.max(r.pct, 4); // 至少留一點寬度可見文字
+    // 邀約一定是 100%，不用再顯示「占邀約 100%」這行
+    var sideInfo = r.isFirst ? '' :
+      '<div class="funnel-side-info">'+
+        '<span class="funnel-pct-total">占邀約 '+r.pct+'%</span>'+
+        (r.step !== null ? '<span class="funnel-pct-step">較上一階段 '+r.step+'%</span>' : '')+
+      '</div>';
     return '<div class="funnel-row">'+
       '<div class="funnel-bar-track"><div class="funnel-bar" style="width:'+barWidth+'%;">'+
         '<span class="funnel-bar-label">'+r.label+'　'+r.count+' 人</span>'+
       '</div></div>'+
-      '<div class="funnel-side-info">'+
-        '<span class="funnel-pct-total">占邀約 '+r.pct+'%</span>'+
-        (r.step !== null ? '<span class="funnel-pct-step">較上一階段 '+r.step+'%</span>' : '')+
-      '</div>'+
+      sideInfo+
     '</div>';
   }).join('');
+}
+
+// 進入下一階段平均天數：同一人前後兩個里程碑欄位（都有填值時）相減取天數再平均，樣本不足時顯示「—」
+function renderStageConversionDays(trendData) {
+  var wrap = document.getElementById('stageConversionDays');
+  if (!wrap) return;
+  var transitions = [
+    { label:'邀約 → 電訪', from: function(d){ return d.invite_date || d['invite date']; }, to: function(d){ return d['Phone Interview Scheduled']; } },
+    { label:'電訪 → 面試', from: function(d){ return d['Phone Interview Scheduled']; }, to: function(d){ return d['Interview Scheduled']; } },
+    { label:'面試 → 錄取', from: function(d){ return d['Interview Scheduled']; }, to: function(d){ return d['Hired date']; } }
+  ];
+  var rows = transitions.map(function(t){
+    var diffs = [];
+    trendData.forEach(function(d){
+      var fromDate = parseDateTime(t.from(d));
+      var toDate = parseDateTime(t.to(d));
+      if (fromDate && toDate) {
+        var days = Math.round((toDate - fromDate) / 86400000);
+        if (days >= 0) diffs.push(days);
+      }
+    });
+    var avg = diffs.length ? Math.round(diffs.reduce(function(a,b){ return a+b; }, 0) / diffs.length * 10) / 10 : null;
+    return { label: t.label, avg: avg, n: diffs.length };
+  });
+  wrap.innerHTML = rows.map(function(r){
+    return '<div class="metric" style="display:flex;align-items:center;justify-content:space-between;">'+
+      '<div>'+
+        '<div class="metric-label">'+r.label+'</div>'+
+        '<div class="metric-sub">'+(r.n ? r.n+' 人樣本' : '尚無樣本')+'</div>'+
+      '</div>'+
+      '<div class="metric-val">'+(r.avg === null ? '—' : r.avg)+(r.avg !== null ? '<span style="font-size:13px;font-weight:500;color:var(--text-tertiary);margin-left:2px;">天</span>' : '')+'</div>'+
+    '</div>';
+  }).join('<div style="height:8px;"></div>');
 }
 
 function showTrendDrilldown(title, records) {
@@ -2204,8 +2240,9 @@ function renderTrends() {
   // ---- 人選進度統計（橫向樹狀圖，依「分類Result」工作表動態產生）----
   renderProgressTree(trendData);
 
-  // ---- 階段轉換率（漏斗圖，沿用上方相同的單位/職務別/目前狀態篩選）----
+  // ---- 階段轉換率（漏斗圖 + 各階段平均天數，沿用上方相同的單位/職務別/目前狀態篩選）----
   renderStageConversionFunnel(trendData);
+  renderStageConversionDays(trendData);
 
   // ---- 各單位 Headcount（缺額）----
   renderTrendHcChart();
@@ -2447,8 +2484,8 @@ function saveLastUsedHR(name) {
   try { if (name) localStorage.setItem(LAST_HR_STORAGE_KEY, name); } catch(e) {}
 }
 
-var MAINTAIN_DATE_FIELDS = ['invite_date','invite date','Phone Interview_date','Interview_date','Phone Interview Scheduled','Interview Scheduled','Result Update_date','Update_date','Update date','Onboard date'];
-var MAINTAIN_DATEONLY_FIELDS = ['invite_date','invite date','Phone Interview Scheduled','Interview Scheduled','Result Update_date','Update_date','Update date','Onboard date','Requisition Date'];
+var MAINTAIN_DATE_FIELDS = ['invite_date','invite date','Phone Interview_date','Interview_date','Phone Interview Scheduled','Interview Scheduled','Result Update_date','Update_date','Update date','Onboard date','Hired date'];
+var MAINTAIN_DATEONLY_FIELDS = ['invite_date','invite date','Phone Interview Scheduled','Interview Scheduled','Result Update_date','Update_date','Update date','Onboard date','Requisition Date','Hired date'];
 var SCHEDULED_DATE_FIELD_MAP = {
   'Phone Interview_date': 'Phone Interview Scheduled',
   'Interview_date': 'Interview Scheduled'
@@ -3052,6 +3089,18 @@ async function saveMaintainField(sheet, row, col, field, idx, newVal) {
           else scheduledEl.textContent = fmtDateOnly(scheduledToday);
         }
       }
+      // Result 改成「錄取」時，同步帶入 Hired date 為今天（後端 stampHiredDate_ 也會寫回試算表）
+      if (sheet === 'Candidate Records' && field === 'Result' && String(newVal||'').trim() === '錄取') {
+        var hiredToday = getTodayDateStr();
+        rec['Hired date'] = hiredToday;
+        rememberRecentEdit(sheet, row, 'Hired date', hiredToday);
+        var hiredEl = document.querySelector('[data-sheet="'+sheet+'"][data-row="'+row+'"][data-field="Hired date"]');
+        if (hiredEl) {
+          hiredEl.setAttribute('data-raw', hiredToday);
+          if (hiredEl.tagName === 'SELECT' || hiredEl.tagName === 'INPUT' || hiredEl.tagName === 'TEXTAREA') hiredEl.value = hiredToday;
+          else hiredEl.textContent = fmtDateOnly(hiredToday);
+        }
+      }
     }
     showToast('✓ 已儲存');
     return true;
@@ -3121,7 +3170,7 @@ function getTodayDateStr() {
 }
 
 // 複製人選資料時，這些欄位需清空（流程紀錄類欄位／104_Position 依需求不複製）；Name、履歷代碼會一起複製
-var COPY_CLEAR_FIELDS = ['Phone Interview_date','Interview_date','Result','Result Update_date','Update_date','Update date','Onboard date','Memo','Phone Interview Scheduled','Interview Scheduled'];
+var COPY_CLEAR_FIELDS = ['Phone Interview_date','Interview_date','Result','Result Update_date','Update_date','Update date','Onboard date','Memo','Phone Interview Scheduled','Interview Scheduled','Hired date'];
 
 var selectedCandForCopy = null;
 
