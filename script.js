@@ -2114,7 +2114,47 @@ var _progressTreeDrilldown = [];
 function showProgressTreeDrilldown(idx) {
   var g = _progressTreeDrilldown[idx];
   if (!g) return;
-  showTrendDrilldown(g.label, lastTrendData.filter(g.test));
+  // 電訪／面試／錄取階段底下的分類卡片（進行中／已結案）帶有 resultValues：先列出這個分類裡各個 Result 的人數，
+  // 點了某個 Result 卡片之後，下面才顯示只屬於那個 Result 的人選名單
+  if (g.resultValues) {
+    showResultBreakdownDrilldown(g.label, g.resultValues, lastTrendData);
+  } else {
+    showTrendDrilldown(g.label, lastTrendData.filter(g.test));
+  }
+}
+
+var _resultBreakdownCounts = [];
+function showResultBreakdownDrilldown(title, resultValues, data) {
+  document.getElementById('trendDrilldownTitle').textContent = title;
+  _resultBreakdownCounts = resultValues.map(function(rv){
+    var records = data.filter(function(d){ return d.Result === rv; });
+    return { result: rv, records: records };
+  });
+  var totalN = _resultBreakdownCounts.reduce(function(a,c){ return a+c.records.length; }, 0);
+  var listEl = document.getElementById('trendDrilldownList');
+  listEl.innerHTML =
+    '<div style="font-size:11px;color:var(--text-secondary);">共 '+totalN+' 人，點選下方 Result 查看名單</div>'+
+    _resultBreakdownCounts.map(function(c, i){
+      return '<div class="mini-card" style="cursor:pointer;padding:10px 14px;" onclick="showResultBreakdownCandidates('+i+')">'+
+        '<div style="display:flex;justify-content:space-between;align-items:center;">'+
+          '<span style="font-size:13px;font-weight:600;">'+c.result+'</span>'+
+          '<span style="font-size:13px;font-weight:700;color:var(--accent);">'+c.records.length+' 人</span>'+
+        '</div>'+
+      '</div>';
+    }).join('')+
+    '<div id="resultBreakdownCandList" style="margin-top:6px;display:flex;flex-direction:column;gap:8px;"></div>';
+  document.getElementById('trendDrilldownModal').style.display = 'flex';
+}
+function showResultBreakdownCandidates(i) {
+  var c = _resultBreakdownCounts[i];
+  var listEl = document.getElementById('resultBreakdownCandList');
+  if (!c || !listEl) return;
+  listEl.innerHTML = c.records.length === 0 ? '<div class="empty" style="padding:16px 0;">目前無資料</div>' :
+    c.records.map(function(d){
+      return '<div class="mini-card"><div class="mini-card-top"><div class="mini-card-name">'+(d.Name||'')+'</div><div class="mini-card-bu">'+(d['單位']||'')+'</div></div>'+
+        '<div class="mini-card-pos">'+(d['Job Function']||'')+(d.Source?' · '+d.Source:'')+'</div>'+
+        '<div style="font-size:11px;color:var(--text-secondary);margin-top:2px;">目前狀態：'+(d.Result||'—')+'</div></div>';
+    }).join('');
 }
 
 function renderProgressTree(trendData) {
@@ -2150,7 +2190,7 @@ function renderProgressTree(trendData) {
     // 重點放大：階段的總人數（次要才是進行中／已結案這些子分類，字放小、上下排列）
     var subItemsHtml = s.subGroups.length ? s.subGroups.map(function(sub){
       var idx = _progressTreeDrilldown.length;
-      _progressTreeDrilldown.push({ label: s.stage+'－'+sub.label, test: function(d){ return sub.results.indexOf(d.Result) >= 0; } });
+      _progressTreeDrilldown.push({ label: s.stage+'－'+sub.label, test: function(d){ return sub.results.indexOf(d.Result) >= 0; }, resultValues: sub.results.slice() });
       var n = trendData.filter(function(d){ return sub.results.indexOf(d.Result) >= 0; }).length;
       return '<div class="metric metric-sm" style="cursor:pointer;" onclick="showProgressTreeDrilldown('+idx+')">'+
         '<div class="metric-top"><span class="metric-label">'+sub.label+'</span></div>'+
@@ -2208,10 +2248,10 @@ function renderStageConversionFunnel(trendData) {
     var botW = Math.max(chartW * (r.pct/100), 30);
     var points = (cx-topW/2)+','+y0+' '+(cx+topW/2)+','+y0+' '+(cx+botW/2)+','+y1+' '+(cx-botW/2)+','+y1;
     var color = FUNNEL_COLORS[i % FUNNEL_COLORS.length];
-    var texts = r.isFirst
-      ? '<text x="'+cx+'" y="'+(midY+6)+'" font-size="18" font-weight="700" fill="#fff" text-anchor="middle">'+r.count+' 人</text>'
-      : '<text x="'+cx+'" y="'+(midY-2)+'" font-size="19" font-weight="700" fill="#fff" text-anchor="middle">'+r.step+'%</text>'+
-        '<text x="'+cx+'" y="'+(midY+16)+'" font-size="10" fill="rgba(255,255,255,.85)" text-anchor="middle">'+r.count+' 人</text>';
+    // 邀約是基準（轉換率視為 100%）；其餘階段用「占上一階段」轉換率，若剛好前一階段是 0（理論上不會有這階段）就退回用占邀約比例，避免顯示 null
+    var displayPct = r.isFirst ? 100 : (r.step !== null ? r.step : r.pct);
+    var texts = '<text x="'+cx+'" y="'+(midY-2)+'" font-size="19" font-weight="700" fill="#fff" text-anchor="middle">'+displayPct+'%</text>'+
+      '<text x="'+cx+'" y="'+(midY+16)+'" font-size="10" fill="rgba(255,255,255,.85)" text-anchor="middle">'+r.count+' 人</text>';
     return '<polygon points="'+points+'" fill="'+color+'"></polygon>'+texts;
   }).join('');
   var svg = '<svg width="100%" height="'+chartH+'" viewBox="0 0 '+chartW+' '+chartH+'" preserveAspectRatio="xMidYMid meet">'+svgBody+'</svg>';
