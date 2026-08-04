@@ -2109,34 +2109,29 @@ function renderProgressTree(trendData) {
   wrap.innerHTML = rootHtml + stagesHtml;
 }
 
-// 階段轉換率漏斗圖：沿用「分類Result」階段順序，累計到達某階段（含已結案，因為結案前一定經過該階段）的人數，
-// 依序計算「占邀約總數比例」與「較上一階段轉換率」，「其他」分支不計入（跟主流程沒有先後關係）
+// 階段轉換率漏斗圖：直接依「里程碑欄位是否有值」判斷每個人是否到達該階段，
+// 邀約＝invite_date有值；電訪＝Phone Interview Scheduled有值；面試＝Interview Scheduled有值；錄取＝Onboard date有值
+// （Phone/Interview Scheduled 會在對應日期欄位被修改時自動更新為當天日期，等於「曾到達該階段」的累計記錄）
 function renderStageConversionFunnel(trendData) {
   var wrap = document.getElementById('stageConversionFunnel');
   if (!wrap) return;
-  var invitedTest = function(d){ return !!(d.invite_date || d['invite date']); };
-  var invitedCount = trendData.filter(invitedTest).length;
-  var stages = buildProgressTreeStages().filter(function(s){ return s.stage !== '其他'; });
-  if (!invitedCount || !stages.length) {
+  var hasVal = function(v){ return !!(v && String(v).trim()); };
+  var steps = [
+    { label:'邀約', count: trendData.filter(function(d){ return hasVal(d.invite_date || d['invite date']); }).length },
+    { label:'電訪', count: trendData.filter(function(d){ return hasVal(d['Phone Interview Scheduled']); }).length },
+    { label:'面試', count: trendData.filter(function(d){ return hasVal(d['Interview Scheduled']); }).length },
+    { label:'錄取', count: trendData.filter(function(d){ return hasVal(d['Onboard date']); }).length }
+  ];
+  var invitedCount = steps[0].count;
+  if (!invitedCount) {
     wrap.innerHTML = '<div class="empty" style="padding:10px 0;">尚無足夠資料計算轉換率</div>';
     return;
   }
-  var stageTotals = stages.map(function(s){
-    return trendData.filter(function(d){ return s.results.indexOf(d.Result) >= 0; }).length;
-  });
-  // reached[i]：到達第 i 階段（含）以後所有階段的人數總和，因為越後面階段的人一定曾經過這一階段
-  var reached = [];
-  var acc = 0;
-  for (var i = stageTotals.length - 1; i >= 0; i--) {
-    acc += stageTotals[i];
-    reached[i] = acc;
-  }
-  var rows = [{ label:'邀約', count: invitedCount, pct: 100, step: null }];
-  stages.forEach(function(s, i){
-    var pct = invitedCount ? Math.round(reached[i]/invitedCount*1000)/10 : 0;
-    var prevReached = i === 0 ? invitedCount : reached[i-1];
-    var step = prevReached ? Math.round(reached[i]/prevReached*1000)/10 : 0;
-    rows.push({ label: s.stage, count: reached[i], pct: pct, step: step });
+  var rows = steps.map(function(s, i){
+    var pct = Math.round(s.count/invitedCount*1000)/10;
+    var prevCount = i === 0 ? null : steps[i-1].count;
+    var step = prevCount ? Math.round(s.count/prevCount*1000)/10 : null;
+    return { label: s.label, count: s.count, pct: pct, step: step };
   });
   wrap.innerHTML = rows.map(function(r){
     var barWidth = Math.max(r.pct, 4); // 至少留一點寬度可見文字
