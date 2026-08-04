@@ -181,15 +181,15 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
 .tree-h-stage-items .metric-sm .metric-label{font-size:11px;}
 @media (max-width:900px){.tree-h-stage{min-width:170px;}}
 
-/* 階段轉換率漏斗圖：由寬到窄，左側長條代表累計到達比例，右側標示占邀約%
-   文字用固定位置＋mix-blend-mode 讓顏色自動反轉，不管長條多寬、文字落在色塊上或白底上都能辨識 */
-.funnel-row{display:flex;align-items:center;gap:14px;}
-.funnel-row+.funnel-row{margin-top:10px;}
-.funnel-bar-track{position:relative;flex:1;background:var(--bg);border-radius:8px;height:40px;overflow:hidden;}
-.funnel-bar{position:absolute;left:0;top:0;height:100%;background:linear-gradient(90deg,#4F46E5,#818CF8);border-radius:8px;transition:width .25s;}
-.funnel-bar-label{position:absolute;left:14px;top:50%;transform:translateY(-50%);color:#fff;mix-blend-mode:difference;font-size:13px;font-weight:600;white-space:nowrap;z-index:2;}
-.funnel-side-info{width:150px;flex-shrink:0;}
-.funnel-pct-total{font-size:13px;font-weight:700;color:var(--text-primary);}
+/* 階段轉換率漏斗圖：文字固定放在長條「上方」的白底區域（一般深色文字），長條本身只當純色進度指示，
+   不會有文字疊在色塊上難辨識的問題 */
+.funnel-row{display:flex;flex-direction:column;gap:6px;}
+.funnel-row+.funnel-row{margin-top:14px;}
+.funnel-row-top{display:flex;align-items:baseline;justify-content:space-between;gap:10px;}
+.funnel-row-label{font-size:13px;font-weight:700;color:var(--text-primary);white-space:nowrap;}
+.funnel-row-side{font-size:12px;font-weight:600;color:var(--text-secondary);white-space:nowrap;}
+.funnel-bar-track{background:var(--bg);border-radius:7px;height:14px;overflow:hidden;}
+.funnel-bar{height:100%;background:linear-gradient(90deg,#4F46E5,#818CF8);border-radius:7px;transition:width .25s;}
 
 /* STAGES */
 .stages-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}

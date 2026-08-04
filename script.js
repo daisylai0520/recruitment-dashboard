@@ -2133,18 +2133,18 @@ function renderStageConversionFunnel(trendData) {
     var step = prevCount ? Math.round(s.count/prevCount*1000)/10 : null;
     return { label: s.label, count: s.count, pct: pct, step: step, isFirst: i === 0 };
   });
+  // 文字一律放在長條「上方」的白底區域（一般深色文字，好辨識），長條本身只當作純色進度指示，不用擔心文字疊在色塊上看不清楚
   wrap.innerHTML = rows.map(function(r){
     var barWidth = Math.max(r.pct, 2); // 至少留一點色塊寬度
-    // 邀約一定是 100%，不用再顯示「占邀約 100%」；其餘階段把「站上一階段」轉換率放在人數旁邊的括號裡
-    var labelText = r.label+'　'+r.count+' 人'+(r.step !== null ? '（站上一階段 '+r.step+'%）' : '');
-    var sideInfo = r.isFirst ? '' :
-      '<div class="funnel-side-info"><span class="funnel-pct-total">占邀約 '+r.pct+'%</span></div>';
+    // 邀約一定是 100%，不用再顯示「占邀約 100%」；其餘階段把「占上一階段」轉換率放在人數旁邊的括號裡
+    var labelText = r.label+'　'+r.count+' 人'+(r.step !== null ? '（占上一階段 '+r.step+'%）' : '');
+    var sideText = r.isFirst ? '' : '占邀約 '+r.pct+'%';
     return '<div class="funnel-row">'+
-      '<div class="funnel-bar-track">'+
-        '<div class="funnel-bar" style="width:'+barWidth+'%;"></div>'+
-        '<span class="funnel-bar-label">'+labelText+'</span>'+
+      '<div class="funnel-row-top">'+
+        '<span class="funnel-row-label">'+labelText+'</span>'+
+        (sideText ? '<span class="funnel-row-side">'+sideText+'</span>' : '')+
       '</div>'+
-      sideInfo+
+      '<div class="funnel-bar-track"><div class="funnel-bar" style="width:'+barWidth+'%;"></div></div>'+
     '</div>';
   }).join('');
 }
