@@ -181,14 +181,14 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
 .tree-h-stage-items .metric-sm .metric-label{font-size:11px;}
 @media (max-width:900px){.tree-h-stage{min-width:170px;}}
 
-/* 階段轉換率漏斗圖：每階段一個梯形（由上一階段占比收攏到這階段占比），真正有「漏斗」的錐形；
-   文字固定放在梯形右側的白底區域（一般深色文字），不管梯形縮到多窄都不會有文字疊色看不清楚的問題 */
-.funnel-row{display:flex;align-items:center;gap:16px;}
-.funnel-row+.funnel-row{margin-top:8px;}
-.funnel-shape{width:160px;flex-shrink:0;}
-.funnel-text{flex:1;min-width:0;}
+/* 階段轉換率漏斗圖：傳統漏斗造型，梯形上下緊密相連、由寬到窄逐漸收攏，數字放在梯形正中間（白字，梯形夠寬不會看不清楚）；
+   階段名稱固定放在圖形左側的白底區域（一般深色文字），跟梯形分開顯示 */
+.funnel-wrap{display:flex;align-items:stretch;gap:14px;}
+.funnel-labels{width:150px;flex-shrink:0;display:flex;flex-direction:column;}
+.funnel-label-cell{flex:1;display:flex;flex-direction:column;justify-content:center;align-items:flex-end;text-align:right;}
+.funnel-chart{flex:1;min-width:0;}
 .funnel-row-label{font-size:13px;font-weight:700;color:var(--text-primary);white-space:nowrap;}
-.funnel-row-side{font-size:11px;color:var(--text-secondary);margin-top:2px;}
+.funnel-row-side{font-size:11px;color:var(--text-secondary);margin-top:2px;white-space:nowrap;}
 
 /* STAGES */
 .stages-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}

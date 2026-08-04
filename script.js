@@ -1598,7 +1598,8 @@ function renderHeadcount() {
   }
   var divKey = Object.keys(hcRawData[0]).find(function(k){return k.trim()==='Division';}) || 'Division';
   var jobKey = Object.keys(hcRawData[0]).find(function(k){return k.trim()==='Job Function';}) || 'Job Function';
-  var gradeKey = Object.keys(hcRawData[0]).find(function(k){return k.trim()==='職等';}) || '職等';
+  // 「過往 Headcount」的判斷要用「遞補人員職等」（遞補人員本身的職等），不是原職缺的「職等」欄位
+  var gradeKey = Object.keys(hcRawData[0]).find(function(k){return k.trim()==='遞補人員職等';}) || (Object.keys(hcRawData[0]).find(function(k){return k.includes('遞補') && k.includes('職等');})) || '遞補人員職等';
   var succKey = Object.keys(hcRawData[0]).find(function(k){return k.includes('Successor')||k.trim()==='遞補人員';}) || 'Successor';
 
   // 表格顯示欄位：跟「Headcount Records」工作表保持一致，不再寫死清單，工作表增減/改名欄位這裡會自動跟著變。
@@ -2192,30 +2193,36 @@ function renderStageConversionFunnel(trendData) {
     var step = prevCount ? Math.round(s.count/prevCount*1000)/10 : null;
     return { label: s.label, count: s.count, pct: pct, step: step, isFirst: i === 0 };
   });
-  // 真正的漏斗圖形：每階段畫一個梯形（上邊寬度＝上一階段占比，下邊寬度＝這階段占比），由寬到窄逐漸收攏；
-  // 文字固定放在梯形「右側」的白底區域（一般深色文字），不管梯形縮到多窄都不會有文字疊色看不清楚的問題
+  // 傳統漏斗圖：每階段一個梯形，上下緊密相連（不留縫隙），由寬到窄逐漸收攏，數字放在梯形正中間（白字）；
+  // 階段名稱固定放在圖形「左側」的白底區域（一般深色文字），跟梯形本身分開，不會有文字疊色看不清楚的問題
   var FUNNEL_COLORS = ['#4338CA','#4F46E5','#6366F1','#818CF8'];
-  var shapeW = 160, segH = 52;
-  wrap.innerHTML = rows.map(function(r, i){
+  var chartW = 320, segH = 64;
+  var chartH = segH * rows.length;
+  var cx = chartW/2;
+  var svgBody = rows.map(function(r, i){
     var topPct = i === 0 ? 100 : rows[i-1].pct;
-    var topW = Math.max(shapeW * (topPct/100), 14);
-    var botW = Math.max(shapeW * (r.pct/100), 14);
-    var cx = shapeW/2;
-    var points = (cx-topW/2)+',0 '+(cx+topW/2)+',0 '+(cx+botW/2)+','+segH+' '+(cx-botW/2)+','+segH;
+    var topW = Math.max(chartW * (topPct/100), 30);
+    var botW = Math.max(chartW * (r.pct/100), 30);
+    var y0 = i*segH, y1 = y0+segH;
+    var points = (cx-topW/2)+','+y0+' '+(cx+topW/2)+','+y0+' '+(cx+botW/2)+','+y1+' '+(cx-botW/2)+','+y1;
     var color = FUNNEL_COLORS[i % FUNNEL_COLORS.length];
-    var svg = '<svg width="100%" height="'+segH+'" viewBox="0 0 '+shapeW+' '+segH+'" preserveAspectRatio="none">'+
-      '<polygon points="'+points+'" fill="'+color+'"></polygon>'+
-    '</svg>';
-    var labelText = r.label+'　'+r.count+' 人';
-    var stepText = r.step !== null ? '占上一階段 '+r.step+'%' : '';
-    return '<div class="funnel-row">'+
-      '<div class="funnel-shape">'+svg+'</div>'+
-      '<div class="funnel-text">'+
-        '<div class="funnel-row-label">'+labelText+'</div>'+
-        (stepText ? '<div class="funnel-row-side">'+stepText+'</div>' : '')+
-      '</div>'+
+    return '<polygon points="'+points+'" fill="'+color+'"></polygon>'+
+      '<text x="'+cx+'" y="'+(y0+segH/2+5)+'" font-size="15" font-weight="700" fill="#fff" text-anchor="middle">'+r.count+'</text>';
+  }).join('');
+  var svg = '<svg width="100%" height="'+chartH+'" viewBox="0 0 '+chartW+' '+chartH+'" preserveAspectRatio="xMidYMid meet">'+svgBody+'</svg>';
+
+  var labelsHtml = rows.map(function(r){
+    var stepText = r.step !== null ? '<div class="funnel-row-side">占上一階段 '+r.step+'%</div>' : '';
+    return '<div class="funnel-label-cell">'+
+      '<div class="funnel-row-label">'+r.label+'</div>'+
+      stepText+
     '</div>';
   }).join('');
+
+  wrap.innerHTML = '<div class="funnel-wrap" style="height:'+chartH+'px;">'+
+    '<div class="funnel-labels">'+labelsHtml+'</div>'+
+    '<div class="funnel-chart">'+svg+'</div>'+
+  '</div>';
 }
 
 // 進入下一階段平均天數：同一人前後兩個里程碑欄位（都有填值時）相減取天數再平均，樣本不足時顯示「—」
