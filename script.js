@@ -1941,13 +1941,17 @@ function makeTrendSeries(name, recordsPerWeek) {
   return { name: name, data: recordsPerWeek.map(function(r){return r.length;}), records: recordsPerWeek };
 }
 
-// 每月 Headcount（依 Headcount Records「Requisition Date」新增缺額數）＆ Onboard（依 Candidate Records「Onboard date」）
+// 每月 Headcount（當月月底仍未結案的缺額數）＆ Onboard（依 Candidate Records「Onboard date」）
 // 只依目前 tr-bu／tr-job 篩選，不跟著上方時間篩選走（跟「各單位 Headcount 缺額」圖表口徑一致）；固定顯示最近 6 個月。
+// Headcount Records 沒有「實際結案日期」欄位，用「遞補人員」姓名比對 Candidate Records 找到對應人選的 Onboard date 當作結案日：
+// 到職日在該月月底之前 → 那個月底已結案；有遞補人員姓名但找不到對應到職日（姓名沒對上／人選還沒填到職日）→ 保守視為已結案，避免高估未結案數；
+// 完全沒有遞補人員姓名 → 一直算未結案，直到有人遞補為止。
 function computeMonthlyHeadcountOnboard() {
   var months = [];
   var base = new Date(); base.setDate(1); base.setHours(0,0,0,0);
   for (var i=5;i>=0;i--) months.push(new Date(base.getFullYear(), base.getMonth()-i, 1));
   var labels = months.map(function(m){ return m.getFullYear()+'/'+String(m.getMonth()+1).padStart(2,'0'); });
+  var monthEnds = months.map(function(m){ return new Date(m.getFullYear(), m.getMonth()+1, 0, 23, 59, 59); });
 
   function monthIndexOf(dateVal) {
     var dt = parseDateTime(dateVal);
@@ -1963,14 +1967,30 @@ function computeMonthlyHeadcountOnboard() {
     : 'Requisition Date';
   var divKey = (hcRawData && hcRawData.length) ? (Object.keys(hcRawData[0]).find(function(k){return k.trim()==='Division';}) || 'Division') : 'Division';
   var jobKeyHc = (hcRawData && hcRawData.length) ? (Object.keys(hcRawData[0]).find(function(k){return k.trim()==='Job Function';}) || 'Job Function') : 'Job Function';
+  var succKeyHc = (hcRawData && hcRawData.length) ? (Object.keys(hcRawData[0]).find(function(k){return k.includes('Successor')||k.trim()==='遞補人員';}) || 'Successor') : 'Successor';
+
+  var candidatePool = (typeof allDataFull !== 'undefined' && allDataFull && allDataFull.length) ? allDataFull : allData;
+  function onboardDateOfSuccessor(name) {
+    var n = String(name||'').trim();
+    if (!n) return null;
+    var cand = candidatePool.find(function(d){ return String(d.Name||'').trim() === n; });
+    return cand ? parseDateTime(cand['Onboard date']) : null;
+  }
 
   var hcCounts = months.map(function(){ return 0; });
   (hcRawData||[]).forEach(function(r){
     if (!multiFilterPass('tr-bu', r[divKey])) return;
     if (!multiFilterPassMulti('tr-job', r[jobKeyHc])) return;
-    var idx = monthIndexOf(r[reqKey]);
-    if (idx < 0) return;
-    hcCounts[idx]++;
+    var reqDate = parseDateTime(r[reqKey]);
+    if (!reqDate) return; // 沒有開缺日期就不計入
+    var succName = String(r[succKeyHc]||'').trim();
+    var onboardDate = succName ? onboardDateOfSuccessor(succName) : null;
+    months.forEach(function(m, idx){
+      if (reqDate > monthEnds[idx]) return; // 那個月底之後才開缺，還沒算進去
+      if (succName && onboardDate && onboardDate <= monthEnds[idx]) return; // 到職日在月底前 → 已結案
+      if (succName && !onboardDate) return; // 有遞補人員但找不到到職日 → 保守視為已結案
+      hcCounts[idx]++;
+    });
   });
 
   var onboardRecords = months.map(function(){ return []; });
@@ -1986,10 +2006,49 @@ function computeMonthlyHeadcountOnboard() {
     labels: labels,
     // Headcount 這條線不附 records：Headcount Records 的欄位跟候選人卡片格式不同，明細表格點下去不適合用候選人卡片呈現
     series: [
-      { name:'Headcount（新增缺額）', data: hcCounts },
+      { name:'Headcount（未結案缺額）', data: hcCounts },
       { name:'Onboard', data: onboardRecords.map(function(a){return a.length;}), records: onboardRecords }
     ]
   };
+}
+
+// Headcount＋Onboard 組合圖：Headcount 固定長條、Onboard 固定折線，同一張圖呈現
+function drawComboBarLineChart(containerId, labels, barSeries, lineSeries, maxVal) {
+  var chartW = Math.max(460, labels.length*70), chartH = 200, padL=36, padR=16, padT=16, padB=30;
+  var plotW = chartW-padL-padR, plotH = chartH-padT-padB;
+  var groupW = plotW/labels.length;
+  var barW = Math.max(20, groupW*0.4);
+  function xCenter(li){ return padL+li*groupW+groupW/2; }
+  function yPos(v){ return padT+plotH-(v/maxVal)*plotH; }
+  var barColor = TREND_COLORS[0], lineColor = TREND_COLORS[1];
+
+  var svg = '<svg width="100%" height="'+chartH+'" viewBox="0 0 '+chartW+' '+chartH+'" preserveAspectRatio="xMinYMid meet">';
+  for (var g=0; g<=4; g++) {
+    var gy = padT + plotH - (g/4)*plotH;
+    svg += '<line x1="'+padL+'" y1="'+gy+'" x2="'+(chartW-padR)+'" y2="'+gy+'" stroke="#E8EAED" stroke-width="1"/>';
+    svg += '<text x="'+(padL-6)+'" y="'+(gy+3)+'" font-size="9" fill="#9CA3AF" text-anchor="end">'+Math.round(g/4*maxVal)+'</text>';
+  }
+  labels.forEach(function(lbl, li){
+    var v = barSeries.data[li]||0;
+    var bh = (v/maxVal)*plotH;
+    var bx = xCenter(li) - barW/2;
+    var by = padT+plotH-bh;
+    svg += '<rect x="'+bx+'" y="'+by+'" width="'+barW+'" height="'+bh+'" fill="'+barColor+'" rx="2"><title>'+barSeries.name+': '+v+'</title></rect>';
+    if (v > 0) svg += '<text x="'+xCenter(li)+'" y="'+(by-4)+'" font-size="9" fill="'+barColor+'" text-anchor="middle" font-weight="600">'+v+'</text>';
+    svg += '<text x="'+xCenter(li)+'" y="'+(chartH-padB+16)+'" font-size="9" fill="#6B7280" text-anchor="middle">'+lbl+'</text>';
+  });
+  var pts = lineSeries.data.map(function(v,i){ return xCenter(i)+','+yPos(v); }).join(' ');
+  svg += '<polyline points="'+pts+'" fill="none" stroke="'+lineColor+'" stroke-width="2"/>';
+  lineSeries.data.forEach(function(v,i){
+    svg += '<circle cx="'+xCenter(i)+'" cy="'+yPos(v)+'" r="3" fill="'+lineColor+'"><title>'+lineSeries.name+': '+v+'</title></circle>';
+    if (v > 0) svg += '<text x="'+xCenter(i)+'" y="'+(yPos(v)-6)+'" font-size="9" fill="'+lineColor+'" text-anchor="middle" font-weight="600">'+v+'</text>';
+  });
+  svg += '</svg>';
+  var legend = '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:6px;">'+
+    '<div style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text-secondary);"><div style="width:8px;height:8px;border-radius:2px;background:'+barColor+'"></div>'+barSeries.name+'</div>'+
+    '<div style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text-secondary);"><div style="width:8px;height:8px;border-radius:2px;background:'+lineColor+'"></div>'+lineSeries.name+'</div>'+
+  '</div>';
+  document.getElementById(containerId).innerHTML = svg + legend;
 }
 
 // 單位／Job Function 若narrowed到2個以上，兩張圖要分開顯示各自數據、不加總；
@@ -2133,18 +2192,28 @@ function renderStageConversionFunnel(trendData) {
     var step = prevCount ? Math.round(s.count/prevCount*1000)/10 : null;
     return { label: s.label, count: s.count, pct: pct, step: step, isFirst: i === 0 };
   });
-  // 文字一律放在長條「上方」的白底區域（一般深色文字，好辨識），長條本身只當作純色進度指示，不用擔心文字疊在色塊上看不清楚
-  wrap.innerHTML = rows.map(function(r){
-    var barWidth = Math.max(r.pct, 2); // 至少留一點色塊寬度
-    // 邀約一定是 100%，不用再顯示「占邀約 100%」；其餘階段把「占上一階段」轉換率放在人數旁邊的括號裡
-    var labelText = r.label+'　'+r.count+' 人'+(r.step !== null ? '（占上一階段 '+r.step+'%）' : '');
-    var sideText = r.isFirst ? '' : '占邀約 '+r.pct+'%';
+  // 真正的漏斗圖形：每階段畫一個梯形（上邊寬度＝上一階段占比，下邊寬度＝這階段占比），由寬到窄逐漸收攏；
+  // 文字固定放在梯形「右側」的白底區域（一般深色文字），不管梯形縮到多窄都不會有文字疊色看不清楚的問題
+  var FUNNEL_COLORS = ['#4338CA','#4F46E5','#6366F1','#818CF8'];
+  var shapeW = 160, segH = 52;
+  wrap.innerHTML = rows.map(function(r, i){
+    var topPct = i === 0 ? 100 : rows[i-1].pct;
+    var topW = Math.max(shapeW * (topPct/100), 14);
+    var botW = Math.max(shapeW * (r.pct/100), 14);
+    var cx = shapeW/2;
+    var points = (cx-topW/2)+',0 '+(cx+topW/2)+',0 '+(cx+botW/2)+','+segH+' '+(cx-botW/2)+','+segH;
+    var color = FUNNEL_COLORS[i % FUNNEL_COLORS.length];
+    var svg = '<svg width="100%" height="'+segH+'" viewBox="0 0 '+shapeW+' '+segH+'" preserveAspectRatio="none">'+
+      '<polygon points="'+points+'" fill="'+color+'"></polygon>'+
+    '</svg>';
+    var labelText = r.label+'　'+r.count+' 人';
+    var stepText = r.step !== null ? '占上一階段 '+r.step+'%' : '';
     return '<div class="funnel-row">'+
-      '<div class="funnel-row-top">'+
-        '<span class="funnel-row-label">'+labelText+'</span>'+
-        (sideText ? '<span class="funnel-row-side">'+sideText+'</span>' : '')+
+      '<div class="funnel-shape">'+svg+'</div>'+
+      '<div class="funnel-text">'+
+        '<div class="funnel-row-label">'+labelText+'</div>'+
+        (stepText ? '<div class="funnel-row-side">'+stepText+'</div>' : '')+
       '</div>'+
-      '<div class="funnel-bar-track"><div class="funnel-bar" style="width:'+barWidth+'%;"></div></div>'+
     '</div>';
   }).join('');
 }
@@ -2173,10 +2242,7 @@ function renderStageConversionDays(trendData) {
   });
   wrap.innerHTML = rows.map(function(r){
     return '<div class="metric" style="display:flex;align-items:center;justify-content:space-between;">'+
-      '<div>'+
-        '<div class="metric-label">'+r.label+'</div>'+
-        '<div class="metric-sub">'+(r.n ? r.n+' 人樣本' : '尚無樣本')+'</div>'+
-      '</div>'+
+      '<div class="metric-label">'+r.label+'</div>'+
       '<div class="metric-val">'+(r.avg === null ? '—' : r.avg)+(r.avg !== null ? '<span style="font-size:13px;font-weight:500;color:var(--text-tertiary);margin-left:2px;">天</span>' : '')+'</div>'+
     '</div>';
   }).join('<div style="height:8px;"></div>');
@@ -2246,13 +2312,12 @@ function renderTrends() {
   // ---- 各單位 Headcount（缺額）----
   renderTrendHcChart();
 
-  // ---- 每月 Headcount & Onboard（最近 6 個月）----
+  // ---- 每月 Headcount & Onboard（最近 6 個月）：Headcount 固定長條、Onboard 固定折線 ----
   var monthly = computeMonthlyHeadcountOnboard();
   var monthlyMax = 1;
   monthly.series.forEach(function(s){ s.data.forEach(function(v){ if(v>monthlyMax) monthlyMax=v; }); });
   monthlyMax = Math.ceil(monthlyMax*1.2);
-  trendCache.monthly = { labels: monthly.labels, series: monthly.series, maxVal: monthlyMax };
-  renderTrendCard('monthly');
+  drawComboBarLineChart('trendMonthlyChart', monthly.labels, monthly.series[0], monthly.series[1], monthlyMax);
   drawTrendTable('trendMonthlyTableHead','trendMonthlyTableBody', monthly.labels, monthly.series, 'monthly');
 }
 
