@@ -2193,29 +2193,34 @@ function renderStageConversionFunnel(trendData) {
     var step = prevCount ? Math.round(s.count/prevCount*1000)/10 : null;
     return { label: s.label, count: s.count, pct: pct, step: step, isFirst: i === 0 };
   });
-  // 傳統漏斗圖：每階段一個梯形，上下緊密相連（不留縫隙），由寬到窄逐漸收攏，數字放在梯形正中間（白字）；
-  // 階段名稱固定放在圖形「左側」的白底區域（一般深色文字），跟梯形本身分開，不會有文字疊色看不清楚的問題
+  // 傳統漏斗圖：每階段一個梯形，上下緊密相連（不留縫隙），由寬到窄逐漸收攏；
+  // 重點是轉換率，所以梯形裡的「占上一階段 XX%」用大字，人數只當小字附註；階段名稱固定放在圖形「左側」的白底區域（一般深色文字）；
+  // 該階段人數為 0 時不畫色塊（沒有資料不應該有色塊誤導視覺）
   var FUNNEL_COLORS = ['#4338CA','#4F46E5','#6366F1','#818CF8'];
   var chartW = 320, segH = 64;
   var chartH = segH * rows.length;
   var cx = chartW/2;
   var svgBody = rows.map(function(r, i){
+    var y0 = i*segH, y1 = y0+segH, midY = y0+segH/2;
+    if (r.count === 0) return ''; // 該階段沒有人，不畫色塊
     var topPct = i === 0 ? 100 : rows[i-1].pct;
     var topW = Math.max(chartW * (topPct/100), 30);
     var botW = Math.max(chartW * (r.pct/100), 30);
-    var y0 = i*segH, y1 = y0+segH;
     var points = (cx-topW/2)+','+y0+' '+(cx+topW/2)+','+y0+' '+(cx+botW/2)+','+y1+' '+(cx-botW/2)+','+y1;
     var color = FUNNEL_COLORS[i % FUNNEL_COLORS.length];
-    return '<polygon points="'+points+'" fill="'+color+'"></polygon>'+
-      '<text x="'+cx+'" y="'+(y0+segH/2+5)+'" font-size="15" font-weight="700" fill="#fff" text-anchor="middle">'+r.count+'</text>';
+    var texts = r.isFirst
+      ? '<text x="'+cx+'" y="'+(midY+6)+'" font-size="18" font-weight="700" fill="#fff" text-anchor="middle">'+r.count+' 人</text>'
+      : '<text x="'+cx+'" y="'+(midY-2)+'" font-size="19" font-weight="700" fill="#fff" text-anchor="middle">'+r.step+'%</text>'+
+        '<text x="'+cx+'" y="'+(midY+16)+'" font-size="10" fill="rgba(255,255,255,.85)" text-anchor="middle">'+r.count+' 人</text>';
+    return '<polygon points="'+points+'" fill="'+color+'"></polygon>'+texts;
   }).join('');
   var svg = '<svg width="100%" height="'+chartH+'" viewBox="0 0 '+chartW+' '+chartH+'" preserveAspectRatio="xMidYMid meet">'+svgBody+'</svg>';
 
   var labelsHtml = rows.map(function(r){
-    var stepText = r.step !== null ? '<div class="funnel-row-side">占上一階段 '+r.step+'%</div>' : '';
+    var zeroNote = (!r.isFirst && r.count === 0) ? '<div class="funnel-row-side">0 人（占上一階段 0%）</div>' : '';
     return '<div class="funnel-label-cell">'+
       '<div class="funnel-row-label">'+r.label+'</div>'+
-      stepText+
+      zeroNote+
     '</div>';
   }).join('');
 
@@ -3172,6 +3177,11 @@ async function saveMaintainField(sheet, row, col, field, idx, newVal) {
           else hiredEl.textContent = fmtDateOnly(hiredToday);
         }
       }
+      // Headcount Records「遞補人員」姓名改變時，自動帶出 Candidate Records 相符姓名的 Onboard date；
+      // 同名有多人時跳出選擇視窗讓使用者指定是哪一位
+      if (sheet === 'Headcount Records' && String(field||'').trim() === '遞補人員') {
+        handleHeadcountSuccessorNameChange(row, idx, newVal);
+      }
     }
     showToast('✓ 已儲存');
     return true;
@@ -3179,6 +3189,70 @@ async function saveMaintainField(sheet, row, col, field, idx, newVal) {
     showToast('❌ 儲存失敗：'+e.message);
     return false;
   }
+}
+
+// Headcount Records「遞補人員」姓名比對 Candidate Records，自動帶出 Onboard date；
+// 找不到符合姓名的人選就提醒手動填寫，找到超過一筆同名的人選就跳出選擇視窗讓使用者指定。
+async function handleHeadcountSuccessorNameChange(row, idx, newVal) {
+  var name = String(newVal||'').trim();
+  var headers = maintainHeaders['Headcount Records'] || [];
+  var onboardCol = headers.indexOf('Onboard date') + 1;
+  if (onboardCol <= 0) return; // 試算表還沒有 Onboard date 欄位，無法自動帶出
+
+  if (!name) {
+    // 遞補人員清空時，同步清空 Onboard date，避免殘留舊資料
+    await saveMaintainField('Headcount Records', row, onboardCol, 'Onboard date', idx, '');
+    renderHeadcount();
+    return;
+  }
+
+  var pool = (typeof allDataFull !== 'undefined' && allDataFull && allDataFull.length) ? allDataFull : allData;
+  var matches = pool.filter(function(d){ return String(d.Name||'').trim() === name; });
+
+  if (!matches.length) {
+    showToast('找不到姓名為「'+name+'」的人選，Onboard date 需手動填寫');
+    return;
+  }
+  if (matches.length === 1) {
+    await saveMaintainField('Headcount Records', row, onboardCol, 'Onboard date', idx, matches[0]['Onboard date']||'');
+    renderHeadcount();
+    return;
+  }
+  openSuccessorPickerModal(row, idx, onboardCol, matches);
+}
+
+var _successorPickerState = null;
+var _successorPickerMatches = [];
+function openSuccessorPickerModal(row, idx, onboardCol, matches) {
+  _successorPickerState = { row: row, idx: idx, onboardCol: onboardCol };
+  _successorPickerMatches = matches;
+  var listEl = document.getElementById('successorPickerList');
+  listEl.innerHTML = matches.map(function(m, i){
+    var resumeCode = m['履歷代碼'] || '';
+    var unit = m['單位'] || '';
+    var job = m['Job Function'] || '';
+    var onboard = m['Onboard date'] ? fmtDateOnly(m['Onboard date']) : '尚未填寫到職日';
+    var subInfo = [resumeCode, unit, job].filter(Boolean).join(' · ');
+    return '<div class="mini-card" style="cursor:pointer;" onclick="selectSuccessorMatch('+i+')">'+
+      '<div style="font-weight:700;font-size:13px;">'+(m.Name||'')+'</div>'+
+      (subInfo ? '<div style="font-size:11px;color:var(--text-secondary);margin-top:2px;">'+subInfo+'</div>' : '')+
+      '<div style="font-size:12px;margin-top:4px;">Onboard date：'+onboard+'</div>'+
+    '</div>';
+  }).join('');
+  document.getElementById('successorPickerModal').style.display = 'flex';
+}
+async function selectSuccessorMatch(i) {
+  var m = _successorPickerMatches[i];
+  var st = _successorPickerState;
+  if (!m || !st) return;
+  closeSuccessorPickerModal();
+  await saveMaintainField('Headcount Records', st.row, st.onboardCol, 'Onboard date', st.idx, m['Onboard date']||'');
+  renderHeadcount();
+}
+function closeSuccessorPickerModal() {
+  var el = document.getElementById('successorPickerModal');
+  if (el) el.style.display = 'none';
+  _successorPickerState = null;
 }
 
 async function commitMaintainCell(el) {

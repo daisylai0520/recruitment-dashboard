@@ -241,7 +241,7 @@
 
       <div class="cal-outer" id="trendCard-hc">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
-          <div style="font-size:14px;font-weight:600;">各單位 Headcount（缺額）</div>
+          <div style="font-size:14px;font-weight:600;">各單位 Headcount</div>
         </div>
         <div id="trendHcChart" style="overflow-x:auto;"></div>
       </div>
@@ -567,6 +567,17 @@
       <span style="cursor:pointer;font-size:18px;color:var(--text-tertiary);" onclick="closeTrendDrilldown()">✕</span>
     </div>
     <div id="trendDrilldownList" style="max-height:60vh;overflow-y:auto;display:flex;flex-direction:column;gap:8px;"></div>
+  </div>
+</div>
+
+<!-- HEADCOUNT 遞補人員同名選擇 MODAL -->
+<div id="successorPickerModal" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeSuccessorPickerModal()">
+  <div class="modal" style="max-width:480px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+      <div class="modal-title" style="margin-bottom:0;">同名人選有多筆，請選擇一位</div>
+      <span style="cursor:pointer;font-size:18px;color:var(--text-tertiary);" onclick="closeSuccessorPickerModal()">✕</span>
+    </div>
+    <div id="successorPickerList" style="max-height:60vh;overflow-y:auto;display:flex;flex-direction:column;gap:8px;"></div>
   </div>
 </div>
 
