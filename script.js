@@ -2134,17 +2134,16 @@ function renderStageConversionFunnel(trendData) {
     return { label: s.label, count: s.count, pct: pct, step: step, isFirst: i === 0 };
   });
   wrap.innerHTML = rows.map(function(r){
-    var barWidth = Math.max(r.pct, 4); // 至少留一點寬度可見文字
-    // 邀約一定是 100%，不用再顯示「占邀約 100%」這行
+    var barWidth = Math.max(r.pct, 2); // 至少留一點色塊寬度
+    // 邀約一定是 100%，不用再顯示「占邀約 100%」；其餘階段把「站上一階段」轉換率放在人數旁邊的括號裡
+    var labelText = r.label+'　'+r.count+' 人'+(r.step !== null ? '（站上一階段 '+r.step+'%）' : '');
     var sideInfo = r.isFirst ? '' :
-      '<div class="funnel-side-info">'+
-        '<span class="funnel-pct-total">占邀約 '+r.pct+'%</span>'+
-        (r.step !== null ? '<span class="funnel-pct-step">較上一階段 '+r.step+'%</span>' : '')+
-      '</div>';
+      '<div class="funnel-side-info"><span class="funnel-pct-total">占邀約 '+r.pct+'%</span></div>';
     return '<div class="funnel-row">'+
-      '<div class="funnel-bar-track"><div class="funnel-bar" style="width:'+barWidth+'%;">'+
-        '<span class="funnel-bar-label">'+r.label+'　'+r.count+' 人</span>'+
-      '</div></div>'+
+      '<div class="funnel-bar-track">'+
+        '<div class="funnel-bar" style="width:'+barWidth+'%;"></div>'+
+        '<span class="funnel-bar-label">'+labelText+'</span>'+
+      '</div>'+
       sideInfo+
     '</div>';
   }).join('');
