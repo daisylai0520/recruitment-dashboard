@@ -952,11 +952,34 @@ function openEditCandidateModal(row) {
   if (!cand) { showToast('找不到這位人選的資料'); return; }
   var idx = allData.indexOf(cand);
   var candHeaders = filterCandHeadersForMaintenance(maintainHeaders['Candidate Records'] || Object.keys(cand).filter(function(k){return k!=='_row';}));
-  document.getElementById('editCandModalName').textContent = cand.Name || '編輯人選資料';
-  document.getElementById('editCandModalFields').innerHTML = candHeaders.map(function(h){
-    return renderQueryField('Candidate Records', cand, h, idx);
+
+  // 排版比照 Candidate 畫面查詢人選資料卡：Phone Interview Record (HR)/(主管) 並排、Memo 全寬、104_Position 加寬
+  var isPhoneRecordHeader = function(h){ return /phone\s*interview\s*record/i.test(h); };
+  var phoneRecordFields = candHeaders.filter(isPhoneRecordHeader).sort(function(a,b){
+    return (/hr/i.test(a)?0:1) - (/hr/i.test(b)?0:1); // HR 固定在左，主管固定在右
+  });
+  var pairedPhoneRecordDone = false;
+  var fieldsHtml = candHeaders.map(function(h){
+    if (isPhoneRecordHeader(h)) {
+      if (pairedPhoneRecordDone) return '';
+      pairedPhoneRecordDone = true;
+      if (phoneRecordFields.length >= 2) {
+        var pairHtml = phoneRecordFields.map(function(pf){
+          return renderQueryField('Candidate Records', cand, pf, idx, false, true);
+        }).join('');
+        return '<div style="grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:14px;">'+pairHtml+'</div>';
+      }
+      return renderQueryField('Candidate Records', cand, h, idx, true, true);
+    }
+    var isFullWidth = h.indexOf('Memo') >= 0;
+    var isWide = h === '104_Position';
+    return renderQueryField('Candidate Records', cand, h, idx, isFullWidth ? true : (isWide ? 'span2' : false), true);
   }).join('');
+
+  document.getElementById('editCandModalName').textContent = cand.Name || '編輯人選資料';
+  document.getElementById('editCandModalFields').innerHTML = fieldsHtml;
   document.getElementById('editCandidateModal').style.display = 'flex';
+  document.getElementById('editCandModalFields').querySelectorAll('textarea:not(.ta-scrollable)').forEach(autoGrowTextarea);
 }
 
 function closeEditCandidateModal() {
