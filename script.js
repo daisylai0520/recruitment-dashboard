@@ -2260,9 +2260,10 @@ function renderStageConversionFunnel(trendData) {
   var svg = '<svg width="100%" height="'+chartH+'" viewBox="0 0 '+chartW+' '+chartH+'" preserveAspectRatio="xMidYMid meet">'+svgBody+'</svg>';
 
   var pctsHtml = rows.map(function(r, i){
+    if (r.isFirst) return '<div class="funnel-pct-cell"></div>'; // 邀約一定是 100%，不用再顯示轉換率
     var hasData = r.count > 0;
-    // 邀約是基準（轉換率視為 100%）；其餘階段用「占上一階段」轉換率，若剛好前一階段是 0（理論上不會有這階段）就退回用占邀約比例，避免顯示 null
-    var displayPct = r.isFirst ? 100 : (r.step !== null ? r.step : r.pct);
+    // 其餘階段用「占上一階段」轉換率，若剛好前一階段是 0（理論上不會有這階段）就退回用占邀約比例，避免顯示 null
+    var displayPct = r.step !== null ? r.step : r.pct;
     var color = hasData ? FUNNEL_COLORS[i % FUNNEL_COLORS.length] : EMPTY_TEXT;
     return '<div class="funnel-pct-cell" style="color:'+color+';">'+displayPct+'%</div>';
   }).join('');
