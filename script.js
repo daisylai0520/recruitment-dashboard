@@ -1068,7 +1068,7 @@ function filterCandHeadersForRole(headers) {
 // 人選資料維護與查詢畫面專用：這兩個是系統自動寫入的排程紀錄欄位（填 Phone Interview_date／Interview_date 時會自動同步），
 // 只是不需要在這個畫面顯示，後端 onEdit／editCell 的自動更新邏輯完全不受影響，資料還是照樣會被寫入試算表；
 // Candidate Overview 的看板卡片／檢視編輯彈窗不受影響，一樣會顯示。
-var MAINTAIN_QUERY_HIDDEN_FIELDS = ['Phone Interview Scheduled', 'Interview Scheduled', '離職原因', '工作/實習&過往經驗', '求職狀態', '現有待遇', '期望待遇', '其他資訊', 'HR Comment'];
+var MAINTAIN_QUERY_HIDDEN_FIELDS = ['Phone Interview Scheduled', 'Interview Scheduled', 'Hired date', '離職原因', '工作/實習&過往經驗', '求職狀態', '現有待遇', '期望待遇', '其他資訊', 'HR Comment'];
 function filterCandHeadersForMaintenance(headers) {
   return filterCandHeadersForRole(headers).filter(function(h){ return MAINTAIN_QUERY_HIDDEN_FIELDS.indexOf(h) < 0; });
 }
@@ -1673,6 +1673,7 @@ function renderHeadcount() {
         if (h.includes('職等')) return 55;
         return 190;
       });
+      colWidths.push(40); // 最後一欄放刪除按鈕
 
       var rowsHtml = displayRows.map(function(rr){
         var r = rr.raw;
@@ -1680,7 +1681,8 @@ function renderHeadcount() {
         var cells = displayHeaders.map(function(h){
           return '<td style="padding:2px;">'+renderTableCellInput('Headcount Records', r, h, idx, '100%')+'</td>';
         }).join('');
-        return '<tr>'+cells+'</tr>';
+        var deleteCell = '<td style="padding:2px;text-align:center;"><button title="刪除這筆 Headcount 資料" onclick="deleteHeadcountRow('+r._row+')" style="border:none;background:none;cursor:pointer;font-size:14px;color:#EF4444;">🗑️</button></td>';
+        return '<tr>'+cells+deleteCell+'</tr>';
       }).join('');
 
       return '<div style="margin-bottom:10px;">'+
@@ -1693,6 +1695,7 @@ function renderHeadcount() {
             '<colgroup>'+colWidths.map(function(w){ return '<col style="width:'+w+'px;">'; }).join('')+'</colgroup>'+
             '<thead><tr style="background:var(--bg);">'+
               displayHeaders.map(function(h){ return '<th style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-align:left;padding:5px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+h+'</th>'; }).join('')+
+              '<th></th>'+
             '</tr></thead>'+
             '<tbody>'+rowsHtml+'</tbody>'+
           '</table>'+
@@ -2607,6 +2610,14 @@ var SCHEDULED_DATE_FIELD_MAP = {
   'Interview_date': 'Interview Scheduled'
 };
 
+// 判斷一個字串看起來像不像日期（要有 yyyy/mm/dd 或 mm/dd 這種數字＋分隔符號的樣式），
+// 跟 normalizeDateForSave 用的日期偵測邏輯一致；打了「取消」之類的純文字會回傳 false。
+function looksLikeDateStr(val) {
+  var s = String(val||'').trim();
+  if (!s) return false;
+  return /(\d{4})?[\/\-]?(\d{1,2})[\/\-](\d{1,2})/.test(s);
+}
+
 // 將使用者輸入的日期字串正規化為儲存格式；輸入僅「6/30」時自動補上今年年份
 function normalizeDateForSave(field, raw) {
   raw = String(raw||'').trim();
@@ -3193,7 +3204,9 @@ async function saveMaintainField(sheet, row, col, field, idx, newVal) {
       }
       // 更新面試日期時，同步帶入該次排程的更新日期；Apps Script 也會寫入試算表，
       // 此處同時更新記憶體資料與畫面，使用者不需要重新整理。
-      var scheduledFieldName = sheet === 'Candidate Records' ? SCHEDULED_DATE_FIELD_MAP[field] : null;
+      // 但如果 Phone Interview_date／Interview_date 改成的新值不是日期格式（例如打了「取消」之類的文字），
+      // 就不應該蓋 Scheduled 欄位的時間，跟後端 stampCandidateScheduledDate_ 的判斷邏輯一致。
+      var scheduledFieldName = (sheet === 'Candidate Records' && looksLikeDateStr(newVal)) ? SCHEDULED_DATE_FIELD_MAP[field] : null;
       if (scheduledFieldName) {
         var scheduledToday = getTodayDateStr();
         rec[scheduledFieldName] = scheduledToday;
@@ -3801,6 +3814,24 @@ function addMaintainRow() {
   document.querySelector('#addRowModal .modal').classList.remove('modal-wide');
   document.getElementById('addRowModalFields').classList.remove('cand-new-fields-grid');
   document.getElementById('addRowModal').style.display = 'flex';
+}
+
+// Headcount Overview 各單位區塊表格的刪除按鈕：直接刪除 Headcount Records 裡的這一列
+// 明確指定 sheet 為 'Headcount Records'（不能沿用 maintainSheet，因為使用者可能同時停留在其他分頁，maintainSheet 未必是 Headcount Records）
+async function deleteHeadcountRow(row) {
+  if (!confirm('確定要刪除這筆 Headcount 資料嗎？此動作無法復原。')) return;
+  showToast('刪除中...');
+  try {
+    var url = APPS_SCRIPT_URL + '?action=deleteRow&sheet=' + encodeURIComponent('Headcount Records') + '&row=' + encodeURIComponent(row);
+    await fetch(noCacheUrl(url), {mode:'no-cors', cache:'no-store'});
+    hcRawData = hcRawData.filter(function(r){ return String(r._row) !== String(row); });
+    renderHeadcount();
+    await fetchData();
+    renderHeadcount();
+    showToast('✓ 已刪除');
+  } catch(e) {
+    showToast('❌ 刪除失敗：'+e.message);
+  }
 }
 
 // Headcount Overview 各單位區塊的「＋ 新增 Headcount」：重用共用的 addRowModal，直接寫入 Headcount Records
