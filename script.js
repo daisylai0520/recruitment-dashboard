@@ -2236,40 +2236,40 @@ function renderStageConversionFunnel(trendData) {
     var step = prevCount ? Math.round(s.count/prevCount*1000)/10 : null;
     return { label: s.label, count: s.count, pct: pct, step: step, isFirst: i === 0 };
   });
-  // 傳統漏斗圖：每階段一個梯形，上下緊密相連（不留縫隙），由寬到窄逐漸收攏；
-  // 重點是轉換率，所以梯形裡的「占上一階段 XX%」用大字，人數只當小字附註；階段名稱固定放在圖形「左側」的白底區域（一般深色文字）；
-  // 該階段人數為 0 時不畫色塊（沒有資料不應該有色塊誤導視覺）
+  // 傳統漏斗圖：每階段一個梯形，上下緊密相連（不留縫隙），由寬到窄逐漸收攏，梯形裡放階段名稱＋人數（白字）；
+  // 轉換率是重點，改放在圖形「右側」用跟該階段同色的大字顯示（呼應參考圖的排版，但不用圖示、顏色也收斂成同一色系）；
+  // 該階段人數為 0 時，色塊改成灰色空白、右側轉換率也改用灰色，不會誤導視覺
   var FUNNEL_COLORS = ['#4338CA','#4F46E5','#6366F1','#818CF8'];
+  var EMPTY_FILL = '#E8EAED', EMPTY_TEXT = '#9CA3AF';
   var chartW = 320, segH = 64;
   var chartH = segH * rows.length;
   var cx = chartW/2;
   var svgBody = rows.map(function(r, i){
     var y0 = i*segH, y1 = y0+segH, midY = y0+segH/2;
-    if (r.count === 0) return ''; // 該階段沒有人，不畫色塊
+    var hasData = r.count > 0;
     var topPct = i === 0 ? 100 : rows[i-1].pct;
     var topW = Math.max(chartW * (topPct/100), 30);
     var botW = Math.max(chartW * (r.pct/100), 30);
     var points = (cx-topW/2)+','+y0+' '+(cx+topW/2)+','+y0+' '+(cx+botW/2)+','+y1+' '+(cx-botW/2)+','+y1;
-    var color = FUNNEL_COLORS[i % FUNNEL_COLORS.length];
-    // 邀約是基準（轉換率視為 100%）；其餘階段用「占上一階段」轉換率，若剛好前一階段是 0（理論上不會有這階段）就退回用占邀約比例，避免顯示 null
-    var displayPct = r.isFirst ? 100 : (r.step !== null ? r.step : r.pct);
-    var texts = '<text x="'+cx+'" y="'+(midY-2)+'" font-size="19" font-weight="700" fill="#fff" text-anchor="middle">'+displayPct+'%</text>'+
-      '<text x="'+cx+'" y="'+(midY+16)+'" font-size="10" fill="rgba(255,255,255,.85)" text-anchor="middle">'+r.count+' 人</text>';
-    return '<polygon points="'+points+'" fill="'+color+'"></polygon>'+texts;
+    var fill = hasData ? FUNNEL_COLORS[i % FUNNEL_COLORS.length] : EMPTY_FILL;
+    var textColor = hasData ? '#fff' : EMPTY_TEXT;
+    var texts = '<text x="'+cx+'" y="'+(midY-2)+'" font-size="14" font-weight="700" fill="'+textColor+'" text-anchor="middle">'+r.label+'</text>'+
+      '<text x="'+cx+'" y="'+(midY+14)+'" font-size="10" fill="'+textColor+'" text-anchor="middle">'+r.count+' 人</text>';
+    return '<polygon points="'+points+'" fill="'+fill+'"></polygon>'+texts;
   }).join('');
   var svg = '<svg width="100%" height="'+chartH+'" viewBox="0 0 '+chartW+' '+chartH+'" preserveAspectRatio="xMidYMid meet">'+svgBody+'</svg>';
 
-  var labelsHtml = rows.map(function(r){
-    var zeroNote = (!r.isFirst && r.count === 0) ? '<div class="funnel-row-side">0 人（占上一階段 0%）</div>' : '';
-    return '<div class="funnel-label-cell">'+
-      '<div class="funnel-row-label">'+r.label+'</div>'+
-      zeroNote+
-    '</div>';
+  var pctsHtml = rows.map(function(r, i){
+    var hasData = r.count > 0;
+    // 邀約是基準（轉換率視為 100%）；其餘階段用「占上一階段」轉換率，若剛好前一階段是 0（理論上不會有這階段）就退回用占邀約比例，避免顯示 null
+    var displayPct = r.isFirst ? 100 : (r.step !== null ? r.step : r.pct);
+    var color = hasData ? FUNNEL_COLORS[i % FUNNEL_COLORS.length] : EMPTY_TEXT;
+    return '<div class="funnel-pct-cell" style="color:'+color+';">'+displayPct+'%</div>';
   }).join('');
 
   wrap.innerHTML = '<div class="funnel-wrap" style="height:'+chartH+'px;">'+
-    '<div class="funnel-labels">'+labelsHtml+'</div>'+
     '<div class="funnel-chart">'+svg+'</div>'+
+    '<div class="funnel-pcts">'+pctsHtml+'</div>'+
   '</div>';
 }
 
