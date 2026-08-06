@@ -333,16 +333,28 @@ function showToast(msg) {
 // ===== 分頁式載入：每個畫面只在真正被打開時，才去抓它需要的資料 =====
 var loadedResources = { core: false, headcount: false, salary: false, scheduling: false, permissions: false };
 
+// ===== 「上次資料先顯示、背景重新整理」快取機制 =====
+// 把每個資源最後一次成功抓到的原始 JSON 存進瀏覽器的 localStorage；下次開網頁／切分頁時，
+// 如果本地還沒抓過這個資源但瀏覽器有存過快取，就先用快取資料把畫面畫出來（可能是幾分鐘前的舊資料），
+// 同時在背景重新抓最新資料，抓完再整個畫面重畫一次——比起每次都要等 Apps Script 回應完才看得到任何東西快很多。
+var CACHE_PREFIX = 'rc_cache_v1_';
+function cacheSet(resource, json) {
+  try { localStorage.setItem(CACHE_PREFIX+resource, JSON.stringify(json)); } catch(e) {}
+}
+function cacheGet(resource) {
+  try {
+    var raw = localStorage.getItem(CACHE_PREFIX+resource);
+    return raw ? JSON.parse(raw) : null;
+  } catch(e) { return null; }
+}
+
 function setSyncStatus(state, msg) {
   var dot=document.getElementById('syncDot'), txt=document.getElementById('syncText');
   if (dot) dot.className = 'sync-dot' + (state==='loading' ? ' loading' : state==='error' ? ' error' : '');
   if (txt) txt.textContent = msg;
 }
 
-async function fetchCoreData() {
-  var res = await fetch(noCacheUrl(APPS_SCRIPT_URL + '?action=getCoreData'), {cache:'no-store'});
-  if (!res.ok) throw new Error('HTTP '+res.status);
-  var json = await res.json();
+function applyCoreData(json) {
   allData=(json.candidates||[]).filter(function(d){return d.Name&&d.Result;});
   // 保留一份完整（未依單位過濾）名單，只給新增人選時的重複檢查使用
   allDataFull = allData.slice();
@@ -362,6 +374,13 @@ async function fetchCoreData() {
   managerInfoData=(json.managerInfo||[]).filter(function(d){return d.Name;});
   Object.assign(maintainHeaders, json.sheetHeaders || {});
   loadedResources.core = true;
+}
+async function fetchCoreData() {
+  var res = await fetch(noCacheUrl(APPS_SCRIPT_URL + '?action=getCoreData'), {cache:'no-store'});
+  if (!res.ok) throw new Error('HTTP '+res.status);
+  var json = await res.json();
+  cacheSet('core', json);
+  applyCoreData(json);
 }
 
 // ---- 身分選擇畫面：一開始就抓 HR 名冊 + 單位對應表，用來畫出「我是 XXX」的按鈕 ----
@@ -415,10 +434,7 @@ function findBUByInviterName(name) {
   return match ? (match.BU || '') : '';
 }
 
-async function fetchHeadcountData() {
-  var res = await fetch(noCacheUrl(APPS_SCRIPT_URL + '?action=getHeadcountData'), {cache:'no-store'});
-  if (!res.ok) throw new Error('HTTP '+res.status);
-  var json = await res.json();
+function applyHeadcountData(json) {
   headcountDropdownData = json.headcountDropdowns || {};
   rebuildHeadcountDropdowns();
   Object.assign(maintainHeaders, json.sheetHeaders || {});
@@ -427,43 +443,78 @@ async function fetchHeadcountData() {
   loadHeadcountData(newHcRecords);
   loadedResources.headcount = true;
 }
-
-async function fetchSalaryData() {
-  var res = await fetch(noCacheUrl(APPS_SCRIPT_URL + '?action=getSalaryData'), {cache:'no-store'});
+async function fetchHeadcountData() {
+  var res = await fetch(noCacheUrl(APPS_SCRIPT_URL + '?action=getHeadcountData'), {cache:'no-store'});
   if (!res.ok) throw new Error('HTTP '+res.status);
   var json = await res.json();
+  cacheSet('headcount', json);
+  applyHeadcountData(json);
+}
+
+function applySalaryData(json) {
   salaryData=(json.salaryRecords||[]).filter(function(d){return d.Company;});
   reapplyRecentEdits('Market Salary Records', salaryData);
   Object.assign(maintainHeaders, json.sheetHeaders || {});
   loadedResources.salary = true;
 }
-
-async function fetchSchedulingData() {
-  var res = await fetch(noCacheUrl(APPS_SCRIPT_URL + '?action=getSchedulingData'), {cache:'no-store'});
+async function fetchSalaryData() {
+  var res = await fetch(noCacheUrl(APPS_SCRIPT_URL + '?action=getSalaryData'), {cache:'no-store'});
   if (!res.ok) throw new Error('HTTP '+res.status);
   var json = await res.json();
+  cacheSet('salary', json);
+  applySalaryData(json);
+}
+
+function applySchedulingData(json) {
   scheduleData=(json.scheduleRecords||[]).filter(function(d){return d.Token;});
   managerDirectoryData=(json.managerDirectory||[]).filter(function(d){return d.Name;});
   loadedResources.scheduling = true;
 }
-
-// 權限管理畫面：Candidate Records 目前實際出現過的「單位」「負責HR」選項 + 目前的對應表／HR 名冊設定
-async function fetchPermissionData() {
-  var res = await fetch(noCacheUrl(APPS_SCRIPT_URL + '?action=getPermissionData'), {cache:'no-store'});
+async function fetchSchedulingData() {
+  var res = await fetch(noCacheUrl(APPS_SCRIPT_URL + '?action=getSchedulingData'), {cache:'no-store'});
   if (!res.ok) throw new Error('HTTP '+res.status);
   var json = await res.json();
+  cacheSet('scheduling', json);
+  applySchedulingData(json);
+}
+
+// 權限管理畫面：Candidate Records 目前實際出現過的「單位」「負責HR」選項 + 目前的對應表／HR 名冊設定
+function applyPermissionData(json) {
   permUnitOptions = (json.unitOptions||[]).map(function(v){return String(v).trim();}).filter(Boolean);
   permHrOptions = (json.hrOptions||[]).map(function(v){return String(v).trim();}).filter(Boolean);
   unitHrMappingData = (json.unitHrMapping||[]).filter(function(d){return d['單位']||d['負責HR'];});
   hrDirectoryData = (json.hrDirectory||[]).filter(function(d){return d['HR姓名'];});
   loadedResources.permissions = true;
 }
+async function fetchPermissionData() {
+  var res = await fetch(noCacheUrl(APPS_SCRIPT_URL + '?action=getPermissionData'), {cache:'no-store'});
+  if (!res.ok) throw new Error('HTTP '+res.status);
+  var json = await res.json();
+  cacheSet('permissions', json);
+  applyPermissionData(json);
+}
 
 var RESOURCE_FETCHERS = { core: fetchCoreData, headcount: fetchHeadcountData, salary: fetchSalaryData, scheduling: fetchSchedulingData, permissions: fetchPermissionData };
+var RESOURCE_APPLIERS = { core: applyCoreData, headcount: applyHeadcountData, salary: applySalaryData, scheduling: applySchedulingData, permissions: applyPermissionData };
 
-// 切換到某個畫面時呼叫：如果這個畫面需要的資料還沒載入過，才去抓；已經載入過就直接用現有的，不用整份重讀
+// 切換到某個畫面時呼叫：如果這個畫面需要的資料還沒載入過，才去抓；已經載入過就直接用現有的，不用整份重讀。
+// 如果瀏覽器有存過這個資源上次成功抓到的快取，就先用快取資料把畫面畫出來（不用等網路），
+// 同時在背景重新抓最新資料，抓完再整個畫面重畫一次，讓使用者不用每次切分頁都空等。
 async function ensureResourceLoaded(resource) {
   if (loadedResources[resource]) return;
+  var cached = cacheGet(resource);
+  if (cached) {
+    RESOURCE_APPLIERS[resource](cached);
+    setSyncStatus('loading', '背景更新中...');
+    RESOURCE_FETCHERS[resource]().then(function(){
+      var now=new Date();
+      setSyncStatus('ok', '已同步 '+String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0'));
+      renderAll();
+    }).catch(function(e){
+      setSyncStatus('error', '背景更新失敗');
+    });
+    return; // 不等待網路，讓呼叫端直接用快取資料繼續渲染
+  }
   setSyncStatus('loading', '載入中...');
   try {
     await RESOURCE_FETCHERS[resource]();
@@ -763,7 +814,6 @@ function buildKanbanPhasesHtml(filtered, readOnly, hideManagerInvitationStage) {
         cands.map(function(d){
           var t=(stage==='待電訪'||stage==='排電訪')?(d.Interview_date||d['Phone Interview_date']||''):(d.Interview_date||'');
           var timeStr=fmtDate(t);
-          var idx=allData.indexOf(d);
           var tagsHtml = '';
           if (kbCardDisplayFields['Job Function']) tagsHtml += '<span class="kanban-card-pos '+jfClass(d['Job Function'])+'">'+(d['Job Function']||'')+'</span>';
           if (kbCardDisplayFields['單位']) tagsHtml += '<span class="kanban-card-bu">'+(d['單位']||'')+'</span>';
@@ -771,7 +821,10 @@ function buildKanbanPhasesHtml(filtered, readOnly, hideManagerInvitationStage) {
           if (kbCardDisplayFields['Inviter'] && d.Inviter) extraLinesHtml += '<div class="kanban-card-extra">👤 '+d.Inviter+'</div>';
           if (kbCardDisplayFields['Phone Interview_date'] && d['Phone Interview_date']) extraLinesHtml += '<div class="kanban-card-extra">📞 '+fmtDate(d['Phone Interview_date'])+'</div>';
           if (kbCardDisplayFields['Interview_date'] && d.Interview_date) extraLinesHtml += '<div class="kanban-card-extra">🗓 '+fmtDate(d.Interview_date)+'</div>';
-          return '<div class="kanban-card" data-idx="'+idx+'" data-stage="'+stage+'" onclick="'+clickFn+'(this)">'
+          // 用人選在試算表裡實際的列號（_row）而不是目前陣列位置（idx）來綁定卡片，
+          // 陣列位置在背景重新整理資料後可能會變動（例如有人被刪除／新增，順序位移），
+          // 若卡片還沒重畫就被點擊，用 idx 反查有可能對到完全不同的人選；_row 是穩定不變的識別碼，才不會點錯人。
+          return '<div class="kanban-card" data-row="'+d._row+'" data-stage="'+stage+'" onclick="'+clickFn+'(this)">'
             +'<div class="kanban-card-row1">'
               +'<div class="kanban-card-name">'+d.Name+'</div>'
               +'<div class="kanban-card-right">'+tagsHtml+'</div>'
@@ -868,19 +921,19 @@ function renderCandidateSearch() {
 }
 
 // ---- Modal ----
+// 直接用卡片上的 data-row（試算表列號，穩定不變）開啟編輯視窗，不要再透過陣列位置（data-idx）反查——
+// 陣列位置在背景重新整理資料後可能會變動，用它反查有可能點到別人的資料。
 function handleCardClick(el) {
-  var idx = parseInt(el.getAttribute('data-idx'));
-  var d = allData[idx];
-  if (!d) return;
-  openEditCandidateModal(d._row);
+  var row = parseInt(el.getAttribute('data-row'));
+  if (!row) return;
+  openEditCandidateModal(row);
 }
 
 // Candidate Search 專用：卡片點開後僅供查看，不能編輯
 function handleCardClickReadOnly(el) {
-  var idx = parseInt(el.getAttribute('data-idx'));
-  var d = allData[idx];
-  if (!d) return;
-  openViewCandidateModal(d._row);
+  var row = parseInt(el.getAttribute('data-row'));
+  if (!row) return;
+  openViewCandidateModal(row);
 }
 
 function renderReadOnlyField(rec, field) {
