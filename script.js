@@ -2900,7 +2900,9 @@ function buildCandCardsHtmlInternal(matched, opts) {
       '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px;">'+
         '<div style="font-size:16px;font-weight:700;">'+cand.Name+(isSelected?' <span style="font-size:11px;font-weight:600;color:var(--accent);">（已選取，將用於複製）</span>':'')+(opts.tagLabel||'')+'</div>'+
         '<div style="display:flex;gap:8px;">'+
-          '<button class="refresh-btn" style="margin-left:0;" onclick="selectCandForCopy('+cand._row+')">📌 選取以複製</button>'+
+          (isSelected
+            ? '<button class="refresh-btn" style="margin-left:0;color:var(--accent);border-color:var(--accent);" onclick="clearCandForCopy()">✕ 取消選取</button>'
+            : '<button class="refresh-btn" style="margin-left:0;" onclick="selectCandForCopy('+cand._row+')">📌 選取以複製</button>')+
           (opts.showDelete ? '<button class="refresh-btn" style="margin-left:0;color:#EF4444;border-color:#EF4444;" onclick="deleteMaintainRow('+cand._row+')">🗑️ 刪除人選資料</button>' : '')+
         '</div>'+
       '</div>'+
@@ -3781,10 +3783,23 @@ function selectCandForCopy(row) {
   var cand = allDataFull.find(function(d){ return d._row === row; });
   if (!cand) return;
   selectedCandForCopy = cand;
-  var hintText = '已選取「'+(cand.Name||'')+'」，可用「複製人選資料」套用到新增表單';
-  var hintEl1 = document.getElementById('newCandSelectedHint');
-  if (hintEl1) hintEl1.textContent = hintText;
+  renderNewCandSelectedHint();
   if (currentTab === 'maintain') renderCandQuery();
+}
+
+// 取消選取：只清掉「要複製的來源」，不會動到新增表單目前已經填的內容
+function clearCandForCopy() {
+  selectedCandForCopy = null;
+  renderNewCandSelectedHint();
+  if (currentTab === 'maintain') renderCandQuery();
+}
+
+function renderNewCandSelectedHint() {
+  var hintEl1 = document.getElementById('newCandSelectedHint');
+  if (!hintEl1) return;
+  hintEl1.innerHTML = selectedCandForCopy
+    ? '已選取「'+(selectedCandForCopy.Name||'')+'」，可用「複製人選資料」套用到新增表單　<span style="cursor:pointer;text-decoration:underline;color:var(--accent);" onclick="clearCandForCopy()">取消選取</span>'
+    : '';
 }
 
 // 把選取的人選資料套用到新增表單（Name、履歷代碼會一起複製；104_Position 與流程紀錄類欄位不複製）
@@ -3807,7 +3822,7 @@ function applyCopyToNewCandidateForm() {
 
 function clearNewCandidateForm() {
   selectedCandForCopy = null;
-  document.getElementById('newCandSelectedHint').textContent = '';
+  renderNewCandSelectedHint();
   renderNewCandidateFields();
   renderCandQuery();
 }
@@ -3837,7 +3852,7 @@ async function submitNewCandidateForm() {
     await fetch(noCacheUrl(url), {mode:'no-cors', cache:'no-store'});
     await fetchData();
     selectedCandForCopy = null;
-    document.getElementById('newCandSelectedHint').textContent = '';
+    renderNewCandSelectedHint();
     renderNewCandidateFields();
     renderCandQuery();
     showToast('✓ 已新增人選資料');
