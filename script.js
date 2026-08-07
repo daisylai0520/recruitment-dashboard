@@ -565,7 +565,12 @@ async function ensureResourceLoaded(resource) {
 async function fetchData() {
   setSyncStatus('loading', '資料載入中...');
   try {
-    var tasks = [fetchCoreData()];
+    // 跟這個函式的原意一致：只重新抓「目前已經載入過」的資源。之前不管有沒有載入過 core，
+    // 都一定會放進 tasks 裡，導致「快速查看」Headcount／Market Salary Records（本來就沒載入過 core）
+    // 每次背景重新整理都會多抓一份根本用不到、且比較容易偶爾失敗的 Candidate Records 資料，
+    // 一失敗就連累原本已經顯示正常的畫面跳出錯誤訊息。
+    var tasks = [];
+    if (loadedResources.core) tasks.push(fetchCoreData());
     if (loadedResources.headcount) tasks.push(fetchHeadcountData());
     if (loadedResources.salary) tasks.push(fetchSalaryData());
     if (loadedResources.scheduling) tasks.push(fetchSchedulingData());
@@ -670,13 +675,23 @@ function enterAs(roleToken, hrName, units) {
   tabHistoryIndex = 0;
   initTabHistoryNav();
 
-  fetchCoreData().then(function(){
-    if (!isAdmin && currentHRUnits && !currentHRUnits.length) {
-      showToast('⚠️ 你目前尚未被指派任何單位，請聯繫管理者設定權限');
-    }
-    var resources = TAB_RESOURCES[currentTab] || ['core'];
-    return Promise.all(resources.filter(function(r){return r!=='core';}).map(ensureResourceLoaded));
-  }).then(function(){
+  // 「快速查看」進去的畫面（目前只有 Headcount／Market Salary Records）其實用不到 Candidate Records 這份
+  // 核心資料，之前不管進哪個畫面都一定先抓 fetchCoreData()，這份資料量最大、也最容易偶爾抓取失敗，
+  // 一旦失敗就會連累 Headcount／Salary 這種完全用不到它的畫面也一起顯示「沒資料」。
+  // 這裡改成：只有目前這個分頁真的需要 core 資料時才去抓，不需要的話（例如 hc／salary）就跳過，
+  // 直接抓該分頁自己需要的資源，避免被不相關的資料拖累。
+  var resources = TAB_RESOURCES[currentTab] || ['core'];
+  var needsCore = resources.indexOf('core') >= 0;
+  var loadPromise = needsCore
+    ? fetchCoreData().then(function(){
+        if (!isAdmin && currentHRUnits && !currentHRUnits.length) {
+          showToast('⚠️ 你目前尚未被指派任何單位，請聯繫管理者設定權限');
+        }
+        return Promise.all(resources.filter(function(r){return r!=='core';}).map(ensureResourceLoaded));
+      })
+    : Promise.all(resources.map(ensureResourceLoaded));
+
+  loadPromise.then(function(){
     var now=new Date();
     setSyncStatus('ok', '已同步 '+String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0'));
     initDateFilterSlots();
