@@ -2959,7 +2959,7 @@ function renderQueryField(sheetName, rec, field, idx, fullWidth, strictDateForma
   var wrapStyle = fullWidth === 'span2' ? 'grid-column:span 2;' : fullWidth ? 'grid-column:1/-1;' : '';
   var isPhoneRecordField = /phone\s*interview\s*record/i.test(field);
   var isMemoField = field === 'Memo';
-  var isLongTextField = isMemoField || isPhoneRecordField;
+  var isLongTextField = isPhoneRecordField;
 
   var inputHtml;
   if (dropdowns[field]) {
@@ -2975,6 +2975,16 @@ function renderQueryField(sheetName, rec, field, idx, fullWidth, strictDateForma
     // 日期欄位（invite_date／Phone Interview_date／Interview_date／Result Update_date／Onboard date）：
     // 點擊欄位或月曆圖示可直接跳出小月曆點選日期，選完自動存檔；欄位本身仍可手動輸入或補打時間文字。
     inputHtml = buildDateFieldInput(sheetName, rec, field, col, idx, displayVal, rawSafe);
+  } else if (isMemoField) {
+    // Memo 一開始不直接顯示內容（避免有人直接改，繞過「新增Memo」的自動日期記錄），只留標題；
+    // 點「👁 查看備註」才展開看到過去所有內容（唯讀，不能直接改），新增一律走「➕ 新增Memo」跳出的小視窗，
+    // 送出後會自動在最上面補一行「日期：內容」。
+    var memoEscaped = String(rawVal||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    inputHtml = '<div style="display:flex;gap:8px;flex-wrap:wrap;">'+
+        '<button type="button" onmousedown="event.preventDefault()" id="memoToggleBtn_'+rec._row+'" onclick="toggleMemoView('+rec._row+')" style="font-size:11px;padding:3px 8px;border:1px solid var(--border);border-radius:6px;background:var(--surface);cursor:pointer;color:var(--text-secondary);">👁 查看備註</button>'+
+        '<button type="button" onmousedown="event.preventDefault()" onclick="openAddMemoModal('+rec._row+','+idx+')" style="font-size:11px;padding:3px 8px;border:1px solid var(--border);border-radius:6px;background:var(--surface);cursor:pointer;color:var(--text-secondary);">➕ 新增Memo</button>'+
+      '</div>'+
+      '<div id="memoView_'+rec._row+'" data-sheet="'+sheetName+'" data-row="'+rec._row+'" data-field="Memo" style="display:none;margin-top:6px;font-size:13px;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;background:var(--bg);white-space:pre-wrap;word-break:break-word;min-height:18px;">'+(memoEscaped||'（尚無備註）')+'</div>';
   } else if (isLongTextField) {
     var taUid = 'ta_' + (_dlIdCounter++);
     // Phone Interview Record(HR)／(主管) 欄位內容常常越記越長，不要跟著內容自動一直長高（像 Memo 那樣），
@@ -2990,10 +3000,6 @@ function renderQueryField(sheetName, rec, field, idx, fullWidth, strictDateForma
         '<button type="button" onmousedown="event.preventDefault()" onclick="undoTextField(\''+taUid+'\')">↶ 上一步</button>'+
         '<button type="button" onmousedown="event.preventDefault()" onclick="redoTextField(\''+taUid+'\')">↷ 下一步</button>'+
       '</div>';
-    } else if (isMemoField) {
-      // 「新增備註」：不直接編輯這個大欄位，而是跳出小視窗輸入新內容，送出後自動在最上面加一行「日期：內容」，
-      // 舊的備註原封不動保留在下面；欄位本身仍可直接點進去手動編輯／刪改。
-      inputHtml += '<div style="margin-top:4px;"><button type="button" onmousedown="event.preventDefault()" onclick="openAddMemoModal('+rec._row+','+idx+')" style="font-size:11px;padding:3px 8px;border:1px solid var(--border);border-radius:6px;background:var(--surface);cursor:pointer;color:var(--text-secondary);">➕ 新增備註</button></div>';
     }
   } else {
     inputHtml = '<textarea data-sheet="'+sheetName+'" data-row="'+rec._row+'" data-col="'+col+'" data-field="'+field+'" data-idx="'+idx+'" data-raw="'+rawSafe+'" '+
@@ -3315,15 +3321,28 @@ async function submitAddMemo() {
   closeAddMemoModal();
   var ok = await saveMaintainField('Candidate Records', row, col, 'Memo', idx, newMemo);
   if (ok) {
-    // saveMaintainField 只會更新記憶體跟 Update_date 顯示，畫面上這個 Memo 欄位本身的內容要自己補上最新值。
-    var memoEl = document.querySelector('[data-sheet="Candidate Records"][data-row="'+row+'"][data-field="Memo"]');
+    // saveMaintainField 只會更新記憶體跟 Update_date 顯示，畫面上這個唯讀檢視框的內容要自己補上最新值，
+    // 並且新增完自動展開，讓使用者能立刻看到剛新增的這一筆。
+    var memoEl = document.getElementById('memoView_' + row);
     if (memoEl) {
-      memoEl.value = newMemo;
-      memoEl.setAttribute('data-raw', newMemo);
-      memoEl.dataset.original = newMemo;
-      autoGrowTextarea(memoEl);
+      memoEl.innerHTML = newMemo.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     }
+    memoViewOpenState[row] = true;
+    if (memoEl) memoEl.style.display = 'block';
+    var toggleBtn = document.getElementById('memoToggleBtn_' + row);
+    if (toggleBtn) toggleBtn.textContent = '🙈 隱藏備註';
+    showToast('✓ 已新增備註');
   }
+}
+
+// Memo 預設收合，點「👁 查看備註」才展開唯讀內容；不同人選卡片各自記住展開/收合狀態。
+var memoViewOpenState = {};
+function toggleMemoView(row) {
+  memoViewOpenState[row] = !memoViewOpenState[row];
+  var el = document.getElementById('memoView_' + row);
+  if (el) el.style.display = memoViewOpenState[row] ? 'block' : 'none';
+  var btn = document.getElementById('memoToggleBtn_' + row);
+  if (btn) btn.textContent = memoViewOpenState[row] ? '🙈 隱藏備註' : '👁 查看備註';
 }
 
 async function saveMaintainField(sheet, row, col, field, idx, newVal) {
