@@ -999,7 +999,9 @@ function renderReadOnlyField(rec, field) {
 function openViewCandidateModal(row) {
   var cand = allData.find(function(d){ return d._row === row; });
   if (!cand) { showToast('找不到這位人選的資料'); return; }
-  var candHeaders = filterCandHeadersForRole(maintainHeaders['Candidate Records'] || Object.keys(cand).filter(function(k){return k!=='_row';}));
+  // Memo Update_date 是系統自動記錄用的欄位，所有畫面都不需要顯示，這裡跟其他查詢／編輯畫面一樣濾掉。
+  var candHeaders = filterCandHeadersForRole(maintainHeaders['Candidate Records'] || Object.keys(cand).filter(function(k){return k!=='_row';}))
+    .filter(function(h){ return h !== 'Memo Update_date'; });
   document.getElementById('viewCandModalName').textContent = cand.Name || '人選資料';
   document.getElementById('viewCandModalFields').innerHTML = candHeaders.map(function(h){
     return renderReadOnlyField(cand, h);
