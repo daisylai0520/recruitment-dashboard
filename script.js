@@ -88,6 +88,31 @@ function buildMultiValueOptions(records, getValue) {
   return [...set].sort();
 }
 
+// 「單位」篩選勾選後，「Job Function」篩選的可選項目要自動限縮成該單位實際有的職缺類型，
+// 不用額外開一張工作表維護對照表——「Manager Information」工作表本來就是「單位＋Job Function＋Name」
+// 一個主管一列的名冊，直接從這裡統計「某單位底下曾出現過哪些 Job Function」即可。
+// selectedUnits 不限制（undefined／全選）時回傳全部曾出現過的 Job Function，不做限制。
+function getJobFunctionsForUnits(selectedUnits) {
+  var restrict = selectedUnits && selectedUnits.size > 0;
+  var set = new Set();
+  managerInfoData.forEach(function(m){
+    if (restrict && !selectedUnits.has(String(m.BU || '').trim())) return;
+    splitMultiValue(m.JobFunction).forEach(function(v){ if (v) set.add(v); });
+  });
+  return [...set].sort();
+}
+
+// 各畫面共用：算出「單位」篩選目前該用哪一份 Job Function 選項清單。
+// 「單位」還沒被限縮（尚未勾選 / 全選）時，維持原本行為，選項來自目前這份資料實際出現過的 Job Function；
+// 一旦使用者縮小了單位範圍，才改用 Manager Information 對照表限縮 Job Function 選項。
+function jobFunctionOptionsForBuFilter(buFilterId, fallbackRecords) {
+  var buState = multiFilterState[buFilterId];
+  if (buState && isMultiFilterNarrowed(buFilterId)) {
+    return getJobFunctionsForUnits(buState.selected);
+  }
+  return buildMultiValueOptions(fallbackRecords, function(d){ return d['Job Function']; });
+}
+
 // Candidate 畫面的時間篩選：使用者按過「清除」（或手動把日期都清空）之後，就不要再自動幫忙補「本週」，
 // 直到他自己又設定了一個新的時間範圍為止。切換身分／重新登入時會重設。
 var candMaintenanceDateCleared = false;
@@ -888,7 +913,7 @@ function renderKanban() {
 
   var kbBuOptions = [...new Set(allData.map(function(d){return String(d['單位']||'').trim();}))].filter(Boolean).sort();
   renderMultiFilterBar('kbBuBar', 'kb-bu', kbBuOptions);
-  var kbJobOptions = buildMultiValueOptions(allData, function(d){return d['Job Function'];});
+  var kbJobOptions = jobFunctionOptionsForBuFilter('kb-bu', allData);
   renderMultiFilterBar('kbJobBar', 'kb-job', kbJobOptions);
   renderKbCardFieldsDropdown();
 
@@ -1080,7 +1105,7 @@ function renderOverview() {
 
   var ovBuOptions = [...new Set(allData.map(function(d){return String(d['單位']||'').trim();}))].filter(Boolean).sort();
   renderMultiFilterBar('ovBuBar', 'ov-bu', ovBuOptions);
-  var ovJobOptions = buildMultiValueOptions(allData, function(d){return d['Job Function'];});
+  var ovJobOptions = jobFunctionOptionsForBuFilter('ov-bu', allData);
   renderMultiFilterBar('ovJobBar', 'ov-job', ovJobOptions);
 
   var filtered=allData.filter(function(d){
@@ -2409,7 +2434,7 @@ function renderTrendHcChart() {
 function renderTrends() {
   var trBuOptions = [...new Set(allData.map(function(d){return String(d['單位']||'').trim();}))].filter(Boolean).sort();
   renderMultiFilterBar('trBuBar', 'tr-bu', trBuOptions);
-  var trJobOptions = buildMultiValueOptions(allData, function(d){return d['Job Function'];});
+  var trJobOptions = jobFunctionOptionsForBuFilter('tr-bu', allData);
   renderMultiFilterBar('trJobBar', 'tr-job', trJobOptions);
   renderMultiFilterDropdown('trResultBar', 'tr-result', getResultOptions(), '目前狀態');
 
@@ -2813,7 +2838,7 @@ function renderCandQuery() {
 
   var candBuOptions = [...new Set(allData.map(function(d){return String(d['單位']||'').trim();}))].filter(Boolean).sort();
   renderMultiFilterBar('candBuBar', 'cand-bu', candBuOptions);
-  var candJobOptions = buildMultiValueOptions(allData, function(d){return d['Job Function'];});
+  var candJobOptions = jobFunctionOptionsForBuFilter('cand-bu', allData);
   renderMultiFilterBar('candJobBar', 'cand-job', candJobOptions);
   renderMultiFilterDropdown('candResultBar', 'cand-result', getActualResultOptions(), '目前狀態');
   var candInviterOptions = [...new Set(allData.flatMap(function(d){return String(d.Inviter||'').split('、').map(function(s){return s.trim();});}))].filter(Boolean).sort();
@@ -4505,7 +4530,7 @@ function closeExportCandModal() {
 function renderExportModalFilters() {
   var buOptions = [...new Set(allData.map(function(d){return String(d['單位']||'').trim();}))].filter(Boolean).sort();
   renderMultiFilterBar('expBuBar', 'exp-bu', buOptions);
-  var jobOptions = buildMultiValueOptions(allData, function(d){return d['Job Function'];});
+  var jobOptions = jobFunctionOptionsForBuFilter('exp-bu', allData);
   renderMultiFilterBar('expJobBar', 'exp-job', jobOptions);
   var inviterOptions = [...new Set(allData.flatMap(function(d){return String(d.Inviter||'').split('、').map(function(s){return s.trim();});}))].filter(Boolean).sort();
   renderMultiFilterDropdown('expInviterBar', 'exp-inviter', inviterOptions, 'Inviter');
