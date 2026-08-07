@@ -1171,7 +1171,7 @@ function filterCandHeadersForRole(headers) {
 // 人選資料維護與查詢畫面專用：這兩個是系統自動寫入的排程紀錄欄位（填 Phone Interview_date／Interview_date 時會自動同步），
 // 只是不需要在這個畫面顯示，後端 onEdit／editCell 的自動更新邏輯完全不受影響，資料還是照樣會被寫入試算表；
 // Candidate Overview 的看板卡片／檢視編輯彈窗不受影響，一樣會顯示。
-var MAINTAIN_QUERY_HIDDEN_FIELDS = ['Phone Interview Scheduled', 'Interview Scheduled', 'Hired date', '離職原因', '工作/實習&過往經驗', '求職狀態', '現有待遇', '期望待遇', '其他資訊', 'HR Comment'];
+var MAINTAIN_QUERY_HIDDEN_FIELDS = ['Phone Interview Scheduled', 'Interview Scheduled', 'Hired date', 'Memo Update_date', '離職原因', '工作/實習&過往經驗', '求職狀態', '現有待遇', '期望待遇', '其他資訊', 'HR Comment'];
 function filterCandHeadersForMaintenance(headers) {
   return filterCandHeadersForRole(headers).filter(function(h){ return MAINTAIN_QUERY_HIDDEN_FIELDS.indexOf(h) < 0; });
 }
