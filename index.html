@@ -581,6 +581,22 @@
   </div>
 </div>
 
+<!-- ADD MEMO MODAL：新增一筆備註，會自動加一行「日期：內容」到 Memo 欄位最上面，不會蓋掉舊的備註 -->
+<div id="addMemoModal" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeAddMemoModal()">
+  <div class="modal" style="max-width:440px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+      <div class="modal-title" style="margin-bottom:0;">新增備註</div>
+      <span style="cursor:pointer;font-size:18px;color:var(--text-tertiary);" onclick="closeAddMemoModal()">✕</span>
+    </div>
+    <div class="modal-sub" style="margin-bottom:10px;">會自動加上今天的日期，附加在 Memo 最上面，不會蓋掉之前的備註內容</div>
+    <textarea id="addMemoInput" rows="4" style="width:100%;font-size:13px;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;box-sizing:border-box;font-family:inherit;resize:vertical;" placeholder="輸入這筆備註內容..."></textarea>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px;">
+      <button class="refresh-btn" onclick="closeAddMemoModal()">取消</button>
+      <button class="refresh-btn" style="color:var(--accent);border-color:var(--accent);" onclick="submitAddMemo()">確定新增</button>
+    </div>
+  </div>
+</div>
+
 <!-- SCHEDULE MODAL -->
 <div id="scheduleModal" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeScheduleModal()">
   <div class="modal">

@@ -1059,7 +1059,7 @@ function openEditCandidateModal(row) {
       }
       return renderQueryField('Candidate Records', cand, h, idx, true, true);
     }
-    var isFullWidth = h.indexOf('Memo') >= 0;
+    var isFullWidth = h === 'Memo';
     var isWide = h === '104_Position';
     return renderQueryField('Candidate Records', cand, h, idx, isFullWidth ? true : (isWide ? 'span2' : false), true);
   }).join('');
@@ -2692,8 +2692,8 @@ function saveLastUsedHR(name) {
   try { if (name) localStorage.setItem(LAST_HR_STORAGE_KEY, name); } catch(e) {}
 }
 
-var MAINTAIN_DATE_FIELDS = ['invite_date','invite date','Phone Interview_date','Interview_date','Phone Interview Scheduled','Interview Scheduled','Result Update_date','Update_date','Update date','Onboard date','Hired date'];
-var MAINTAIN_DATEONLY_FIELDS = ['invite_date','invite date','Phone Interview Scheduled','Interview Scheduled','Result Update_date','Update_date','Update date','Onboard date','Requisition Date','Hired date'];
+var MAINTAIN_DATE_FIELDS = ['invite_date','invite date','Phone Interview_date','Interview_date','Phone Interview Scheduled','Interview Scheduled','Result Update_date','Memo Update_date','Update_date','Update date','Onboard date','Hired date'];
+var MAINTAIN_DATEONLY_FIELDS = ['invite_date','invite date','Phone Interview Scheduled','Interview Scheduled','Result Update_date','Memo Update_date','Update_date','Update date','Onboard date','Requisition Date','Hired date'];
 var SCHEDULED_DATE_FIELD_MAP = {
   'Phone Interview_date': 'Phone Interview Scheduled',
   'Interview_date': 'Interview Scheduled'
@@ -2925,7 +2925,8 @@ function buildCandCardsHtmlInternal(matched, opts) {
         return renderQueryField('Candidate Records', cand, h, idx, true, true);
       }
       // 採緊湊欄寬，僅職缺名稱保留稍大空間；Memo 欄位改成跟下面「新增人選資料」一樣的全寬
-      var isFullWidth = h.indexOf('Memo') >= 0;
+      // （Memo Update_date 是獨立的日期欄位，維持一般欄寬即可，不用跟著 Memo 全寬）
+      var isFullWidth = h === 'Memo';
       var isWide = h === '104_Position';
       // 時間欄位一律統一顯示成 YYYY/MM/DD HH:MM
       return renderQueryField('Candidate Records', cand, h, idx, isFullWidth ? true : (isWide ? 'span2' : false), true);
@@ -2957,7 +2958,8 @@ function renderQueryField(sheetName, rec, field, idx, fullWidth, strictDateForma
   var rawSafe = String(rawVal||'').replace(/"/g,'&quot;');
   var wrapStyle = fullWidth === 'span2' ? 'grid-column:span 2;' : fullWidth ? 'grid-column:1/-1;' : '';
   var isPhoneRecordField = /phone\s*interview\s*record/i.test(field);
-  var isLongTextField = field.indexOf('Memo') >= 0 || isPhoneRecordField;
+  var isMemoField = field === 'Memo';
+  var isLongTextField = isMemoField || isPhoneRecordField;
 
   var inputHtml;
   if (dropdowns[field]) {
@@ -2988,6 +2990,10 @@ function renderQueryField(sheetName, rec, field, idx, fullWidth, strictDateForma
         '<button type="button" onmousedown="event.preventDefault()" onclick="undoTextField(\''+taUid+'\')">↶ 上一步</button>'+
         '<button type="button" onmousedown="event.preventDefault()" onclick="redoTextField(\''+taUid+'\')">↷ 下一步</button>'+
       '</div>';
+    } else if (isMemoField) {
+      // 「新增備註」：不直接編輯這個大欄位，而是跳出小視窗輸入新內容，送出後自動在最上面加一行「日期：內容」，
+      // 舊的備註原封不動保留在下面；欄位本身仍可直接點進去手動編輯／刪改。
+      inputHtml += '<div style="margin-top:4px;"><button type="button" onmousedown="event.preventDefault()" onclick="openAddMemoModal('+rec._row+','+idx+')" style="font-size:11px;padding:3px 8px;border:1px solid var(--border);border-radius:6px;background:var(--surface);cursor:pointer;color:var(--text-secondary);">➕ 新增備註</button></div>';
     }
   } else {
     inputHtml = '<textarea data-sheet="'+sheetName+'" data-row="'+rec._row+'" data-col="'+col+'" data-field="'+field+'" data-idx="'+idx+'" data-raw="'+rawSafe+'" '+
@@ -3263,6 +3269,63 @@ function enterMaintainEdit(el) {
   sel.addRange(range);
 }
 
+// 本地（畫面上）同步帶出某個 Update_date 欄位為今天，跟後端寫回試算表的日期保持一致，
+// 使用者不用重新整理就能立刻看到最新的更新日期。
+function applyLocalUpdateDateStamp(sheet, row, rec, updateFieldName) {
+  var todayStr = getTodayDateStr();
+  rec[updateFieldName] = todayStr;
+  rememberRecentEdit(sheet, row, updateFieldName, todayStr);
+  var updEl = document.querySelector('[data-sheet="'+sheet+'"][data-row="'+row+'"][data-field="'+updateFieldName+'"]');
+  if (updEl) {
+    updEl.setAttribute('data-raw', todayStr);
+    if (updEl.tagName === 'SELECT' || updEl.tagName === 'INPUT' || updEl.tagName === 'TEXTAREA') updEl.value = todayStr;
+    else updEl.textContent = fmtDateOnly(todayStr);
+  }
+}
+
+// ===== Memo 新增備註：不覆蓋整個 Memo 欄位，而是在最上面加一行「日期：內容」，舊備註保留在下面 =====
+var _addMemoState = null;
+function openAddMemoModal(row, idx) {
+  _addMemoState = { row: row, idx: idx };
+  var ta = document.getElementById('addMemoInput');
+  if (ta) ta.value = '';
+  document.getElementById('addMemoModal').style.display = 'flex';
+  setTimeout(function(){ if (ta) ta.focus(); }, 0);
+}
+function closeAddMemoModal() {
+  document.getElementById('addMemoModal').style.display = 'none';
+  _addMemoState = null;
+}
+async function submitAddMemo() {
+  if (!_addMemoState) return;
+  var row = _addMemoState.row, idx = _addMemoState.idx;
+  var ta = document.getElementById('addMemoInput');
+  var text = (ta ? ta.value : '').trim();
+  if (!text) { showToast('請輸入備註內容'); return; }
+  // 跟其他欄位編輯一樣，idx 對不上時（例如跨單位搜尋結果）改用 _row 去 allDataFull 找同一筆資料，確保保險。
+  var rec = allData[idx];
+  if (!rec || String(rec._row) !== String(row)) {
+    rec = allDataFull.find(function(d){ return String(d._row) === String(row); });
+  }
+  if (!rec) { showToast('找不到這位人選的資料'); return; }
+  var newEntry = getTodayDateStr() + '：' + text;
+  var oldMemo = String(rec.Memo || '').trim();
+  var newMemo = oldMemo ? (newEntry + '\n' + oldMemo) : newEntry;
+  var col = (maintainHeaders['Candidate Records'] || Object.keys(rec)).indexOf('Memo') + 1;
+  closeAddMemoModal();
+  var ok = await saveMaintainField('Candidate Records', row, col, 'Memo', idx, newMemo);
+  if (ok) {
+    // saveMaintainField 只會更新記憶體跟 Update_date 顯示，畫面上這個 Memo 欄位本身的內容要自己補上最新值。
+    var memoEl = document.querySelector('[data-sheet="Candidate Records"][data-row="'+row+'"][data-field="Memo"]');
+    if (memoEl) {
+      memoEl.value = newMemo;
+      memoEl.setAttribute('data-raw', newMemo);
+      memoEl.dataset.original = newMemo;
+      autoGrowTextarea(memoEl);
+    }
+  }
+}
+
 async function saveMaintainField(sheet, row, col, field, idx, newVal) {
   document.getElementById('maintainStatus') && (document.getElementById('maintainStatus').textContent = '儲存中...');
   try {
@@ -3280,18 +3343,15 @@ async function saveMaintainField(sheet, row, col, field, idx, newVal) {
     if (rec) {
       rec[field] = newVal;
       rememberRecentEdit(sheet, row, field, newVal); // 短時間內保護剛存的值，避免背景自動同步把它蓋回舊的
-      // 跟後端一致：Candidate Records / Market Salary Records 只要有任何欄位被改動，畫面上也立即帶出今天的更新日期
-      var updateFieldName = sheet === 'Candidate Records' ? 'Result Update_date' : (sheet === 'Market Salary Records' ? 'Update date' : null);
-      if (updateFieldName && field !== updateFieldName) {
-        var todayStr = getTodayDateStr();
-        rec[updateFieldName] = todayStr;
-        rememberRecentEdit(sheet, row, updateFieldName, todayStr);
-        var updEl = document.querySelector('[data-sheet="'+sheet+'"][data-row="'+row+'"][data-field="'+updateFieldName+'"]');
-        if (updEl) {
-          updEl.setAttribute('data-raw', todayStr);
-          if (updEl.tagName === 'SELECT' || updEl.tagName === 'INPUT' || updEl.tagName === 'TEXTAREA') updEl.value = todayStr;
-          else updEl.textContent = fmtDateOnly(todayStr);
-        }
+      // Market Salary Records：維持原本行為，只要有任何欄位被改動，畫面上也立即帶出今天的更新日期。
+      // Candidate Records：改成只有 Result／Memo 欄位「本身」被改動時，才更新對應的 Result Update_date／Memo Update_date，
+      // 跟後端 stampResultUpdateDate_／stampMemoUpdateDate_ 的邏輯一致，不再是任何欄位改動都更新。
+      if (sheet === 'Market Salary Records' && field !== 'Update date') {
+        applyLocalUpdateDateStamp(sheet, row, rec, 'Update date');
+      } else if (sheet === 'Candidate Records' && field === 'Result') {
+        applyLocalUpdateDateStamp(sheet, row, rec, 'Result Update_date');
+      } else if (sheet === 'Candidate Records' && field === 'Memo') {
+        applyLocalUpdateDateStamp(sheet, row, rec, 'Memo Update_date');
       }
       // 更新面試日期時，同步帶入該次排程的更新日期；Apps Script 也會寫入試算表，
       // 此處同時更新記憶體資料與畫面，使用者不需要重新整理。
@@ -3459,7 +3519,7 @@ function getTodayDateStr() {
 }
 
 // 複製人選資料時，這些欄位需清空（流程紀錄類欄位／104_Position 依需求不複製）；Name、履歷代碼會一起複製
-var COPY_CLEAR_FIELDS = ['Phone Interview_date','Interview_date','Result','Result Update_date','Update_date','Update date','Onboard date','Memo','Phone Interview Scheduled','Interview Scheduled','Hired date'];
+var COPY_CLEAR_FIELDS = ['Phone Interview_date','Interview_date','Result','Result Update_date','Update_date','Update date','Onboard date','Memo','Memo Update_date','Phone Interview Scheduled','Interview Scheduled','Hired date'];
 
 var selectedCandForCopy = null;
 
@@ -3623,7 +3683,7 @@ function renderNewCandidateFields() {
     var isRequired = requiredFields.indexOf(h) >= 0;
     var label = h + (isRequired ? ' <span style="color:#EF4444;">*</span>' : '');
     var isInviteDate = (h === 'invite_date' || h === 'invite date');
-    var isMemo = h.indexOf('Memo') >= 0;
+    var isMemo = h === 'Memo'; // 精準比對，避免連 Memo Update_date 也被當成長文字欄位處理
     var isPhoneRecord = isPhoneRecordFieldName(h);
     var isMultilineField = isMemo || isPhoneRecord;
     var isHRComment = /^hr\s*comment$/i.test(h.trim());
