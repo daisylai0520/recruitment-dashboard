@@ -12,6 +12,28 @@ function noCacheUrl(url) {
   return url + (url.indexOf('?') >= 0 ? '&' : '?') + '_cb=' + Date.now() + Math.random().toString(36).slice(2);
 }
 
+// 即使已經避開了轉址快取問題，Apps Script 本身偶爾還是會因為執行逾時、同時執行數量限制等
+// 暫時性狀況回應失敗，這類狀況通常「重試一次馬上就會成功」。這裡統一做「自動重試」：
+// 失敗時稍等一下再試（最多重試 2 次，等待時間逐次拉長），三次都失敗才真的顯示錯誤，
+// 這樣「時不時」跳出的 404／連線失敗訊息，大多能在使用者沒察覺的情況下自動恢復。
+async function fetchJsonWithRetry(urlBuilder, options, retries) {
+  var attempts = (retries === undefined) ? 2 : retries;
+  var lastErr;
+  for (var i = 0; i <= attempts; i++) {
+    try {
+      var res = await fetch(urlBuilder(), options);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      return await res.json();
+    } catch (e) {
+      lastErr = e;
+      if (i < attempts) {
+        await new Promise(function (r) { setTimeout(r, 500 * (i + 1)); });
+      }
+    }
+  }
+  throw lastErr;
+}
+
 var userRole = null;
 var allData=[], salaryData=[], scheduleData=[], managerDirectoryData=[], managerInfoData=[], resultOptions=[], positionOptions=[];
 // 「分類Result」工作表的 階段／分類1／分類2／Result 對照，人選進度統計樹狀圖依這個動態分組顯示
@@ -376,9 +398,7 @@ function applyCoreData(json) {
   loadedResources.core = true;
 }
 async function fetchCoreData() {
-  var res = await fetch(noCacheUrl(APPS_SCRIPT_URL + '?action=getCoreData'), {cache:'no-store'});
-  if (!res.ok) throw new Error('HTTP '+res.status);
-  var json = await res.json();
+  var json = await fetchJsonWithRetry(function(){ return noCacheUrl(APPS_SCRIPT_URL + '?action=getCoreData'); }, {cache:'no-store'});
   cacheSet('core', json);
   applyCoreData(json);
 }
@@ -386,9 +406,7 @@ async function fetchCoreData() {
 // ---- 身分選擇畫面：一開始就抓 HR 名冊 + 單位對應表，用來畫出「我是 XXX」的按鈕 ----
 async function fetchIdentityData() {
   try {
-    var res = await fetch(noCacheUrl(APPS_SCRIPT_URL + '?action=getIdentityData'), {cache:'no-store'});
-    if (!res.ok) throw new Error('HTTP '+res.status);
-    var json = await res.json();
+    var json = await fetchJsonWithRetry(function(){ return noCacheUrl(APPS_SCRIPT_URL + '?action=getIdentityData'); }, {cache:'no-store'});
     hrDirectoryData = (json.hrDirectory||[]).filter(function(d){return d['HR姓名'];});
     unitHrMappingData = (json.unitHrMapping||[]).filter(function(d){return d['單位']||d['負責HR'];});
     renderRoleScreenIdentities();
@@ -444,9 +462,7 @@ function applyHeadcountData(json) {
   loadedResources.headcount = true;
 }
 async function fetchHeadcountData() {
-  var res = await fetch(noCacheUrl(APPS_SCRIPT_URL + '?action=getHeadcountData'), {cache:'no-store'});
-  if (!res.ok) throw new Error('HTTP '+res.status);
-  var json = await res.json();
+  var json = await fetchJsonWithRetry(function(){ return noCacheUrl(APPS_SCRIPT_URL + '?action=getHeadcountData'); }, {cache:'no-store'});
   cacheSet('headcount', json);
   applyHeadcountData(json);
 }
@@ -458,9 +474,7 @@ function applySalaryData(json) {
   loadedResources.salary = true;
 }
 async function fetchSalaryData() {
-  var res = await fetch(noCacheUrl(APPS_SCRIPT_URL + '?action=getSalaryData'), {cache:'no-store'});
-  if (!res.ok) throw new Error('HTTP '+res.status);
-  var json = await res.json();
+  var json = await fetchJsonWithRetry(function(){ return noCacheUrl(APPS_SCRIPT_URL + '?action=getSalaryData'); }, {cache:'no-store'});
   cacheSet('salary', json);
   applySalaryData(json);
 }
@@ -471,9 +485,7 @@ function applySchedulingData(json) {
   loadedResources.scheduling = true;
 }
 async function fetchSchedulingData() {
-  var res = await fetch(noCacheUrl(APPS_SCRIPT_URL + '?action=getSchedulingData'), {cache:'no-store'});
-  if (!res.ok) throw new Error('HTTP '+res.status);
-  var json = await res.json();
+  var json = await fetchJsonWithRetry(function(){ return noCacheUrl(APPS_SCRIPT_URL + '?action=getSchedulingData'); }, {cache:'no-store'});
   cacheSet('scheduling', json);
   applySchedulingData(json);
 }
@@ -487,9 +499,7 @@ function applyPermissionData(json) {
   loadedResources.permissions = true;
 }
 async function fetchPermissionData() {
-  var res = await fetch(noCacheUrl(APPS_SCRIPT_URL + '?action=getPermissionData'), {cache:'no-store'});
-  if (!res.ok) throw new Error('HTTP '+res.status);
-  var json = await res.json();
+  var json = await fetchJsonWithRetry(function(){ return noCacheUrl(APPS_SCRIPT_URL + '?action=getPermissionData'); }, {cache:'no-store'});
   cacheSet('permissions', json);
   applyPermissionData(json);
 }
