@@ -370,10 +370,15 @@ function jfClass(jf) {
   return '';
 }
 
-function showToast(msg) {
+// persistent=true 時不會自動消失（用在「儲存中...」這類要一直顯示到真正完成才能換成下一則訊息的情況），
+// 避免網路比較慢、或遇到需要重試的狀況時，提示訊息在動作真正完成前就先自動消失，讓人誤以為存好了或沒在動作。
+function showToast(msg, persistent) {
   var t=document.getElementById('toast');
+  clearTimeout(t._hideTimer);
   t.textContent=msg; t.classList.add('show');
-  setTimeout(function(){t.classList.remove('show');},2500);
+  if (!persistent) {
+    t._hideTimer = setTimeout(function(){t.classList.remove('show');},2500);
+  }
 }
 
 // ---- fetch ----
@@ -1098,7 +1103,7 @@ async function changeStage(newStage) {
   // 先儲存再關 modal，避免 selectedCard 被清空
   var card = {row:selectedCard.row, name:selectedCard.name};
   closeModal();
-  showToast('更新中...');
+  showToast('更新中...', true);
   try {
     var payload = {row:card.row, result:newStage};
     console.log('Sending:', JSON.stringify(payload));
@@ -1677,6 +1682,9 @@ async function commitMaintainCellTA(el) {
 // 資料來源：自動從 Apps Script 回傳的 headcount 陣列載入（doGet 已包含 Headcount Records 分頁）
 var hcRawData = [];
 var hcViewMode = 'current'; // 'current' = 目前缺額, 'past' = 過往 Headcount（已補實）
+// 目前在哪個 Division 卡片裡打開「新增 Headcount」的表格內新增列（Excel 那種直接多一列的方式，不跳出視窗）；
+// null 代表目前沒有任何卡片在新增中。同時間只會有一個卡片在新增，避免畫面太亂。
+var hcInlineAddDivision = null;
 
 function switchHcView(mode) {
   hcViewMode = mode;
@@ -1706,6 +1714,8 @@ function renderHeadcount() {
   // 「過往 Headcount」的判斷要用「遞補人員職等」（遞補人員本身的職等），不是原職缺的「職等」欄位
   var gradeKey = Object.keys(hcRawData[0]).find(function(k){return k.trim()==='遞補人員職等';}) || (Object.keys(hcRawData[0]).find(function(k){return k.includes('遞補') && k.includes('職等');})) || '遞補人員職等';
   var succKey = Object.keys(hcRawData[0]).find(function(k){return k.includes('Successor')||k.trim()==='遞補人員';}) || 'Successor';
+  var deptKey = Object.keys(hcRawData[0]).find(function(k){return k.trim()==='Department';}) || 'Department';
+  var sectionKey = Object.keys(hcRawData[0]).find(function(k){return k.trim()==='Section';}) || 'Section';
 
   // 表格顯示欄位：跟「Headcount Records」工作表保持一致，不再寫死清單，工作表增減/改名欄位這裡會自動跟著變。
   // Division／Job Function 已經是卡片分組依據（上面的單位標題／職稱區塊），這裡不重複顯示；PS 開頭的內部欄位也不顯示。
@@ -1759,6 +1769,13 @@ function renderHeadcount() {
 
     var jobsHtml = jobArr.map(function(j){
       var displayRows = j.rows.filter(function(r){return isPastMode ? r.pastFilled : r.vacant;});
+      // 依 Department、Section 順序排序，同 Department 的資料會排在一起，Department 相同時再依 Section 排序
+      displayRows.sort(function(a,b){
+        var ad = String(a.raw[deptKey]||''), bd = String(b.raw[deptKey]||'');
+        if (ad !== bd) return ad.localeCompare(bd, 'zh-Hant');
+        var as = String(a.raw[sectionKey]||''), bs = String(b.raw[sectionKey]||'');
+        return as.localeCompare(bs, 'zh-Hant');
+      });
       var countInJob = displayRows.length;
       var jc = '#4F46E5';
 
@@ -1810,17 +1827,19 @@ function renderHeadcount() {
 
     var totalForDiv = isPastMode ? g.pastTotal : g.vacantTotal;
     var divSafe = String(g.div||'').replace(/'/g,"\\'").replace(/"/g,'&quot;');
+    var isAddingHere = hcInlineAddDivision === g.div;
     return '<div class="mini-card" style="padding:18px 20px;border:1.5px solid '+divColor+'40;">'+
       '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;padding-bottom:12px;border-bottom:2px solid '+divColor+'30;">'+
         '<div style="font-size:19px;font-weight:800;color:var(--text-primary);">'+g.div+'</div>'+
         '<div style="display:flex;align-items:center;gap:8px;">'+
-          '<button class="refresh-btn" style="margin-left:0;" onclick="openHcNewRowModal(\''+divSafe+'\')">＋ 新增 Headcount</button>'+
+          '<button class="refresh-btn" style="margin-left:0;'+(isAddingHere?'color:var(--accent);border-color:var(--accent);':'')+'" onclick="toggleHcInlineAdd(\''+divSafe+'\')">'+(isAddingHere?'✕ 取消新增':'＋ 新增 Headcount')+'</button>'+
           '<div style="display:flex;align-items:baseline;gap:6px;background:'+divColor+'15;padding:4px 12px;border-radius:10px;">'+
             '<span style="font-size:30px;font-weight:800;color:'+divColor+';line-height:1;">'+totalForDiv+'</span>'+
             '<span style="font-size:12px;font-weight:600;color:'+divColor+';">'+(isPastMode?'位已補實':'個缺額')+'</span>'+
           '</div>'+
         '</div>'+
       '</div>'+
+      (isAddingHere ? buildHcInlineAddRowHtml(g.div) : '')+
       (jobsHtml || '<div style="font-size:12px;color:var(--text-tertiary);text-align:center;padding:12px 0;">'+(isPastMode?'目前無過往紀錄':'目前無缺額')+'</div>')+
     '</div>';
   }).join('');
@@ -2656,6 +2675,14 @@ function rebuildHeadcountDropdowns() {
   Object.keys(headcountDropdownData).forEach(function(field){
     map[field] = function(){ return headcountDropdownData[field] || []; };
   });
+  // Job Function 一律當成「可新增的單選下拉選單」：不管試算表欄位本身有沒有設資料驗證規則，
+  // 選項都用「目前資料裡實際出現過的值」＋（若有的話）試算表的資料驗證選項，選單裡沒有的話也可以直接手動輸入新增一個。
+  map['Job Function'] = function(){
+    var fromSheet = headcountDropdownData['Job Function'] || [];
+    var jobKeyNow = (hcRawData.length ? Object.keys(hcRawData[0]).find(function(k){return k.trim()==='Job Function';}) : null) || 'Job Function';
+    var fromData = [...new Set(hcRawData.map(function(r){ return String(r[jobKeyNow]||'').trim(); }))].filter(Boolean);
+    return [...new Set(fromSheet.concat(fromData))].sort();
+  };
   MAINTAIN_DROPDOWNS['Headcount Records'] = map;
 }
 
@@ -3370,7 +3397,9 @@ function toggleMemoView(row) {
 }
 
 async function saveMaintainField(sheet, row, col, field, idx, newVal) {
-  document.getElementById('maintainStatus') && (document.getElementById('maintainStatus').textContent = '儲存中...');
+  // 「儲存中」要一路顯示到真正存完（成功或失敗）才會被下面的訊息換掉，不會因為 toast 自己的
+  // 2.5 秒自動消失時間到了就先不見，讓人在存檔還沒完成前誤以為沒有在動作。
+  showToast('儲存中...', true);
   try {
     var url = APPS_SCRIPT_URL + '?action=editCell&sheet=' + encodeURIComponent(sheet) +
       '&row=' + encodeURIComponent(row) + '&col=' + encodeURIComponent(col) + '&value=' + encodeURIComponent(newVal);
@@ -3983,7 +4012,7 @@ async function submitNewCandidateForm() {
 
   saveLastUsedHR(values['負責HR']);
   var orderedValues = headers.map(function(h){ return values[h] || ''; });
-  showToast('新增中...');
+  showToast('新增中...', true);
   try {
     var url = APPS_SCRIPT_URL + '?action=addRow&sheet=' + encodeURIComponent('Candidate Records') +
       '&values=' + encodeURIComponent(JSON.stringify(orderedValues));
@@ -4027,7 +4056,7 @@ function addMaintainRow() {
 // 明確指定 sheet 為 'Headcount Records'（不能沿用 maintainSheet，因為使用者可能同時停留在其他分頁，maintainSheet 未必是 Headcount Records）
 async function deleteHeadcountRow(row) {
   if (!confirm('確定要刪除這筆 Headcount 資料嗎？此動作無法復原。')) return;
-  showToast('刪除中...');
+  showToast('刪除中...', true);
   try {
     var url = APPS_SCRIPT_URL + '?action=deleteRow&sheet=' + encodeURIComponent('Headcount Records') + '&row=' + encodeURIComponent(row);
     await fetch(noCacheUrl(url), {mode:'no-cors', cache:'no-store'});
@@ -4041,59 +4070,78 @@ async function deleteHeadcountRow(row) {
   }
 }
 
-// Headcount Overview 各單位區塊的「＋ 新增 Headcount」：重用共用的 addRowModal，直接寫入 Headcount Records
-function openHcNewRowModal(divisionName) {
-  var headers = maintainHeaders['Headcount Records'] || [];
-  if (!headers.length) { showToast('找不到 Headcount Records 欄位資訊'); return; }
-  var dropdowns = MAINTAIN_DROPDOWNS['Headcount Records'] || {};
-  var divisionKey = headers.find(function(h){return h.trim()==='Division';}) || 'Division';
-
-  document.getElementById('addRowModalSub').textContent = '新增一筆 Headcount 至「'+divisionName+'」';
-  document.getElementById('addRowModalFields').innerHTML = headers.map(function(h){
-    var isDivision = h === divisionKey;
-    var isRequired = isDivision;
-    var label = h + (isRequired ? ' <span style="color:#EF4444;">*</span>' : '');
-    var prefillVal = isDivision ? divisionName : '';
-
-    if (dropdowns[h]) {
-      var options = dropdowns[h]();
-      return '<div><div class="modal-label" style="margin-bottom:4px;">'+label+'</div>'+buildFormDatalistInput('hc-new-row-input', h, options, prefillVal)+'</div>';
-    }
-    if (MAINTAIN_DATEONLY_FIELDS.indexOf(h) >= 0) {
-      // Requisition Date 等日期欄位改用原生月曆選擇器，跟 Headcount Overview 表格內的編輯體驗一致
-      return '<div><div class="modal-label" style="margin-bottom:4px;">'+label+'</div><input type="date" data-field="'+h+'" class="hc-new-row-input" style="width:100%;font-size:13px;padding:6px 10px;border:1.5px solid var(--border);border-radius:8px;box-sizing:border-box;"></div>';
-    }
-    var valAttr = prefillVal ? ' value="'+String(prefillVal).replace(/"/g,'&quot;')+'"' : '';
-    return '<div><div class="modal-label" style="margin-bottom:4px;">'+label+'</div><input type="text" data-field="'+h+'" class="hc-new-row-input" style="width:100%;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;box-sizing:border-box;"'+valAttr+'></div>';
-  }).join('');
-
-  document.querySelector('#addRowModal .modal').classList.add('modal-wide');
-  document.getElementById('addRowModalFields').classList.remove('cand-new-fields-grid');
-  document.getElementById('addRowModal').style.display = 'flex';
-  window._hcNewRowMode = true;
+// Headcount Overview 各單位區塊的「＋ 新增 Headcount」：不跳出視窗，直接在這個 Division 卡片裡多一列
+// 可以填寫的表格（跟 Excel 直接多一列的操作方式一樣），送出後才真的寫入 Headcount Records。
+function toggleHcInlineAdd(division) {
+  hcInlineAddDivision = (hcInlineAddDivision === division) ? null : division;
+  renderHeadcount();
 }
 
-async function submitHcNewRow() {
+function cancelHcInlineAdd() {
+  hcInlineAddDivision = null;
+  renderHeadcount();
+}
+
+function buildHcInlineAddRowHtml(divisionName) {
+  var headers = maintainHeaders['Headcount Records'] || [];
+  if (!headers.length) return '';
+  var dropdowns = MAINTAIN_DROPDOWNS['Headcount Records'] || {};
+  var divisionKey = headers.find(function(h){return h.trim()==='Division';}) || 'Division';
+  // Division 已經固定是這張卡片本身，不用再填一次；PS 開頭的內部欄位維持隱藏，其餘欄位（含 Job Function）都可以直接填。
+  var fields = headers.filter(function(h){ return h && h !== divisionKey && !h.includes('PS'); });
+
+  var headHtml = fields.map(function(h){
+    return '<th style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-align:left;padding:3px 7px;white-space:nowrap;">'+h+'</th>';
+  }).join('');
+
+  var cellsHtml = fields.map(function(h){
+    var cellInner;
+    if (dropdowns[h]) {
+      cellInner = buildFormDatalistInput('hc-inline-new-input', h, dropdowns[h](), '');
+    } else if (MAINTAIN_DATEONLY_FIELDS.indexOf(h) >= 0) {
+      // Requisition Date 等日期欄位改用原生月曆選擇器，跟表格內既有列的編輯體驗一致
+      cellInner = '<input type="date" data-field="'+h+'" class="hc-inline-new-input" style="width:100%;font-size:12px;padding:6px 7px;border:1.5px solid var(--border);border-radius:6px;box-sizing:border-box;">';
+    } else {
+      cellInner = '<input type="text" data-field="'+h+'" class="hc-inline-new-input" style="width:100%;font-size:12px;padding:6px 7px;border:1.5px solid var(--border);border-radius:6px;box-sizing:border-box;">';
+    }
+    return '<td style="padding:3px;min-width:110px;">'+cellInner+'</td>';
+  }).join('');
+
+  return '<div style="border:1.5px dashed var(--accent);border-radius:8px;margin-bottom:12px;padding:10px;">'+
+    '<div style="font-size:11px;font-weight:600;color:var(--accent);margin-bottom:6px;">✏️ 新增一筆 Headcount（'+String(divisionName).replace(/</g,'&lt;').replace(/>/g,'&gt;')+'）</div>'+
+    '<div style="overflow-x:auto;">'+
+      '<table style="border-collapse:collapse;">'+
+        '<thead><tr>'+headHtml+'</tr></thead>'+
+        '<tbody><tr id="hcInlineAddRow">'+cellsHtml+'</tr></tbody>'+
+      '</table>'+
+    '</div>'+
+    '<div style="display:flex;gap:8px;margin-top:8px;">'+
+      '<button class="refresh-btn" style="margin-left:0;color:var(--accent);border-color:var(--accent);" onclick="submitHcInlineNewRow()">✓ 新增</button>'+
+      '<button class="refresh-btn" style="margin-left:0;" onclick="cancelHcInlineAdd()">✕ 取消</button>'+
+    '</div>'+
+  '</div>';
+}
+
+async function submitHcInlineNewRow() {
+  var division = hcInlineAddDivision;
+  if (!division) return;
   var headers = maintainHeaders['Headcount Records'] || [];
   var divisionKey = headers.find(function(h){return h.trim()==='Division';}) || 'Division';
-  var requiredFields = [divisionKey];
   var values = {};
-  var missing = [];
-  document.querySelectorAll('#addRowModalFields .hc-new-row-input').forEach(function(inp){
+  values[divisionKey] = division;
+  document.querySelectorAll('#hcInlineAddRow .hc-inline-new-input').forEach(function(inp){
     var field = inp.getAttribute('data-field');
     var val = inp.value.trim();
     if (val && (MAINTAIN_DATE_FIELDS.indexOf(field) >= 0 || MAINTAIN_DATEONLY_FIELDS.indexOf(field) >= 0)) {
       val = normalizeDateForSave(field, val);
     }
     values[field] = val;
-    if (requiredFields.indexOf(field) >= 0 && !val) missing.push(field);
   });
-  if (missing.length) { showToast('請填寫必填欄位：'+missing.join('、')); return; }
 
   var orderedValues = headers.map(function(h){ return values[h] || ''; });
-  window._hcNewRowMode = false;
-  closeAddRowModal();
-  showToast('新增中...');
+  hcInlineAddDivision = null;
+  renderHeadcount(); // 先收起新增列，不用等網路回應
+  showToast('新增中...', true);
   try {
     var url = APPS_SCRIPT_URL + '?action=addRow&sheet=' + encodeURIComponent('Headcount Records') +
       '&values=' + encodeURIComponent(JSON.stringify(orderedValues));
@@ -4109,12 +4157,10 @@ async function submitHcNewRow() {
 function closeAddRowModal() {
   document.getElementById('addRowModal').style.display = 'none';
   document.querySelector('#addRowModal .modal').classList.remove('modal-wide');
-  window._hcNewRowMode = false;
 }
 
 function handleAddRowModalSubmit() {
-  if (window._hcNewRowMode) submitHcNewRow();
-  else submitAddRow();
+  submitAddRow();
 }
 
 async function submitAddRow() {
@@ -4141,18 +4187,15 @@ async function submitAddRow() {
 
   var orderedValues = headers.map(function(h){ return values[h] || ''; });
   closeAddRowModal();
-  var statusEl = document.getElementById('maintainStatus');
-  if (statusEl) statusEl.textContent = '新增中...';
+  showToast('新增中...', true);
   try {
     var url = APPS_SCRIPT_URL + '?action=addRow&sheet=' + encodeURIComponent(targetSheet) +
       '&values=' + encodeURIComponent(JSON.stringify(orderedValues));
     await fetch(noCacheUrl(url), {mode:'no-cors', cache:'no-store'});
-    if (statusEl) statusEl.textContent = '正在同步...';
     await fetchData();
     if (currentTab === 'maintain') renderMaintain();
-    if (statusEl) { statusEl.textContent = '✓ 已新增一列'; setTimeout(function(){statusEl.textContent='';}, 2000); }
+    showToast('✓ 已新增一列');
   } catch(e) {
-    if (statusEl) statusEl.textContent = '❌ 新增失敗：'+e.message;
     showToast('❌ 新增失敗：'+e.message);
   }
 }
@@ -4161,7 +4204,7 @@ async function deleteMaintainRow(row) {
   if (!confirm('確定要刪除這一列嗎？此動作無法復原。')) return;
   var statusEl = document.getElementById('maintainStatus');
   if (statusEl) statusEl.textContent = '刪除中...';
-  showToast('刪除中...');
+  showToast('刪除中...', true);
   try {
     var url = APPS_SCRIPT_URL + '?action=deleteRow&sheet=' + encodeURIComponent(maintainSheet) + '&row=' + encodeURIComponent(row);
     await fetch(noCacheUrl(url), {mode:'no-cors', cache:'no-store'});
