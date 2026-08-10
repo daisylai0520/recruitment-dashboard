@@ -1107,8 +1107,12 @@ async function changeStage(newStage) {
   try {
     var payload = {row:card.row, result:newStage};
     console.log('Sending:', JSON.stringify(payload));
+    // 帶上履歷代碼，讓後端存檔前可以核對列號有沒有因為中途有人選被刪除而跑掉（同 saveMaintainField 的保護機制）。
+    var candForVerify = findMaintainRecordSafe('Candidate Records', card.row, allData.findIndex(function(x){return x._row===card.row;}));
+    var verifyKey = candForVerify ? String(candForVerify[findResumeCodeKey(candForVerify)]||'').trim() : '';
     // 用 GET + URL 參數，no-cors 模式，Apps Script 用 doGet 處理寫入
-    var url = APPS_SCRIPT_URL + '?action=update&row=' + encodeURIComponent(card.row) + '&result=' + encodeURIComponent(newStage);
+    var url = APPS_SCRIPT_URL + '?action=update&row=' + encodeURIComponent(card.row) + '&result=' + encodeURIComponent(newStage) +
+      (verifyKey ? ('&verifyKey=' + encodeURIComponent(verifyKey)) : '');
     var res=await fetch(noCacheUrl(url), {mode:'no-cors', cache:'no-store'});
     console.log('Response status:', res.status, res.type);
     showToast('✓ 已更新：'+card.name+' → '+newStage);
@@ -3396,22 +3400,35 @@ function toggleMemoView(row) {
   if (btn) btn.textContent = memoViewOpenState[row] ? '🙈 隱藏備註' : '👁 查看備註';
 }
 
+// 依 idx（陣列位置）快速找資料，找不到或跟預期的 row 對不上時，改用 _row 精準比對，
+// 確保就算 idx 因為背景重新整理、跨單位搜尋結果等原因跟畫面顯示的不是同一筆，也能拿到正確的那筆資料。
+function findMaintainRecordSafe(sheet, row, idx) {
+  var records = getMaintainRecords(sheet);
+  var rec = records[idx];
+  if (sheet === 'Candidate Records' && (!rec || String(rec._row) !== String(row))) {
+    rec = allDataFull.find(function(d){ return String(d._row) === String(row); });
+  }
+  return rec;
+}
+
 async function saveMaintainField(sheet, row, col, field, idx, newVal) {
   // 「儲存中」要一路顯示到真正存完（成功或失敗）才會被下面的訊息換掉，不會因為 toast 自己的
   // 2.5 秒自動消失時間到了就先不見，讓人在存檔還沒完成前誤以為沒有在動作。
   showToast('儲存中...', true);
   try {
-    var url = APPS_SCRIPT_URL + '?action=editCell&sheet=' + encodeURIComponent(sheet) +
-      '&row=' + encodeURIComponent(row) + '&col=' + encodeURIComponent(col) + '&value=' + encodeURIComponent(newVal);
-    await fetch(noCacheUrl(url), {mode:'no-cors', cache:'no-store'});
-    var records = getMaintainRecords(sheet);
-    var rec = records[idx];
-    // 跨單位搜尋結果（其他單位的人選資料）不在目前身分的 allData 範圍內，idx 指的是 allDataFull 的位置，
-    // 對 allData 來說會對不上（甚至是 undefined／別筆資料）；這裡用 _row 再保險比對一次，
-    // 對不上就改用 allDataFull 找同一列的資料來更新記憶體，確保跨單位編輯後畫面／記憶體都正確同步。
-    if (sheet === 'Candidate Records' && (!rec || String(rec._row) !== String(row))) {
-      rec = allDataFull.find(function(d){ return String(d._row) === String(row); });
+    // Candidate Records 存檔前一併帶上履歷代碼：如果中途有其他人選被刪除，試算表列號會整批往上搬動，
+    // 前端記住的「第幾列」就可能跑掉；後端存檔前會用履歷代碼核對，跑掉的話自動改用履歷代碼重新定位，
+    // 避免存到別的人選身上（例如 Phone Interview Record 跑到別人那裡去）。
+    var verifyKey = '';
+    if (sheet === 'Candidate Records') {
+      var recForVerify = findMaintainRecordSafe(sheet, row, idx);
+      if (recForVerify) verifyKey = String(recForVerify[findResumeCodeKey(recForVerify)]||'').trim();
     }
+    var url = APPS_SCRIPT_URL + '?action=editCell&sheet=' + encodeURIComponent(sheet) +
+      '&row=' + encodeURIComponent(row) + '&col=' + encodeURIComponent(col) + '&value=' + encodeURIComponent(newVal) +
+      (verifyKey ? ('&verifyKey=' + encodeURIComponent(verifyKey)) : '');
+    await fetch(noCacheUrl(url), {mode:'no-cors', cache:'no-store'});
+    var rec = findMaintainRecordSafe(sheet, row, idx);
     if (rec) {
       rec[field] = newVal;
       rememberRecentEdit(sheet, row, field, newVal); // 短時間內保護剛存的值，避免背景自動同步把它蓋回舊的
@@ -4205,8 +4222,15 @@ async function deleteMaintainRow(row) {
   var statusEl = document.getElementById('maintainStatus');
   if (statusEl) statusEl.textContent = '刪除中...';
   showToast('刪除中...', true);
+  // Candidate Records 帶上履歷代碼，避免中途有其他人選被刪除、列號跑掉時，刪錯人選的資料。
+  var verifyKey = '';
+  if (maintainSheet === 'Candidate Records') {
+    var recToDelete = allData.find(function(d){ return String(d._row) === String(row); }) || allDataFull.find(function(d){ return String(d._row) === String(row); });
+    if (recToDelete) verifyKey = String(recToDelete[findResumeCodeKey(recToDelete)]||'').trim();
+  }
   try {
-    var url = APPS_SCRIPT_URL + '?action=deleteRow&sheet=' + encodeURIComponent(maintainSheet) + '&row=' + encodeURIComponent(row);
+    var url = APPS_SCRIPT_URL + '?action=deleteRow&sheet=' + encodeURIComponent(maintainSheet) + '&row=' + encodeURIComponent(row) +
+      (verifyKey ? ('&verifyKey=' + encodeURIComponent(verifyKey)) : '');
     await fetch(noCacheUrl(url), {mode:'no-cors', cache:'no-store'});
     await fetchData();
     if (currentTab === 'maintain') { if (maintainSheet==='Candidate Records') renderCandQuery(); else renderMaintain(); }
