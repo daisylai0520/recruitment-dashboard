@@ -3029,16 +3029,14 @@ function renderQueryField(sheetName, rec, field, idx, fullWidth, strictDateForma
     // 點擊欄位或月曆圖示可直接跳出小月曆點選日期，選完自動存檔；欄位本身仍可手動輸入或補打時間文字。
     inputHtml = buildDateFieldInput(sheetName, rec, field, col, idx, displayVal, rawSafe);
   } else if (isMemoField) {
-    // Memo 一開始不直接顯示內容，只留標題＋按鈕，點「👁 查看備註」才展開；
-    // 展開後是可以直接編輯的欄位（跟其他長文字欄位一樣，離開欄位就自動存檔），
-    // 「➕ 新增Memo」則是快速在最上面補一行「日期：內容」，兩種方式都可以用。
-    inputHtml = '<div style="display:flex;gap:8px;flex-wrap:wrap;">'+
-        '<button type="button" onmousedown="event.preventDefault()" id="memoToggleBtn_'+rec._row+'" onclick="toggleMemoView('+rec._row+')" style="font-size:11px;padding:3px 8px;border:1px solid var(--border);border-radius:6px;background:var(--surface);cursor:pointer;color:var(--text-secondary);">👁 查看備註</button>'+
+    // Memo 直接顯示內容、可以直接編輯（跟其他長文字欄位一樣，離開欄位就自動存檔）；
+    // 「➕ 新增Memo」是額外的快速功能，會自動在最上面補一行「日期：內容」，不用手動打日期。
+    inputHtml = '<div style="margin-bottom:6px;">'+
         '<button type="button" onmousedown="event.preventDefault()" onclick="openAddMemoModal('+rec._row+','+idx+')" style="font-size:11px;padding:3px 8px;border:1px solid var(--border);border-radius:6px;background:var(--surface);cursor:pointer;color:var(--text-secondary);">➕ 新增Memo</button>'+
       '</div>'+
       '<textarea id="memoView_'+rec._row+'" data-sheet="'+sheetName+'" data-row="'+rec._row+'" data-col="'+col+'" data-field="Memo" data-idx="'+idx+'" data-raw="'+rawSafe+'" '+
       'onfocus="this.dataset.original=this.value" onblur="commitMaintainTextarea(this)" oninput="autoGrowTextarea(this)" rows="2" '+
-      'style="display:none;width:100%;margin-top:6px;font-size:13px;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;box-sizing:border-box;resize:vertical;font-family:inherit;white-space:pre-wrap;word-break:break-word;overflow:hidden;">'+(rawVal||'')+'</textarea>';
+      'style="width:100%;font-size:13px;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;box-sizing:border-box;resize:vertical;font-family:inherit;white-space:pre-wrap;word-break:break-word;overflow:hidden;">'+(rawVal||'')+'</textarea>';
   } else if (isLongTextField) {
     var taUid = 'ta_' + (_dlIdCounter++);
     // Phone Interview Record(HR)／(主管) 欄位內容常常越記越長，不要跟著內容自動一直長高（像 Memo 那樣），
@@ -3375,34 +3373,16 @@ async function submitAddMemo() {
   closeAddMemoModal();
   var ok = await saveMaintainField('Candidate Records', row, col, 'Memo', idx, newMemo);
   if (ok) {
-    // saveMaintainField 只會更新記憶體跟 Update_date 顯示，畫面上這個 Memo 欄位本身的內容要自己補上最新值，
-    // 並且新增完自動展開，讓使用者能立刻看到剛新增的這一筆。
+    // saveMaintainField 只會更新記憶體跟 Update_date 顯示，畫面上這個 Memo 欄位本身的內容要自己補上最新值。
     var memoEl = document.getElementById('memoView_' + row);
     if (memoEl) {
       memoEl.value = newMemo;
       memoEl.setAttribute('data-raw', newMemo);
       memoEl.dataset.original = newMemo;
+      autoGrowTextarea(memoEl);
     }
-    memoViewOpenState[row] = true;
-    if (memoEl) { memoEl.style.display = 'block'; autoGrowTextarea(memoEl); }
-    var toggleBtn = document.getElementById('memoToggleBtn_' + row);
-    if (toggleBtn) toggleBtn.textContent = '🙈 隱藏備註';
     showToast('✓ 已新增備註');
   }
-}
-
-// Memo 預設收合，點「👁 查看備註」才展開；展開後是可以直接編輯的欄位。
-// 不同人選卡片各自記住展開/收合狀態。
-var memoViewOpenState = {};
-function toggleMemoView(row) {
-  memoViewOpenState[row] = !memoViewOpenState[row];
-  var el = document.getElementById('memoView_' + row);
-  if (el) {
-    el.style.display = memoViewOpenState[row] ? 'block' : 'none';
-    if (memoViewOpenState[row]) autoGrowTextarea(el);
-  }
-  var btn = document.getElementById('memoToggleBtn_' + row);
-  if (btn) btn.textContent = memoViewOpenState[row] ? '🙈 隱藏備註' : '👁 查看備註';
 }
 
 // 依 idx（陣列位置）快速找資料，找不到或跟預期的 row 對不上時，改用 _row 精準比對，
