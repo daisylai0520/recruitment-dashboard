@@ -436,14 +436,19 @@ async function fetchCoreData() {
 // ---- 身分選擇畫面：一開始就抓 HR 名冊 + 單位對應表，用來畫出「我是 XXX」的按鈕 ----
 async function fetchIdentityData() {
   try {
-    var json = await fetchJsonWithRetry(function(){ return noCacheUrl(APPS_SCRIPT_URL + '?action=getIdentityData'); }, {cache:'no-store'});
+    // 這是使用者一打開網頁最先看到的畫面，失敗的話後面什麼都做不了，所以多重試幾次、等久一點再放棄
+    // （一般欄位存檔失敗最多重試 2 次，這裡重試 4 次），盡量把偶發的網路／Apps Script 暫時性問題吃掉。
+    var json = await fetchJsonWithRetry(function(){ return noCacheUrl(APPS_SCRIPT_URL + '?action=getIdentityData'); }, {cache:'no-store'}, 4);
     hrDirectoryData = (json.hrDirectory||[]).filter(function(d){return d['HR姓名'];});
     unitHrMappingData = (json.unitHrMapping||[]).filter(function(d){return d['單位']||d['負責HR'];});
     renderRoleScreenIdentities();
   } catch(e) {
     var bpEl = document.getElementById('hrIdentityButtonsBP');
     var recEl = document.getElementById('hrIdentityButtonsRecruiter');
-    var errHtml = '<div style="font-size:12px;color:#EF4444;">身分清單載入失敗，請重新整理頁面（'+e.message+'）</div>';
+    // 「Failed to fetch」是瀏覽器連線層級的失敗（跟網路狀況有關，不是試算表或程式本身的問題），
+    // 重試幾次都失敗的話，讓使用者可以直接點按鈕再抓一次，不用整頁重新整理。
+    var errHtml = '<div style="font-size:12px;color:#EF4444;">身分清單載入失敗（'+e.message+'）　'+
+      '<span style="cursor:pointer;text-decoration:underline;color:var(--accent);" onclick="fetchIdentityData()">🔄 重試</span></div>';
     if (bpEl) bpEl.innerHTML = errHtml;
     if (recEl) recEl.innerHTML = '';
   }
