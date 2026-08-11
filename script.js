@@ -2483,9 +2483,8 @@ function renderStageConversionDays(trendData) {
   var wrap = document.getElementById('stageConversionDays');
   if (!wrap) return;
   var transitions = [
-    { label:'邀約 → 電訪', from: function(d){ return d.invite_date || d['invite date']; }, to: function(d){ return d['Phone Interview Scheduled']; } },
-    { label:'電訪 → 面試', from: function(d){ return d['Phone Interview Scheduled']; }, to: function(d){ return d['Interview Scheduled']; } },
-    { label:'面試 → 錄取', from: function(d){ return d['Interview Scheduled']; }, to: function(d){ return d['Hired date']; } }
+    { label:'邀約 → 排面試', from: function(d){ return d.invite_date || d['invite date']; }, to: function(d){ return d['Interview Scheduled']; } },
+    { label:'面試 → 寄offer', from: function(d){ return d.Interview_date; }, to: function(d){ return d['Offer Date']; } }
   ];
   var rows = transitions.map(function(t){
     var diffs = [];
