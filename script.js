@@ -2737,8 +2737,13 @@ function getResultOptions() {
 // 單位選項：所有畫面統一改抓「Unit HR Mapping」工作表的「單位」欄位（跟身分選擇畫面、權限管理是同一份設定），
 // 不再用 Candidate Records 裡實際出現過的單位——這樣單位清單才會跟公司實際的單位設定一致，即使還沒有任何人選用過某個單位也看得到。
 // unitHrMappingData 一開始進畫面（身分選擇畫面）就會抓好，所以所有畫面都能用。
+// 一般 HR 身分（非管理者）：只列出這位 HR 自己負責的單位（跟 applyCoreData 篩選人選資料的規則一致）；管理者不受限制、看全部單位。
 function getUnitOptions() {
-  return [...new Set(unitHrMappingData.map(function(m){ return String(m['單位']||'').trim(); }))].filter(Boolean).sort();
+  var opts = [...new Set(unitHrMappingData.map(function(m){ return String(m['單位']||'').trim(); }))].filter(Boolean);
+  if (!isAdmin && currentHRUnits) {
+    opts = opts.filter(function(u){ return currentHRUnits.indexOf(u) >= 0; });
+  }
+  return opts.sort();
 }
 
 // 資料維護畫面專用：編輯人選資料時的 Result 下拉選單。
