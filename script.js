@@ -2371,9 +2371,10 @@ function renderProgressTree(trendData) {
   if (!wrap) return;
   _progressTreeDrilldown = [];
 
+  // 「有沒有填邀約日」＝所有曾經邀約過的人選（不管後來有沒有往下一階段推進），
+  // 這個數字現在直接當作「邀約」這個階段方塊自己的總人數，不再另外畫一個獨立的「邀約」根節點
+  // （之前左邊根節點跟右邊「邀約」階段方塊各自算一次、口徑不一樣，數字會對不起來，容易讓人誤會）。
   var invitedTest = function(d){ return !!(d.invite_date || d['invite date']); };
-  var rootIdx = _progressTreeDrilldown.length;
-  _progressTreeDrilldown.push({ label:'邀約', test: invitedTest });
   var invitedCount = trendData.filter(invitedTest).length;
 
   var stages = buildProgressTreeStages();
@@ -2382,19 +2383,16 @@ function renderProgressTree(trendData) {
     return;
   }
 
-  var rootHtml = '<div class="tree-h-root"><div class="metric" style="cursor:pointer;min-width:140px;text-align:center;" onclick="showProgressTreeDrilldown('+rootIdx+')">'+
-    '<div class="metric-top" style="justify-content:center;"><div class="metric-dot" style="background:#4F46E5"></div><span class="metric-label">邀約</span></div>'+
-    '<div class="metric-val">'+invitedCount+'</div>'+
-  '</div></div>';
-
-  // 「其他」是獨立分支（例如待確認/暫緩），跟前面錄取階段等主流程沒有先後關係，中間不畫箭頭
-  var stagesHtml = stages.map(function(s){
+  // 「其他」是獨立分支（例如待確認/暫緩），跟前面錄取階段等主流程沒有先後關係，中間不畫箭頭；
+  // 第一個階段方塊前面也不用箭頭（原本的根節點已經拿掉，前面沒有其他方塊了）
+  var stagesHtml = stages.map(function(s, sIdx){
     var stageResults = s.results;
-    var stageTotal = trendData.filter(function(d){ return stageResults.indexOf(d.Result) >= 0; }).length;
-    var showArrow = s.stage !== '其他';
+    var isInviteStage = s.stage === '邀約';
+    var stageTotal = isInviteStage ? invitedCount : trendData.filter(function(d){ return stageResults.indexOf(d.Result) >= 0; }).length;
+    var showArrow = sIdx > 0 && s.stage !== '其他';
 
     var idx0 = _progressTreeDrilldown.length;
-    _progressTreeDrilldown.push({ label: s.stage, test: function(d){ return stageResults.indexOf(d.Result) >= 0; } });
+    _progressTreeDrilldown.push({ label: s.stage, test: isInviteStage ? invitedTest : function(d){ return stageResults.indexOf(d.Result) >= 0; } });
 
     // 重點放大：階段的總人數（次要才是進行中／已結案這些子分類，字放小、上下排列）
     var subItemsHtml = s.subGroups.length ? s.subGroups.map(function(sub){
@@ -2407,7 +2405,7 @@ function renderProgressTree(trendData) {
       '</div>';
     }).join('') : '';
 
-    return (showArrow ? '<div class="tree-h-arrow">→</div>' : '<div class="tree-h-gap"></div>')+
+    return (sIdx === 0 ? '' : (showArrow ? '<div class="tree-h-arrow">→</div>' : '<div class="tree-h-gap"></div>'))+
       '<div class="tree-h-stage">'+
         '<div class="tree-h-stage-label">'+s.stage+'</div>'+
         '<div class="tree-h-stage-total" style="cursor:pointer;" onclick="showProgressTreeDrilldown('+idx0+')">'+stageTotal+'<span class="tree-h-stage-total-unit">人</span></div>'+
@@ -2415,7 +2413,7 @@ function renderProgressTree(trendData) {
       '</div>';
   }).join('');
 
-  wrap.innerHTML = rootHtml + stagesHtml;
+  wrap.innerHTML = stagesHtml;
 }
 
 // 階段轉換率漏斗圖：直接依「里程碑欄位是否有值」判斷每個人是否到達該階段，
