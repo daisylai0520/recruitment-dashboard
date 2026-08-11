@@ -802,6 +802,10 @@ function switchRole() {
   if (tabBar) tabBar.style.display = '';
   var badge = document.getElementById('identityBadge');
   if (badge) badge.textContent = '';
+  // 新增人選表單裡的欄位（含「負責HR」預帶值）只會蓋一次，這裡清空讓下次進畫面時用新身分的名字重新蓋一次，
+  // 不然切換身分後「負責HR」還會停留在上一個身分的名字
+  var newCandFieldsEl = document.getElementById('newCandFields');
+  if (newCandFieldsEl) newCandFieldsEl.innerHTML = '';
   // 回到身分選擇畫面時重新抓一次 HR 名冊，避免管理者剛在權限管理新增完 HR 卻看不到新按鈕
   fetchIdentityData();
 }
@@ -1485,6 +1489,17 @@ function clearDropdownSelectValue(btn) {
   commitMaintainSelect(sel);
 }
 
+// 畫面上用「新增其他選項」新增一位不在名單裡的 Inviter 時，同步把這個人加進 Manager Information 工作表，
+// 這樣其他單位／其他 HR 身分之後打開畫面，都看得到這個新 Inviter，不會只存在剛剛那筆人選自己的資料裡。
+// 本地也馬上補進 managerInfoData，不用等下次重新整理資料才看得到（跟其它「先更新本地、背景寫回試算表」的做法一致）。
+function syncNewInviterToManagerInfo(name, bu) {
+  if (!name) return;
+  var already = managerInfoData.some(function(m){ return String(m.Name||'').trim() === name && String(m.BU||'').trim() === (bu||''); });
+  if (!already) managerInfoData.push({ BU: bu||'', JobFunction: '', Name: name, Email: '' });
+  var url = APPS_SCRIPT_URL + '?action=addManagerInfoName&name=' + encodeURIComponent(name) + (bu ? ('&bu=' + encodeURIComponent(bu)) : '');
+  fetch(noCacheUrl(url), {mode:'no-cors', cache:'no-store'}).catch(function(){});
+}
+
 // 這些欄位改成勾選式多選（同一格用「、」分隔存回試算表）：
 // Inviter／面試主管 可能不只一位；單位、Job Function、104_Position、負責HR 則是希望用勾選取代手動打字，減少輸入不一致。
 // 清單來源見 MAINTAIN_DROPDOWNS；勾選清單以外的值（例如舊資料、或用「新增」手動加入的新選項）也能維持顯示與勾選。
@@ -1562,6 +1577,13 @@ function addInviterMsName(uid) {
   label.innerHTML = '<input type="checkbox" checked data-val="'+nameSafe+'" onchange="toggleInviterMsOption(\''+uid+'\',this)"> '+nameDisp;
   panel.insertBefore(label, panel.querySelector('.invms-add-row'));
   commitMaintainInputList(hidden);
+  // 新增的是 Inviter 欄位的新名字時，同步加進 Manager Information 工作表（依這筆人選目前的單位）
+  if (hidden.getAttribute('data-field') === 'Inviter') {
+    var rec = allDataFull.find(function(d){ return String(d._row) === String(hidden.getAttribute('data-row')); });
+    var units = rec ? splitMultiValue(rec['單位']) : [];
+    if (units.length) units.forEach(function(u){ syncNewInviterToManagerInfo(name, u); });
+    else syncNewInviterToManagerInfo(name, '');
+  }
 }
 
 // 點進下拉輸入框時，先把目前的值存起來、清空欄位，讓瀏覽器顯示完整選單；如果最後沒有選新的，onblur 會還原
@@ -3785,6 +3807,13 @@ function addFormInviterMsName(uid) {
   label.innerHTML = '<input type="checkbox" checked data-val="'+nameSafe+'" onchange="toggleFormInviterMsOption(\''+uid+'\',this)"> '+nameDisp;
   panel.insertBefore(label, panel.querySelector('.invms-add-row'));
   runFormAutoSyncIfNeeded(hidden);
+  // 新增的是 Inviter 欄位的新名字時，同步加進 Manager Information 工作表（依表單目前已選的單位）
+  if (hidden.getAttribute('data-field') === 'Inviter') {
+    var buHidden2 = document.querySelector(getNewCandFormSelector() + '[data-field="單位"]');
+    var units2 = buHidden2 ? splitMultiValue(buHidden2.value) : [];
+    if (units2.length) units2.forEach(function(u){ syncNewInviterToManagerInfo(name, u); });
+    else syncNewInviterToManagerInfo(name, '');
+  }
 }
 
 // 判斷是否為「電訪紀錄(HR)／(主管)」欄位——跟 buildCandQueryCardsHtml 共用同一套判斷規則，
@@ -3828,9 +3857,10 @@ function renderNewCandidateFields() {
     // 並排的電訪紀錄欄位不要再各自佔滿整排（外層已經是整排的兩欄容器了）
     var spanStyle = isPaired ? '' : ((isMultilineField || isHRComment) ? 'grid-column:1/-1;' : (isPosition ? 'grid-column:span 2;' : ''));
     var dupAttr = isNameOrResume ? ' oninput="checkNewCandDuplicate()"' : '';
-    // 負責HR：自動帶入這台瀏覽器最近一次填寫過的名字，同一位 HR 不用每次重打
+    // 負責HR：如果目前是用某位 HR 的身分登入（不是管理者總覽），直接帶入這個身分自己的名字；
+    // 管理者身分沒有對應到單一個人，才退回舊的「這台瀏覽器最近一次填寫過的名字」機制。
     // 邀約日：一律用 fmtDateOnly 正規化成 YYYY/MM/DD（避免不小心存到／貼到瀏覽器原生 Date 字串格式，例如 "Thu Jun 25 2026 00:00:00 GMT+0800"）
-    var prefillVal = isInviteDate ? fmtDateOnly(todayStr) : (h === '負責HR' ? getLastUsedHR() : '');
+    var prefillVal = isInviteDate ? fmtDateOnly(todayStr) : (h === '負責HR' ? (!isAdmin && currentHRName ? currentHRName : getLastUsedHR()) : '');
 
     // Inviter 有填寫時，依 Manager Information 工作表的姓名比對自動帶入 單位
     var inviterAttr = (h === 'Inviter') ? ' oninput="handleInviterInputChange(this)" onchange="handleInviterInputChange(this)"' : '';
