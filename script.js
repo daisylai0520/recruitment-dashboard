@@ -2445,15 +2445,18 @@ function renderStageConversionFunnel(trendData) {
   // 該階段人數為 0 時，色塊改成灰色空白、右側轉換率也改用灰色，不會誤導視覺
   var FUNNEL_COLORS = ['#4338CA','#4F46E5','#6366F1','#818CF8'];
   var EMPTY_FILL = '#E8EAED', EMPTY_TEXT = '#9CA3AF';
-  var chartW = 320, segH = 64;
+  var chartW = 320, segH = 64, MIN_W = 48;
   var chartH = segH * rows.length;
   var cx = chartW/2;
+  // 寬度用「佔邀約總數的比例」開根號縮放（不是直接線性），招募漏斗常常第一階段掉很多、後面幾階段人數雖然
+  // 差很多、佔比卻都個位數百分比，如果直接照比例線性算寬度，後面幾個階段幾乎都會撞到最小寬度、變得一樣寬，
+  // 看起來就會很奇怪（明明人數差很多，色塊卻一樣寬）。開根號可以放大這些小比例之間的差異，讓色塊寬度更明顯反映人數差距。
+  var widths = rows.map(function(r){ return Math.max(chartW * Math.sqrt(Math.max(r.pct,0)/100), MIN_W); });
   var svgBody = rows.map(function(r, i){
     var y0 = i*segH, y1 = y0+segH, midY = y0+segH/2;
     var hasData = r.count > 0;
-    var topPct = i === 0 ? 100 : rows[i-1].pct;
-    var topW = Math.max(chartW * (topPct/100), 30);
-    var botW = Math.max(chartW * (r.pct/100), 30);
+    var topW = i === 0 ? chartW : widths[i-1];
+    var botW = widths[i];
     var points = (cx-topW/2)+','+y0+' '+(cx+topW/2)+','+y0+' '+(cx+botW/2)+','+y1+' '+(cx-botW/2)+','+y1;
     var fill = hasData ? FUNNEL_COLORS[i % FUNNEL_COLORS.length] : EMPTY_FILL;
     var textColor = hasData ? '#fff' : EMPTY_TEXT;
