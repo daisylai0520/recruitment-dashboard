@@ -991,7 +991,7 @@ function renderKbCardFieldsDropdown() {
 function renderKanban() {
   var now=new Date(); now.setHours(0,0,0,0);
 
-  var kbBuOptions = [...new Set(allData.map(function(d){return String(d['單位']||'').trim();}))].filter(Boolean).sort();
+  var kbBuOptions = getUnitOptions();
   renderMultiFilterBar('kbBuBar', 'kb-bu', kbBuOptions);
   var kbJobOptions = jobFunctionOptionsForBuFilter('kb-bu', allData);
   renderMultiFilterBar('kbJobBar', 'kb-job', kbJobOptions);
@@ -1189,7 +1189,7 @@ function renderOverview() {
   var search=(document.getElementById('ovSearch')?document.getElementById('ovSearch').value:'').toLowerCase();
   var searchTerms = splitSearchTerms(search);
 
-  var ovBuOptions = [...new Set(allData.map(function(d){return String(d['單位']||'').trim();}))].filter(Boolean).sort();
+  var ovBuOptions = getUnitOptions();
   renderMultiFilterBar('ovBuBar', 'ov-bu', ovBuOptions);
   var ovJobOptions = jobFunctionOptionsForBuFilter('ov-bu', allData);
   renderMultiFilterBar('ovJobBar', 'ov-job', ovJobOptions);
@@ -2550,7 +2550,7 @@ function renderTrendHcChart() {
 }
 
 function renderTrends() {
-  var trBuOptions = [...new Set(allData.map(function(d){return String(d['單位']||'').trim();}))].filter(Boolean).sort();
+  var trBuOptions = getUnitOptions();
   renderMultiFilterBar('trBuBar', 'tr-bu', trBuOptions);
   var trJobOptions = jobFunctionOptionsForBuFilter('tr-bu', allData);
   renderMultiFilterBar('trJobBar', 'tr-job', trJobOptions);
@@ -2734,6 +2734,13 @@ function getResultOptions() {
   return (resultOptions && resultOptions.length) ? resultOptions.slice() : FALLBACK_RESULT_OPTIONS.slice();
 }
 
+// 單位選項：所有畫面統一改抓「Unit HR Mapping」工作表的「單位」欄位（跟身分選擇畫面、權限管理是同一份設定），
+// 不再用 Candidate Records 裡實際出現過的單位——這樣單位清單才會跟公司實際的單位設定一致，即使還沒有任何人選用過某個單位也看得到。
+// unitHrMappingData 一開始進畫面（身分選擇畫面）就會抓好，所以所有畫面都能用。
+function getUnitOptions() {
+  return [...new Set(unitHrMappingData.map(function(m){ return String(m['單位']||'').trim(); }))].filter(Boolean).sort();
+}
+
 // 資料維護畫面專用：編輯人選資料時的 Result 下拉選單。
 // 統一改用跟篩選欄一樣的 getResultOptions()（來源是「分類Result」工作表），
 // 這樣即使某個 Result 分類目前還沒有任何人選用過，也一樣能被選到，不會漏選項。
@@ -2781,7 +2788,7 @@ function rebuildHeadcountDropdowns() {
 // 哪些欄位是下拉選單
 var MAINTAIN_DROPDOWNS = {
   'Candidate Records': {
-    '單位': function(){ return [...new Set(allData.map(function(d){return String(d['單位']||'').trim();}))].filter(Boolean).sort(); },
+    '單位': function(){ return getUnitOptions(); },
     // Job Function 可能多選（用「、」分隔存多個值），選項要拆開顯示，不要把整串「A、B、C」當成一個選項（比照下面 Source 的做法）
     'Job Function': function(){ return buildMultiValueOptions(allData, function(d){return d['Job Function'];}); },
     '104_Position': function(){ return getPositionOptions(); },
@@ -2972,7 +2979,7 @@ function renderCandQuery() {
   var hasDateFilter = dateFilterState.candidateMaintenance &&
     (dateFilterState.candidateMaintenance.start || dateFilterState.candidateMaintenance.end);
 
-  var candBuOptions = [...new Set(allData.map(function(d){return String(d['單位']||'').trim();}))].filter(Boolean).sort();
+  var candBuOptions = getUnitOptions();
   renderMultiFilterBar('candBuBar', 'cand-bu', candBuOptions);
   var candJobOptions = jobFunctionOptionsForBuFilter('cand-bu', allData);
   renderMultiFilterBar('candJobBar', 'cand-job', candJobOptions);
@@ -4774,7 +4781,7 @@ function closeExportCandModal() {
 }
 
 function renderExportModalFilters() {
-  var buOptions = [...new Set(allData.map(function(d){return String(d['單位']||'').trim();}))].filter(Boolean).sort();
+  var buOptions = getUnitOptions();
   renderMultiFilterBar('expBuBar', 'exp-bu', buOptions);
   var jobOptions = jobFunctionOptionsForBuFilter('exp-bu', allData);
   renderMultiFilterBar('expJobBar', 'exp-job', jobOptions);
