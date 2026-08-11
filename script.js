@@ -35,7 +35,7 @@ async function fetchJsonWithRetry(urlBuilder, options, retries) {
 }
 
 var userRole = null;
-var allData=[], salaryData=[], scheduleData=[], managerDirectoryData=[], managerInfoData=[], resultOptions=[], positionOptions=[];
+var allData=[], salaryData=[], scheduleData=[], managerDirectoryData=[], managerInfoData=[], resultOptions=[], positionOptions=[], sourceOptions=[], declineReasonOptions=[];
 // 「分類Result」工作表的 階段／分類1／分類2／Result 對照，人選進度統計樹狀圖依這個動態分組顯示
 var resultCategories = [];
 // allDataFull：完整（未依單位過濾）的人選名單，只給「新增人選時檢查是否已有其他 HR/單位約過」這個功能用，
@@ -209,6 +209,44 @@ function isDoneInterview(d){return isPast(d.Interview_date||'');}
 // ===== 共用：日期範圍篩選元件 =====
 var dateFilterState = {}; // { pageKey: {field, start, end} }
 
+// 把使用者實際選擇的時間篩選存進 sessionStorage（同一個瀏覽器分頁內有效）：
+// 這樣不管是背景自動刷新（setInterval fetchData）還是使用者自己按 F5 重新整理，
+// 都會沿用剛剛選過的篩選，不會又被預設值「本週」蓋掉——只有分頁第一次真正打開時才會套用「本週」預設值。
+var DATE_FILTER_STORAGE_PREFIX = 'rc_datefilter_v1_';
+function saveDateFilterState(pageKey) {
+  try {
+    var s = dateFilterState[pageKey];
+    if (!s) { sessionStorage.removeItem(DATE_FILTER_STORAGE_PREFIX + pageKey); return; }
+    sessionStorage.setItem(DATE_FILTER_STORAGE_PREFIX + pageKey, JSON.stringify({
+      field: s.field,
+      start: s.start ? s.start.toISOString() : null,
+      end: s.end ? s.end.toISOString() : null,
+      quickRange: s.quickRange || null
+    }));
+  } catch (e) {}
+}
+function loadDateFilterState(pageKey) {
+  try {
+    var raw = sessionStorage.getItem(DATE_FILTER_STORAGE_PREFIX + pageKey);
+    if (!raw) return null;
+    var o = JSON.parse(raw);
+    return { field: o.field, start: o.start ? new Date(o.start) : null, end: o.end ? new Date(o.end) : null, quickRange: o.quickRange || undefined };
+  } catch (e) { return null; }
+}
+// 把之前存起來的篩選條件套回畫面上：如果是快速範圍（本週/本月/過去一個月）就重新計算一次日期（避免用到過期的舊日期），
+// 如果是手動選的起訖日期，就直接照原本存的日期還原。
+function restoreDateFilterUi(pageKey, saved) {
+  if (saved.quickRange) { quickDateFilter(pageKey, saved.quickRange); return; }
+  var fieldEl = document.getElementById('df-field-' + pageKey);
+  var startEl = document.getElementById('df-start-' + pageKey);
+  var endEl = document.getElementById('df-end-' + pageKey);
+  if (!fieldEl || !startEl || !endEl) return;
+  if (saved.field) fieldEl.value = saved.field;
+  startEl.value = saved.start ? fmtISODate(saved.start) : '';
+  endEl.value = saved.end ? fmtISODate(saved.end) : '';
+  applyDateFilter(pageKey);
+}
+
 function buildDateFilterHtml(pageKey, fieldOptions, quickRanges) {
   var optHtml = fieldOptions.map(function(f){return '<option value="'+f.value+'">'+f.label+'</option>';}).join('');
   var quickHtml = (quickRanges||[]).map(function(q){
@@ -268,6 +306,7 @@ function quickDateFilter(pageKey, range) {
     quickRange: range
   };
   if (pageKey === 'candidateMaintenance') candMaintenanceDateCleared = false;
+  saveDateFilterState(pageKey);
   updateDateQuickBtnActive(pageKey);
   triggerPageRerender(pageKey);
 }
@@ -291,6 +330,7 @@ function applyDateFilter(pageKey) {
   dateFilterState[pageKey] = { field: fieldEl.value, start: start, end: end };
   // 手動把起訖日期都清空也算是「使用者主動清除」，跟按「清除」連結一樣，不要再自動幫忙補本週
   if (pageKey === 'candidateMaintenance') candMaintenanceDateCleared = !start && !end;
+  saveDateFilterState(pageKey);
   updateDateQuickBtnActive(pageKey);
   triggerPageRerender(pageKey);
 }
@@ -301,6 +341,7 @@ function clearDateFilter(pageKey) {
   if (startEl) startEl.value = '';
   if (endEl) endEl.value = '';
   delete dateFilterState[pageKey];
+  saveDateFilterState(pageKey);
   if (pageKey === 'candidateMaintenance') candMaintenanceDateCleared = true;
   updateDateQuickBtnActive(pageKey);
   triggerPageRerender(pageKey);
@@ -357,8 +398,14 @@ function initDateFilterSlots() {
     if (cfg.disabled) { el.innerHTML = ''; return; } // Headcount 沒有日期欄位可篩選，跳過
     if (!dateFilterState[cfg.key]) {
       el.innerHTML = buildDateFilterHtml(cfg.key, cfg.fields, cfg.quickRanges);
-      // 每個畫面一打開都自動帶出「本週」資料，不用使用者手動操作
-      if (cfg.defaultQuickRange) quickDateFilter(cfg.key, cfg.defaultQuickRange);
+      var saved = loadDateFilterState(cfg.key);
+      if (saved) {
+        // 這個瀏覽器分頁裡之前已經篩選過（不管是手動改的還是背景自動刷新前選的），沿用上次的篩選，不要又蓋回「本週」
+        restoreDateFilterUi(cfg.key, saved);
+      } else if (cfg.defaultQuickRange) {
+        // 這個瀏覽器分頁第一次打開這個畫面，才自動帶出「本週」資料
+        quickDateFilter(cfg.key, cfg.defaultQuickRange);
+      }
     }
   });
 }
@@ -423,6 +470,10 @@ function applyCoreData(json) {
   // 「分類Result」工作表的 階段／分類1／分類2 欄位，人選進度統計樹狀圖靠這個動態分組（不再寫死在程式裡）
   resultCategories=(json.resultCategories||[]).filter(function(rc){return rc && rc.Result;});
   positionOptions=(json.positionOptions||[]).map(function(v){return String(v).trim();}).filter(Boolean);
+  // Source 選項來源同 104_Position：試算表資料驗證清單（若有設定），前端再跟實際資料合併
+  sourceOptions=(json.sourceOptions||[]).map(function(v){return String(v).trim();}).filter(Boolean);
+  // 「婉拒理由」工作表的「婉拒理由」欄位為唯一選項來源，不能自己新增
+  declineReasonOptions=(json.declineReasonOptions||[]).map(function(v){return String(v).trim();}).filter(Boolean);
   managerInfoData=(json.managerInfo||[]).filter(function(d){return d.Name;});
   Object.assign(maintainHeaders, json.sheetHeaders || {});
   loadedResources.core = true;
@@ -2677,6 +2728,16 @@ function getPositionOptions() {
   return base;
 }
 
+// Source 選項：優先用試算表 Source 欄位的資料驗證清單（如果有設定的話），
+// 同時保險加入實際資料裡出現過的值（Source 可能複選、用「、」分隔），確保兩邊都不會漏。
+// 如果試算表完全沒設定資料驗證，就會跟改版前一樣，單純顯示目前資料裡實際出現過的值。
+function getSourceOptions() {
+  var base = sourceOptions && sourceOptions.length ? sourceOptions.slice() : [];
+  var actualValues = [...new Set(allData.flatMap(function(d){ return String(d.Source||'').split('、').map(function(s){ return s.trim(); }); }))].filter(Boolean);
+  actualValues.forEach(function(v){ if (base.indexOf(v) < 0) base.push(v); });
+  return base;
+}
+
 // Headcount Records 各欄位的下拉選單選項（來自試算表的資料驗證規則，fetchData 時載入）
 var headcountDropdownData = {};
 function rebuildHeadcountDropdowns() {
@@ -2702,7 +2763,7 @@ var MAINTAIN_DROPDOWNS = {
     // Job Function 可能多選（用「、」分隔存多個值），選項要拆開顯示，不要把整串「A、B、C」當成一個選項（比照下面 Source 的做法）
     'Job Function': function(){ return buildMultiValueOptions(allData, function(d){return d['Job Function'];}); },
     '104_Position': function(){ return getPositionOptions(); },
-    'Source': function(){ return [...new Set(allData.flatMap(function(d){return String(d.Source||'').split('、').map(function(s){return s.trim();});}))].filter(Boolean).sort(); },
+    'Source': function(){ return getSourceOptions(); },
     // Inviter：選項改抓 Manager Information 工作表的 Name 欄位（不是只抓歷史上打過的值），
     // 且只顯示跟這筆人選同單位的人（單位可能複選，符合其中一個單位即算）；
     // 如果目前還不知道單位（例如新增人選表單一開始還沒選單位）或該單位在 Manager Information 裡查不到人，
@@ -2724,7 +2785,7 @@ var MAINTAIN_DROPDOWNS = {
     // 負責HR：選項對照「HR Directory」工作表（權限管理裡設定的 HR 名冊），而不是抓歷史上打過的值，
     // 避免打字不一致或人員異動後名單對不起來；舊資料裡已經填過、但目前不在名冊裡的名字，畫面上仍會顯示並保留勾選。
     '負責HR': function(){ return hrDirectoryData.map(function(h){return String(h['HR姓名']||'').trim();}).filter(Boolean).sort(); },
-    '婉拒理由': function(){ return [...new Set(allData.map(function(d){return String(d['婉拒理由']||'').trim();}))].filter(Boolean).sort(); },
+    '婉拒理由': function(){ return declineReasonOptions.slice(); },
     '是否邀約': function(){
       var base = ['是','否'];
       var actual = [...new Set(allData.map(function(d){return String(d['是否邀約']||'').trim();}))].filter(Boolean);
