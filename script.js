@@ -1699,8 +1699,9 @@ function renderTableCellInput(sheetName, rec, field, idx, customWidth) {
   var rawVal = rec[field] !== undefined ? rec[field] : '';
   var col = (maintainHeaders[sheetName] || Object.keys(rec)).indexOf(field) + 1;
   var dropdowns = MAINTAIN_DROPDOWNS[sheetName] || {};
-  var isDateField = MAINTAIN_DATE_FIELDS.indexOf(field) >= 0;
-  var isDateOnlyField = MAINTAIN_DATEONLY_FIELDS.indexOf(field) >= 0;
+  var fieldTrimmed = String(field||'').trim();
+  var isDateField = MAINTAIN_DATE_FIELDS.indexOf(field) >= 0 || MAINTAIN_DATE_FIELDS.indexOf(fieldTrimmed) >= 0;
+  var isDateOnlyField = MAINTAIN_DATEONLY_FIELDS.indexOf(field) >= 0 || MAINTAIN_DATEONLY_FIELDS.indexOf(fieldTrimmed) >= 0;
   var displayVal = isDateOnlyField ? fmtDateOnly(rawVal) : isDateField ? fmtDate(rawVal) : rawVal;
   var rawSafe = String(rawVal||'').replace(/"/g,'&quot;');
   var widthStyle = customWidth ? ('width:'+customWidth+';min-width:'+customWidth+';') : 'min-width:60px;';
@@ -2785,14 +2786,17 @@ function rebuildHeadcountDropdowns() {
   Object.keys(headcountDropdownData).forEach(function(field){
     map[field] = function(){ return headcountDropdownData[field] || []; };
   });
-  // Job Function 一律當成「可新增的單選下拉選單」：不管試算表欄位本身有沒有設資料驗證規則，
+  // Job Function／Location／開缺理由 一律當成「可新增的單選下拉選單」：不管試算表欄位本身有沒有設資料驗證規則，
   // 選項都用「目前資料裡實際出現過的值」＋（若有的話）試算表的資料驗證選項，選單裡沒有的話也可以直接手動輸入新增一個。
-  map['Job Function'] = function(){
-    var fromSheet = headcountDropdownData['Job Function'] || [];
-    var jobKeyNow = (hcRawData.length ? Object.keys(hcRawData[0]).find(function(k){return k.trim()==='Job Function';}) : null) || 'Job Function';
-    var fromData = [...new Set(hcRawData.map(function(r){ return String(r[jobKeyNow]||'').trim(); }))].filter(Boolean);
+  function buildCreatableFieldOptions(fieldName) {
+    var fromSheet = headcountDropdownData[fieldName] || [];
+    var keyNow = (hcRawData.length ? Object.keys(hcRawData[0]).find(function(k){return k.trim()===fieldName;}) : null) || fieldName;
+    var fromData = [...new Set(hcRawData.map(function(r){ return String(r[keyNow]||'').trim(); }))].filter(Boolean);
     return [...new Set(fromSheet.concat(fromData))].sort();
-  };
+  }
+  map['Job Function'] = function(){ return buildCreatableFieldOptions('Job Function'); };
+  map['Location'] = function(){ return buildCreatableFieldOptions('Location'); };
+  map['開缺理由'] = function(){ return buildCreatableFieldOptions('開缺理由'); };
   MAINTAIN_DROPDOWNS['Headcount Records'] = map;
 }
 
@@ -4209,7 +4213,7 @@ function buildHcInlineAddRowHtml(divisionName) {
     var cellInner;
     if (dropdowns[h]) {
       cellInner = buildFormDatalistInput('hc-inline-new-input', h, dropdowns[h](), '');
-    } else if (MAINTAIN_DATEONLY_FIELDS.indexOf(h) >= 0) {
+    } else if (MAINTAIN_DATEONLY_FIELDS.indexOf(h) >= 0 || MAINTAIN_DATEONLY_FIELDS.indexOf(String(h||'').trim()) >= 0) {
       // Requisition Date 等日期欄位改用原生月曆選擇器，跟表格內既有列的編輯體驗一致
       cellInner = '<input type="date" data-field="'+h+'" class="hc-inline-new-input" style="width:100%;font-size:12px;padding:6px 7px;border:1.5px solid var(--border);border-radius:6px;box-sizing:border-box;">';
     } else {
