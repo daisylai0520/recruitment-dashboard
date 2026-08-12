@@ -1518,6 +1518,8 @@ function syncNewInviterToManagerInfo(name, bu) {
 // Inviter／面試主管 可能不只一位；單位、Job Function、104_Position、負責HR 則是希望用勾選取代手動打字，減少輸入不一致。
 // 清單來源見 MAINTAIN_DROPDOWNS；勾選清單以外的值（例如舊資料、或用「新增」手動加入的新選項）也能維持顯示與勾選。
 var MULTI_SELECT_FIELDS = ['Inviter', '面試主管', '單位', 'Job Function', '104_Position', '負責HR', 'Source'];
+// Headcount Records 裡改用「打勾＋可新增選項」下拉選單樣式的欄位（跟上面 Candidate Records 的 MULTI_SELECT_FIELDS 共用同一套元件）
+var HC_CHECKBOX_DROPDOWN_FIELDS = ['Location', '開缺理由'];
 function buildInviterMultiSelectInput(sheetName, rec, field, col, idx, options, inputStyle) {
   var uid = 'invms_' + (_dlIdCounter++);
   var rawVal = rec[field] !== undefined ? rec[field] : '';
@@ -1737,8 +1739,12 @@ function renderTableCellInput(sheetName, rec, field, idx, customWidth) {
 
   if (dropdowns[field]) {
     var options = dropdowns[field]();
-    return buildDropdownDatalistInput(sheetName, rec, field, col, idx, options,
-      'font-size:12px;padding:5px 6px;border:1px solid var(--border);border-radius:6px;background:var(--surface);'+(customWidth?('width:'+customWidth+';'):'max-width:170px;width:100%;')+'box-sizing:border-box;');
+    var ddStyle = 'font-size:12px;padding:5px 6px;border:1px solid var(--border);border-radius:6px;background:var(--surface);'+(customWidth?('width:'+customWidth+';'):'max-width:170px;width:100%;')+'box-sizing:border-box;';
+    // Location／開缺理由改用跟 Inviter 等欄位一樣的「打勾＋可新增選項」下拉選單樣式，跟其他畫面的下拉選單風格一致
+    if (sheetName === 'Headcount Records' && HC_CHECKBOX_DROPDOWN_FIELDS.indexOf(field) >= 0) {
+      return buildInviterMultiSelectInput(sheetName, rec, field, col, idx, options, ddStyle);
+    }
+    return buildDropdownDatalistInput(sheetName, rec, field, col, idx, options, ddStyle);
   }
 
   if (isDateOnlyField && sheetName === 'Headcount Records') {
@@ -2209,7 +2215,7 @@ function computeMonthlyHeadcountOnboard() {
   }
 
   var reqKey = (hcRawData && hcRawData.length)
-    ? (Object.keys(hcRawData[0]).find(function(k){return k.trim()==='Requisition Date';}) || 'Requisition Date')
+    ? (Object.keys(hcRawData[0]).find(function(k){return k.trim()==='Requisition Date' || k.trim()==='開缺日';}) || 'Requisition Date')
     : 'Requisition Date';
   var divKey = (hcRawData && hcRawData.length) ? (Object.keys(hcRawData[0]).find(function(k){return k.trim()==='Division';}) || 'Division') : 'Division';
   var jobKeyHc = (hcRawData && hcRawData.length) ? (Object.keys(hcRawData[0]).find(function(k){return k.trim()==='Job Function';}) || 'Job Function') : 'Job Function';
@@ -2880,7 +2886,7 @@ function saveLastUsedHR(name) {
 }
 
 var MAINTAIN_DATE_FIELDS = ['invite_date','invite date','Phone Interview_date','Interview_date','Phone Interview Scheduled','Interview Scheduled','Result Update_date','Memo Update_date','Update_date','Update date','Onboard date','Hired date'];
-var MAINTAIN_DATEONLY_FIELDS = ['invite_date','invite date','Phone Interview Scheduled','Interview Scheduled','Result Update_date','Memo Update_date','Update_date','Update date','Onboard date','Requisition Date','Hired date'];
+var MAINTAIN_DATEONLY_FIELDS = ['invite_date','invite date','Phone Interview Scheduled','Interview Scheduled','Result Update_date','Memo Update_date','Update_date','Update date','Onboard date','Requisition Date','開缺日','Hired date'];
 var SCHEDULED_DATE_FIELD_MAP = {
   'Phone Interview_date': 'Phone Interview Scheduled',
   'Interview_date': 'Interview Scheduled'
@@ -4248,7 +4254,9 @@ function buildHcInlineAddRowHtml(divisionName) {
 
   var cellsHtml = fields.map(function(h){
     var cellInner;
-    if (dropdowns[h]) {
+    if (dropdowns[h] && HC_CHECKBOX_DROPDOWN_FIELDS.indexOf(h) >= 0) {
+      cellInner = buildFormInviterMultiSelectInput('hc-inline-new-input', h, dropdowns[h](), '');
+    } else if (dropdowns[h]) {
       cellInner = buildFormDatalistInput('hc-inline-new-input', h, dropdowns[h](), '');
     } else if (MAINTAIN_DATEONLY_FIELDS.indexOf(h) >= 0 || MAINTAIN_DATEONLY_FIELDS.indexOf(String(h||'').trim()) >= 0) {
       // Requisition Date 等日期欄位改用原生月曆選擇器，跟表格內既有列的編輯體驗一致
