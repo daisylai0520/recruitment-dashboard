@@ -1132,19 +1132,18 @@ function openFullEditFromStageModal() {
   openEditCandidateModal(row);
 }
 
-function openEditCandidateModal(row) {
-  var cand = allData.find(function(d){ return d._row === row; });
-  if (!cand) { showToast('找不到這位人選的資料'); return; }
+// 抽出成獨立函式，讓「Overview 卡片編輯 modal」跟「Analysis 樹狀圖鑽取旁邊的人選資料面板」可以共用同一套欄位排版與存檔邏輯
+// 排版比照 Candidate 畫面查詢人選資料卡：Phone Interview Record (HR)/(主管) 並排、Memo 全寬、104_Position 加寬
+function buildCandidateFieldsHtml(cand) {
   var idx = allData.indexOf(cand);
   var candHeaders = filterCandHeadersForMaintenance(maintainHeaders['Candidate Records'] || Object.keys(cand).filter(function(k){return k!=='_row';}));
 
-  // 排版比照 Candidate 畫面查詢人選資料卡：Phone Interview Record (HR)/(主管) 並排、Memo 全寬、104_Position 加寬
   var isPhoneRecordHeader = function(h){ return /phone\s*interview\s*record/i.test(h); };
   var phoneRecordFields = candHeaders.filter(isPhoneRecordHeader).sort(function(a,b){
     return (/hr/i.test(a)?0:1) - (/hr/i.test(b)?0:1); // HR 固定在左，主管固定在右
   });
   var pairedPhoneRecordDone = false;
-  var fieldsHtml = candHeaders.map(function(h){
+  return candHeaders.map(function(h){
     if (isPhoneRecordHeader(h)) {
       if (pairedPhoneRecordDone) return '';
       pairedPhoneRecordDone = true;
@@ -1160,9 +1159,13 @@ function openEditCandidateModal(row) {
     var isWide = h === '104_Position';
     return renderQueryField('Candidate Records', cand, h, idx, isFullWidth ? true : (isWide ? 'span2' : false), true);
   }).join('');
+}
 
+function openEditCandidateModal(row) {
+  var cand = allData.find(function(d){ return d._row === row; });
+  if (!cand) { showToast('找不到這位人選的資料'); return; }
   document.getElementById('editCandModalName').textContent = cand.Name || '編輯人選資料';
-  document.getElementById('editCandModalFields').innerHTML = fieldsHtml;
+  document.getElementById('editCandModalFields').innerHTML = buildCandidateFieldsHtml(cand);
   document.getElementById('editCandidateModal').style.display = 'flex';
   document.getElementById('editCandModalFields').querySelectorAll('textarea:not(.ta-scrollable)').forEach(autoGrowTextarea);
 }
@@ -1830,8 +1833,7 @@ function loadHeadcountData(records) {
 
 function renderHeadcount() {
   if (!hcRawData.length) {
-    var emptyJobTotalsEl = document.getElementById('hcJobTotalCards');
-    if (emptyJobTotalsEl) emptyJobTotalsEl.innerHTML = '<div class="empty">無資料</div>';
+    renderTrendHcChart();
     return;
   }
   var divKey = Object.keys(hcRawData[0]).find(function(k){return k.trim()==='Division';}) || 'Division';
@@ -1853,6 +1855,9 @@ function renderHeadcount() {
   renderMultiFilterBar('hcBuBar', 'hc-bu', hcBuOptions);
   var hcJobOptions = buildMultiValueOptions(hcRawData, function(r){return r[jobKey];});
   renderMultiFilterBar('hcJobBar', 'hc-job', hcJobOptions);
+
+  // 各單位 Headcount（缺額）長條圖：畫面最上面，跟著上面這兩個篩選走
+  renderTrendHcChart();
 
   var filtered = hcRawData.filter(function(r){
     return multiFilterPass('hc-bu', r[divKey]) && multiFilterPassMulti('hc-job', r[jobKey]);
@@ -1969,23 +1974,6 @@ function renderHeadcount() {
     '</div>';
   }).join('');
 
-  // 各 Job Function 缺額總人數（跨 Division 統計）
-  var jobTotals = {};
-  filtered.forEach(function(r){
-    var job = String(r[jobKey]||'').trim();
-    if (!job) return;
-    if (!jobTotals[job]) jobTotals[job] = 0;
-    var succ = String(r[succKey]||'').trim();
-    if (!succ) jobTotals[job]++;
-  });
-  var jobTotalArr = Object.keys(jobTotals).map(function(j){return {job:j, count:jobTotals[j]};}).sort(function(a,b){return b.count-a.count;});
-  document.getElementById('hcJobTotalCards').innerHTML = jobTotalArr.length===0 ? '<div class="empty">無資料</div>' :
-    jobTotalArr.map(function(jt){
-      return '<div class="mini-card" style="padding:14px 16px;text-align:center;">'+
-        '<div style="font-size:12px;color:var(--text-secondary);margin-bottom:6px;">'+jt.job+'</div>'+
-        '<div style="font-size:24px;font-weight:700;color:#4F46E5;">'+jt.count+'</div>'+
-      '</div>';
-    }).join('');
 }
 
 // ===== HEADCOUNT MEMO =====
@@ -2393,18 +2381,27 @@ function showProgressTreeDrilldown(idx) {
 }
 
 var _resultBreakdownCounts = [];
+var _resultBreakdownActiveIdx = -1;
 function showResultBreakdownDrilldown(title, resultValues, data) {
   document.getElementById('trendDrilldownTitle').textContent = title;
+  _resultBreakdownActiveIdx = -1;
+  closeTrendDrilldownDetail();
   _resultBreakdownCounts = resultValues.map(function(rv){
     var records = data.filter(function(d){ return d.Result === rv; });
     return { result: rv, records: records };
   });
+  renderResultBreakdownList();
+  document.getElementById('trendDrilldownModal').style.display = 'flex';
+}
+// 重畫 Result 分類卡片清單：目前點開查看名單的那張卡片會用 mc-active 樣式標成不同顏色，方便對照右側現在顯示的是哪個狀態
+function renderResultBreakdownList() {
   var totalN = _resultBreakdownCounts.reduce(function(a,c){ return a+c.records.length; }, 0);
   var listEl = document.getElementById('trendDrilldownList');
   listEl.innerHTML =
     '<div style="font-size:11px;color:var(--text-secondary);">共 '+totalN+' 人，點選下方 Result 查看名單</div>'+
     _resultBreakdownCounts.map(function(c, i){
-      return '<div class="mini-card" style="cursor:pointer;padding:10px 14px;" onclick="showResultBreakdownCandidates('+i+')">'+
+      var isActive = i === _resultBreakdownActiveIdx;
+      return '<div class="mini-card'+(isActive?' mc-active':'')+'" style="cursor:pointer;padding:10px 14px;" onclick="showResultBreakdownCandidates('+i+')">'+
         '<div style="display:flex;justify-content:space-between;align-items:center;">'+
           '<span style="font-size:13px;font-weight:600;">'+c.result+'</span>'+
           '<span style="font-size:13px;font-weight:700;color:var(--accent);">'+c.records.length+' 人</span>'+
@@ -2412,18 +2409,46 @@ function showResultBreakdownDrilldown(title, resultValues, data) {
       '</div>';
     }).join('')+
     '<div id="resultBreakdownCandList" style="margin-top:6px;display:flex;flex-direction:column;gap:8px;"></div>';
-  document.getElementById('trendDrilldownModal').style.display = 'flex';
 }
 function showResultBreakdownCandidates(i) {
+  _resultBreakdownActiveIdx = i;
+  renderResultBreakdownList();
+  closeTrendDrilldownDetail();
   var c = _resultBreakdownCounts[i];
   var listEl = document.getElementById('resultBreakdownCandList');
   if (!c || !listEl) return;
   listEl.innerHTML = c.records.length === 0 ? '<div class="empty" style="padding:16px 0;">目前無資料</div>' :
     c.records.map(function(d){
-      return '<div class="mini-card"><div class="mini-card-top"><div class="mini-card-name">'+(d.Name||'')+'</div><div class="mini-card-bu">'+(d['單位']||'')+'</div></div>'+
+      return '<div class="mini-card cand-mini-card" style="cursor:pointer;" onclick="showCandidateDetailBeside('+d._row+', this)"><div class="mini-card-top"><div class="mini-card-name">'+(d.Name||'')+'</div><div class="mini-card-bu">'+(d['單位']||'')+'</div></div>'+
         '<div class="mini-card-pos">'+(d['Job Function']||'')+(d.Source?' · '+d.Source:'')+'</div>'+
         '<div style="font-size:11px;color:var(--text-secondary);margin-top:2px;">目前狀態：'+(d.Result||'—')+'</div></div>';
     }).join('');
+}
+
+// 點某個人選卡片，在鑽取視窗右側顯示這位人選的完整資料（跟 Overview 點卡片後看到的欄位一樣，可以直接編輯、離開欄位自動存檔）；
+// 用專屬的 cand-mini-card 類別（跟 Result 分類卡片的 mini-card 分開），避免清除人選卡片的選取狀態時不小心影響到 Result 卡片的顏色
+function showCandidateDetailBeside(row, el) {
+  var cand = allData.find(function(d){ return d._row === row; });
+  if (!cand) { showToast('找不到這位人選的資料'); return; }
+  document.querySelectorAll('.cand-mini-card').forEach(function(node){ node.classList.remove('mc-active'); });
+  if (el) el.classList.add('mc-active');
+  var panel = document.getElementById('trendDrilldownDetailPanel');
+  if (!panel) return;
+  panel.innerHTML =
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">'+
+      '<div class="modal-title" style="margin-bottom:0;font-size:15px;">'+(cand.Name||'人選資料')+'</div>'+
+      '<span style="cursor:pointer;font-size:16px;color:var(--text-tertiary);" onclick="closeTrendDrilldownDetail()">✕</span>'+
+    '</div>'+
+    '<div class="maintain-candidate-grid">'+buildCandidateFieldsHtml(cand)+'</div>';
+  panel.style.display = 'block';
+  panel.querySelectorAll('textarea:not(.ta-scrollable)').forEach(autoGrowTextarea);
+}
+function closeTrendDrilldownDetail() {
+  var panel = document.getElementById('trendDrilldownDetailPanel');
+  if (!panel) return;
+  panel.style.display = 'none';
+  panel.innerHTML = '';
+  document.querySelectorAll('.cand-mini-card').forEach(function(node){ node.classList.remove('mc-active'); });
 }
 
 function renderProgressTree(trendData) {
@@ -2636,10 +2661,11 @@ function renderStageConversionDays(trendData) {
 
 function showTrendDrilldown(title, records) {
   document.getElementById('trendDrilldownTitle').textContent = title + '（共 '+records.length+' 人）';
+  closeTrendDrilldownDetail();
   var listEl = document.getElementById('trendDrilldownList');
   listEl.innerHTML = records.length === 0 ? '<div class="empty" style="padding:16px 0;">目前無資料</div>' :
     records.map(function(d){
-      return '<div class="mini-card"><div class="mini-card-top"><div class="mini-card-name">'+(d.Name||'')+'</div><div class="mini-card-bu">'+(d['單位']||'')+'</div></div>'+
+      return '<div class="mini-card cand-mini-card" style="cursor:pointer;" onclick="showCandidateDetailBeside('+d._row+', this)"><div class="mini-card-top"><div class="mini-card-name">'+(d.Name||'')+'</div><div class="mini-card-bu">'+(d['單位']||'')+'</div></div>'+
         '<div class="mini-card-pos">'+(d['Job Function']||'')+(d.Source?' · '+d.Source:'')+'</div>'+
         '<div style="font-size:11px;color:var(--text-secondary);margin-top:2px;">目前狀態：'+(d.Result||'—')+'</div></div>';
     }).join('');
@@ -2647,9 +2673,14 @@ function showTrendDrilldown(title, records) {
 }
 function closeTrendDrilldown() {
   document.getElementById('trendDrilldownModal').style.display = 'none';
+  closeTrendDrilldownDetail();
+  // 鑽取名單裡的人選資料是直接可編輯的（跟 Overview 一樣），關閉時重新整理各畫面，確保剛剛的修改有反映出來
+  renderAll();
+  if (currentTab === 'trends') renderTrends();
 }
 
-// 各單位 Headcount（缺額）長條圖：依目前 tr-bu／tr-job 篩選統計 Headcount Records 裡尚未遞補的缺額數
+// 各單位 Headcount（缺額）長條圖：移到 Headcount 畫面最上面（取代原本的「各 Job Function 缺額總人數」卡片），
+// 跟著 Headcount 畫面自己的單位／Job Function 篩選（hc-bu／hc-job）走，在 renderHeadcount() 裡呼叫
 function renderTrendHcChart() {
   var el = document.getElementById('trendHcChart');
   if (!el) return;
@@ -2661,8 +2692,8 @@ function renderTrendHcChart() {
   hcRawData.forEach(function(r){
     var div = String(r[divKey]||'').trim();
     if (!div) return;
-    if (!multiFilterPass('tr-bu', div)) return;
-    if (!multiFilterPassMulti('tr-job', r[jobKey])) return;
+    if (!multiFilterPass('hc-bu', div)) return;
+    if (!multiFilterPassMulti('hc-job', r[jobKey])) return;
     var succ = String(r[succKey]||'').trim();
     if (succ) return; // 只算尚未遞補的缺額
     counts[div] = (counts[div]||0) + 1;
@@ -2694,9 +2725,6 @@ function renderTrends() {
   // ---- 階段轉換率（漏斗圖 + 各階段平均天數，沿用上方相同的單位/職務別/目前狀態篩選）----
   renderStageConversionFunnel(trendData);
   renderStageConversionDays(trendData);
-
-  // ---- 各單位 Headcount（缺額）----
-  renderTrendHcChart();
 
   // ---- 每月 Headcount & Onboard（最近 6 個月）：Headcount 固定長條、Onboard 固定折線 ----
   var monthly = computeMonthlyHeadcountOnboard();

@@ -232,7 +232,7 @@
       <div id="trDateFilterSlot"></div>
     </div>
 
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:20px;">
+    <div style="display:grid;grid-template-columns:1fr 1fr 1.8fr;gap:16px;margin-bottom:20px;align-items:start;">
       <div class="cal-outer" id="trendCard-funnel">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
           <div style="font-size:14px;font-weight:600;">階段轉換率</div>
@@ -247,15 +247,6 @@
         <div id="stageConversionDays"></div>
       </div>
 
-      <div class="cal-outer" id="trendCard-hc">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
-          <div style="font-size:14px;font-weight:600;">各單位 Headcount</div>
-        </div>
-        <div id="trendHcChart" style="overflow-x:auto;"></div>
-      </div>
-    </div>
-
-    <div style="display:grid;grid-template-columns:1fr;gap:16px;margin-bottom:20px;">
       <div class="cal-outer" id="trendCard-progress">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
           <div style="font-size:14px;font-weight:600;">人選進度統計</div>
@@ -279,9 +270,9 @@
     <div class="page-title">Headcount</div>
     <div class="page-sub" id="hcSub">尚未載入資料</div>
 
-    <div style="margin-bottom:20px;">
-      <div style="font-size:13px;font-weight:600;color:var(--text-secondary);margin-bottom:10px;">各 Job Function 缺額總人數</div>
-      <div class="collapse-grid" id="hcJobTotalCards" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;"></div>
+    <div class="cal-outer" style="margin-bottom:20px;">
+      <div style="font-size:13px;font-weight:600;color:var(--text-secondary);margin-bottom:10px;">各單位 Headcount</div>
+      <div id="trendHcChart" style="overflow-x:auto;"></div>
     </div>
 
     <div id="hcEmptyState" style="text-align:center;padding:60px 20px;color:var(--text-tertiary);">
@@ -562,12 +553,15 @@
 
 <!-- TREND DRILLDOWN MODAL -->
 <div id="trendDrilldownModal" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeTrendDrilldown()">
-  <div class="modal" style="max-width:520px;">
+  <div class="modal" style="max-width:1040px;width:94vw;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
       <div class="modal-title" id="trendDrilldownTitle" style="margin-bottom:0;">—</div>
       <span style="cursor:pointer;font-size:18px;color:var(--text-tertiary);" onclick="closeTrendDrilldown()">✕</span>
     </div>
-    <div id="trendDrilldownList" style="max-height:60vh;overflow-y:auto;display:flex;flex-direction:column;gap:8px;"></div>
+    <div style="display:flex;gap:16px;align-items:flex-start;">
+      <div id="trendDrilldownList" style="flex:0 0 380px;max-width:380px;max-height:65vh;overflow-y:auto;display:flex;flex-direction:column;gap:8px;"></div>
+      <div id="trendDrilldownDetailPanel" style="display:none;flex:1;min-width:0;max-height:65vh;overflow-y:auto;padding-left:16px;border-left:1.5px solid var(--border);"></div>
+    </div>
   </div>
 </div>
 
