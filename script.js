@@ -233,10 +233,10 @@ function loadDateFilterState(pageKey) {
     return { field: o.field, start: o.start ? new Date(o.start) : null, end: o.end ? new Date(o.end) : null, quickRange: o.quickRange || undefined };
   } catch (e) { return null; }
 }
-// 把之前存起來的篩選條件套回畫面上：如果是快速範圍（本週/本月/過去一個月）就重新計算一次日期（避免用到過期的舊日期），
-// 如果是手動選的起訖日期，就直接照原本存的日期還原。
+// 把之前存起來的篩選條件原封不動套回畫面上——不管原本是快速範圍還是手動選的起訖日期，一律照存起來的日期還原，
+// 不會重新計算「今天」是哪一天。這樣不管背景自動刷新幾次、放著幾天沒關、中途跨了一週，篩選範圍都不會自己跑掉，
+// 只有真正第一次打開這個畫面（分頁）才會用「今天」重新算一次本週。
 function restoreDateFilterUi(pageKey, saved) {
-  if (saved.quickRange) { quickDateFilter(pageKey, saved.quickRange); return; }
   var fieldEl = document.getElementById('df-field-' + pageKey);
   var startEl = document.getElementById('df-start-' + pageKey);
   var endEl = document.getElementById('df-end-' + pageKey);
@@ -245,6 +245,12 @@ function restoreDateFilterUi(pageKey, saved) {
   startEl.value = saved.start ? fmtISODate(saved.start) : '';
   endEl.value = saved.end ? fmtISODate(saved.end) : '';
   applyDateFilter(pageKey);
+  // 只是還原「當初點的是哪個快速按鈕」這個畫面提示用的標記，不會拿它重新計算日期
+  if (saved.quickRange && dateFilterState[pageKey]) {
+    dateFilterState[pageKey].quickRange = saved.quickRange;
+    saveDateFilterState(pageKey);
+  }
+  updateDateQuickBtnActive(pageKey);
 }
 
 function buildDateFilterHtml(pageKey, fieldOptions, quickRanges) {
