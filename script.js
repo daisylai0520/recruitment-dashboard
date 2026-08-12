@@ -543,6 +543,14 @@ function findBUByInviterName(name) {
   var match = managerInfoData.find(function(m){ return String(m.Name||'').trim().toLowerCase() === target; });
   return match ? (match.BU || '') : '';
 }
+// 同樣依姓名比對出「Job Function」，供填寫 Inviter 時一併自動帶入 Job Function 使用；
+// Manager Information 裡這個人的 Job Function 欄位是空白的話回傳空字串，呼叫端會因此不帶入（保留原本的值）。
+function findJobFunctionByInviterName(name) {
+  var target = String(name||'').trim().toLowerCase();
+  if (!target) return '';
+  var match = managerInfoData.find(function(m){ return String(m.Name||'').trim().toLowerCase() === target; });
+  return match ? (match.JobFunction || '') : '';
+}
 
 function applyHeadcountData(json) {
   headcountDropdownData = json.headcountDropdowns || {};
@@ -1655,24 +1663,45 @@ function applyFieldDisplayValue(el, newVal) {
   }
 }
 
-// 依 Inviter 姓名查出對應單位，若跟目前 單位 不同就一併更新畫面與試算表
-// Inviter 可能是多人（用「、」分隔），單位自動帶入時以第一位為準
+// 依 Inviter 姓名查出對應單位／Job Function，若跟目前欄位值不同就一併更新畫面與試算表；
+// Inviter 可能是多人（用「、」分隔），自動帶入時以第一位為準。
+// 單位、Job Function 各自獨立判斷：Manager Information 裡哪個欄位是空白，就不帶入那個欄位（保留原本的值），不會因為其中一個空白就整組都不帶。
 async function autoSyncBUFromInviter(inviterName, row) {
   var firstName = String(inviterName||'').split('、')[0].trim();
   var bu = findBUByInviterName(firstName);
-  if (!bu) return;
-  var buEl = document.querySelector('[data-field="單位"][data-row="'+row+'"]');
-  if (!buEl || buEl.value === bu) return;
-  var buCol = buEl.getAttribute('data-col');
-  var buIdx = parseInt(buEl.getAttribute('data-idx'));
-  var ok = await saveMaintainField('Candidate Records', row, buCol, '單位', buIdx, bu);
-  if (ok) {
-    buEl.setAttribute('data-raw', bu.replace(/"/g,'&quot;'));
-    applyFieldDisplayValue(buEl, bu);
-    // 跨單位搜尋結果的資料不在 allData 裡，找不到時改查 allDataFull（完整名單）
-    var d = allData.find(function(x){ return String(x._row) === String(row); }) ||
-      allDataFull.find(function(x){ return String(x._row) === String(row); });
-    if (d) d['單位'] = bu;
+  var jf = findJobFunctionByInviterName(firstName);
+
+  if (bu) {
+    var buEl = document.querySelector('[data-field="單位"][data-row="'+row+'"]');
+    if (buEl && buEl.value !== bu) {
+      var buCol = buEl.getAttribute('data-col');
+      var buIdx = parseInt(buEl.getAttribute('data-idx'));
+      var buOk = await saveMaintainField('Candidate Records', row, buCol, '單位', buIdx, bu);
+      if (buOk) {
+        buEl.setAttribute('data-raw', bu.replace(/"/g,'&quot;'));
+        applyFieldDisplayValue(buEl, bu);
+        // 跨單位搜尋結果的資料不在 allData 裡，找不到時改查 allDataFull（完整名單）
+        var d1 = allData.find(function(x){ return String(x._row) === String(row); }) ||
+          allDataFull.find(function(x){ return String(x._row) === String(row); });
+        if (d1) d1['單位'] = bu;
+      }
+    }
+  }
+
+  if (jf) {
+    var jfEl = document.querySelector('[data-field="Job Function"][data-row="'+row+'"]');
+    if (jfEl && jfEl.value !== jf) {
+      var jfCol = jfEl.getAttribute('data-col');
+      var jfIdx = parseInt(jfEl.getAttribute('data-idx'));
+      var jfOk = await saveMaintainField('Candidate Records', row, jfCol, 'Job Function', jfIdx, jf);
+      if (jfOk) {
+        jfEl.setAttribute('data-raw', jf.replace(/"/g,'&quot;'));
+        applyFieldDisplayValue(jfEl, jf);
+        var d2 = allData.find(function(x){ return String(x._row) === String(row); }) ||
+          allDataFull.find(function(x){ return String(x._row) === String(row); });
+        if (d2) d2['Job Function'] = jf;
+      }
+    }
   }
 }
 
@@ -3944,16 +3973,24 @@ function autoGrowTextarea(el) {
   el.style.height = el.scrollHeight + 'px';
 }
 
-// Manager Information 比對：Inviter 欄位有值時，自動把對應的「單位」帶入同一張表單的 單位 欄位
+// Manager Information 比對：Inviter 欄位有值時，自動把對應的「單位」「Job Function」帶入同一張表單對應的欄位；
+// 兩個欄位各自獨立判斷，Manager Information 裡哪個欄位是空白就不帶入那個欄位。
 // Inviter 可能是多人（用「、」分隔），以第一位為準
 function handleInviterInputChange(el) {
   var firstName = String(el.value||'').split('、')[0].trim();
   var bu = findBUByInviterName(firstName);
-  if (!bu) return;
+  var jf = findJobFunctionByInviterName(firstName);
+  if (!bu && !jf) return;
   var container = el.closest('#newCandFields') || el.closest('#addRowModalFields');
   if (!container) return;
-  var buInput = container.querySelector('[data-field="單位"]');
-  if (buInput) applyFieldDisplayValue(buInput, bu);
+  if (bu) {
+    var buInput = container.querySelector('[data-field="單位"]');
+    if (buInput) applyFieldDisplayValue(buInput, bu);
+  }
+  if (jf) {
+    var jfInput = container.querySelector('[data-field="Job Function"]');
+    if (jfInput) applyFieldDisplayValue(jfInput, jf);
+  }
 }
 
 // 104_Position 欄位有值時，自動擷取【】內的文字帶入同一張表單的 Job Function 欄位
