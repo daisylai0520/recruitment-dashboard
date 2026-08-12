@@ -2451,6 +2451,34 @@ function closeTrendDrilldownDetail() {
   document.querySelectorAll('.cand-mini-card').forEach(function(node){ node.classList.remove('mc-active'); });
 }
 
+// 共用給「人選進度統計」樹狀圖與「階段轉換率」漏斗圖：兩個區塊都要顯示完全一致的電訪／面試／錄取人數，
+// 所以邀約／已聯繫上／已面試／錄取的判斷邏輯只寫這一份，兩邊都呼叫這裡，不會各自算出不同的數字。
+function computeProgressTreeCounts(trendData) {
+  var cp = buildProgressCheckpoints();
+  // 「有沒有填邀約日」＝所有曾經邀約過的人選（不管後來有沒有往下一階段推進）
+  var invitedTest = function(d){ return !!(d.invite_date || d['invite date']); };
+  var contactedTest = function(d){ return invitedTest(d) && cp.contactOf(d.Result) === '已聯繫上'; };
+  var interviewedTest = function(d){ return contactedTest(d) && cp.interviewProgressOf(d.Result) === '已面試'; };
+  function offerBucketTest(bucketLabel) {
+    return function(d){ return interviewedTest(d) && cp.offerResultOf(d.Result) === bucketLabel; };
+  }
+  // 錄取數：優先抓「錄取結果」欄位裡真的叫「錄取」的分類；如果試算表裡用了別的名稱，退回全部有填錄取結果的人數，避免算成 0
+  var hireLabel = cp.offerOrder.indexOf('錄取') >= 0 ? '錄取' : null;
+  var hiredTest = hireLabel ? offerBucketTest(hireLabel) : function(d){ return interviewedTest(d) && !!cp.offerResultOf(d.Result); };
+  return {
+    cp: cp,
+    invitedTest: invitedTest,
+    contactedTest: contactedTest,
+    interviewedTest: interviewedTest,
+    offerBucketTest: offerBucketTest,
+    hiredTest: hiredTest,
+    invitedCount: trendData.filter(invitedTest).length,
+    contactedCount: trendData.filter(contactedTest).length,
+    interviewedCount: trendData.filter(interviewedTest).length,
+    hiredCount: trendData.filter(hiredTest).length
+  };
+}
+
 function renderProgressTree(trendData) {
   var wrap = document.getElementById('progressTreeFlow');
   if (!wrap) return;
@@ -2461,9 +2489,8 @@ function renderProgressTree(trendData) {
     return;
   }
 
-  // 「有沒有填邀約日」＝所有曾經邀約過的人選（不管後來有沒有往下一階段推進）
-  var invitedTest = function(d){ return !!(d.invite_date || d['invite date']); };
-  var cp = buildProgressCheckpoints();
+  var pt = computeProgressTreeCounts(trendData);
+  var cp = pt.cp, invitedTest = pt.invitedTest, contactedTest = pt.contactedTest, interviewedTest = pt.interviewedTest, offerBucketTest = pt.offerBucketTest;
 
   function phoneBucketTest(bucketLabel) {
     return function(d){
@@ -2475,13 +2502,8 @@ function renderProgressTree(trendData) {
       return bucketLabel === '未聯繫上－已結案' ? closed === '已結案' : closed === '未結案';
     };
   }
-  var contactedTest = phoneBucketTest('已聯繫上');
   function interviewBucketTest(bucketLabel) {
     return function(d){ return contactedTest(d) && cp.interviewProgressOf(d.Result) === bucketLabel; };
-  }
-  var interviewedTest = interviewBucketTest('已面試');
-  function offerBucketTest(bucketLabel) {
-    return function(d){ return interviewedTest(d) && cp.offerResultOf(d.Result) === bucketLabel; };
   }
 
   function pushDrill(label, testFn, resultValues) {
@@ -2531,14 +2553,13 @@ function renderProgressTree(trendData) {
   var canvasH = HEADER_H + leafCounter * ROW_H + 14;
 
   var svgParts = [];
-  // 直排標題文字＋分隔直線（跟參考圖一樣，每個欄位上方寫「邀約階段／電訪階段／面試階段／錄取階段」）
+  // 不用分隔直線區分各欄位，改用淺色色塊（跟階段轉換率漏斗圖同一組顏色，兩個區塊視覺呼應），每欄位上方寫欄位標題
+  var COL_BG_COLORS = ['#4338CA','#4F46E5','#6366F1','#818CF8'];
   for (var ci = 0; ci <= maxDepth; ci++) {
     var colCx = ci * COL_W + BOX_W / 2;
+    var bandColor = COL_BG_COLORS[ci % COL_BG_COLORS.length];
+    svgParts.push('<rect x="'+(ci*COL_W)+'" y="0" width="'+COL_W+'" height="'+canvasH+'" style="fill:'+bandColor+';fill-opacity:0.08;"></rect>');
     svgParts.push('<text x="'+colCx+'" y="18" font-size="13" font-weight="700" text-anchor="middle" style="fill:var(--text-primary);">'+(COL_LABELS[ci]||'')+'</text>');
-    if (ci > 0) {
-      var dividerX = ci * COL_W - (COL_W - BOX_W) / 2;
-      svgParts.push('<line x1="'+dividerX+'" y1="0" x2="'+dividerX+'" y2="'+canvasH+'" style="stroke:var(--border);stroke-width:1;"/>');
-    }
   }
   function walk(node) {
     node.children.forEach(function(c){
@@ -2572,12 +2593,26 @@ function renderStageConversionFunnel(trendData) {
   var wrap = document.getElementById('stageConversionFunnel');
   if (!wrap) return;
   var hasVal = function(v){ return !!(v && String(v).trim()); };
-  var steps = [
-    { label:'邀約', count: trendData.filter(function(d){ return hasVal(d.invite_date || d['invite date']); }).length },
-    { label:'電訪', count: trendData.filter(function(d){ return hasVal(d['Phone Interview Scheduled']); }).length },
-    { label:'面試', count: trendData.filter(function(d){ return hasVal(d['Interview Scheduled']); }).length },
-    { label:'錄取', count: trendData.filter(function(d){ return hasVal(d['Hired date']); }).length }
-  ];
+  var steps;
+  if (resultCategories.length) {
+    // 跟「人選進度統計」樹狀圖共用同一套累計勾稽邏輯（computeProgressTreeCounts），
+    // 確保這裡的電訪／面試／錄取人數，跟樹狀圖的已聯繫上／已面試／錄取人數完全一致
+    var pt = computeProgressTreeCounts(trendData);
+    steps = [
+      { label:'邀約', count: pt.invitedCount },
+      { label:'電訪', count: pt.contactedCount },
+      { label:'面試', count: pt.interviewedCount },
+      { label:'錄取', count: pt.hiredCount }
+    ];
+  } else {
+    // 「分類Result」工作表還沒設定分類欄位時的備用算法：直接看里程碑欄位是否有值
+    steps = [
+      { label:'邀約', count: trendData.filter(function(d){ return hasVal(d.invite_date || d['invite date']); }).length },
+      { label:'電訪', count: trendData.filter(function(d){ return hasVal(d['Phone Interview Scheduled']); }).length },
+      { label:'面試', count: trendData.filter(function(d){ return hasVal(d['Interview Scheduled']); }).length },
+      { label:'錄取', count: trendData.filter(function(d){ return hasVal(d['Hired date']); }).length }
+    ];
+  }
   var invitedCount = steps[0].count;
   if (!invitedCount) {
     wrap.innerHTML = '<div class="empty" style="padding:10px 0;">尚無足夠資料計算轉換率</div>';
