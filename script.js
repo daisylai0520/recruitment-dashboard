@@ -700,6 +700,9 @@ function enterAs(roleToken, hrName, units) {
   currentHRName = hrName;
   currentHRUnits = units;
   candMaintenanceDateCleared = false; // 每次切換身分都重新開始，Candidate 畫面回到「還沒篩選」的初始狀態
+  // Candidate Records（core）依身分的單位範圍做篩選，強制標記成「還沒載入」，等一下才會重新套用這個新身分的單位篩選
+  // （即使這份資料在瀏覽器裡已經抓過也一樣要重套一次；其餘資源不受身分影響，不用重設）
+  loadedResources.core = false;
 
   // 切換身分時回到頁首，確保上方分頁導覽會立即出現在視窗中。
   window.scrollTo(0, 0);
@@ -752,15 +755,15 @@ function enterAs(roleToken, hrName, units) {
   tabHistoryIndex = 0;
   initTabHistoryNav();
 
-  // 「快速查看」進去的畫面（目前只有 Headcount／Market Salary Records）其實用不到 Candidate Records 這份
-  // 核心資料，之前不管進哪個畫面都一定先抓 fetchCoreData()，這份資料量最大、也最容易偶爾抓取失敗，
-  // 一旦失敗就會連累 Headcount／Salary 這種完全用不到它的畫面也一起顯示「沒資料」。
-  // 這裡改成：只有目前這個分頁真的需要 core 資料時才去抓，不需要的話（例如 hc／salary）就跳過，
-  // 直接抓該分頁自己需要的資源，避免被不相關的資料拖累。
+  // 「快速查看」進去的畫面（目前只有 Headcount／Market Salary Records／Analysis）其實用不到 Candidate Records 這份
+  // 核心資料，不需要的話（例如 hc／salary）就跳過，直接抓該分頁自己需要的資源，避免被不相關的資料拖累。
+  // 需要 core 的話，改用 ensureResourceLoaded('core')（跟其他資源、其他分頁切換一致）而不是直接呼叫 fetchCoreData()，
+  // 這樣如果瀏覽器裡已經有上次抓過的快取，會先用快取資料立刻套用這個身分的單位篩選、畫面先顯示出來，
+  // 同時在背景重新抓最新資料，不用每次選身分／快速查看都整個空等網路。
   var resources = TAB_RESOURCES[currentTab] || ['core'];
   var needsCore = resources.indexOf('core') >= 0;
   var loadPromise = needsCore
-    ? fetchCoreData().then(function(){
+    ? ensureResourceLoaded('core').then(function(){
         if (!isAdmin && currentHRUnits && !currentHRUnits.length) {
           showToast('⚠️ 你目前尚未被指派任何單位，請聯繫管理者設定權限');
         }
@@ -925,14 +928,15 @@ function toggleCollapse(type){
 
 // 依 電訪/面試/錄取 三個階段組出 Kanban 看板 HTML（Candidate Overview、Candidate Search 共用）
 // readOnly=true 時卡片點開後只能查看、不能編輯（給 Candidate Search 用）
-function buildKanbanPhasesHtml(filtered, readOnly, hideManagerInvitationStage) {
+// hideOtherPhase=true 時不顯示「其他（待確認/暫緩）」這一欄（Overview 畫面用；Candidate Search 維持顯示）
+function buildKanbanPhasesHtml(filtered, readOnly, hideManagerInvitationStage, hideOtherPhase) {
   var clickFn = readOnly ? 'handleCardClickReadOnly' : 'handleCardClick';
   var phases=[
     {label:'電訪階段', cls:'phase-phone', stages:hideManagerInvitationStage ? CANDIDATE_OVERVIEW_PHONE_STAGES : PHONE_STAGES},
     {label:'面試階段', cls:'phase-interview', stages:INTERVIEW_STAGES},
-    {label:'錄取階段', cls:'phase-offer', stages:OFFER_STAGES},
-    {label:'其他', cls:'phase-other', stages:OTHER_STAGES}
+    {label:'錄取階段', cls:'phase-offer', stages:OFFER_STAGES}
   ];
+  if (!hideOtherPhase) phases.push({label:'其他', cls:'phase-other', stages:OTHER_STAGES});
 
   var boardHtml='';
   phases.forEach(function(phase, pi){
@@ -1027,7 +1031,7 @@ function renderKanban() {
     return true;
   });
 
-  document.getElementById('kanbanBoard').innerHTML = buildKanbanPhasesHtml(filtered, false, true);
+  document.getElementById('kanbanBoard').innerHTML = buildKanbanPhasesHtml(filtered, false, true, true);
 }
 
 // ---- CANDIDATE SEARCH ----
@@ -2183,10 +2187,11 @@ function makeTrendSeries(name, recordsPerWeek) {
   return { name: name, data: recordsPerWeek.map(function(r){return r.length;}), records: recordsPerWeek };
 }
 
-// 每月 Headcount（當月月底仍未結案的缺額數）＆ Onboard（依 Candidate Records「Onboard date」）
+// 每月 Headcount（當月月底仍未結案的缺額數）＆ Onboard，兩條線都直接抓 Headcount Records 工作表自己的欄位：
+// Headcount 用「開缺日」（reqKey）、Onboard 用「Onboard date」（onboardKeyHc，遞補人員的到職日，
+// 選了遞補人員後後端會自動從 Candidate Records 帶一份存進這一欄，不用再回頭比對人選姓名）。
 // 只依目前 tr-bu／tr-job 篩選，不跟著上方時間篩選走（跟「各單位 Headcount 缺額」圖表口徑一致）；固定顯示最近 6 個月。
-// Headcount Records 沒有「實際結案日期」欄位，用「遞補人員」姓名比對 Candidate Records 找到對應人選的 Onboard date 當作結案日：
-// 到職日在該月月底之前 → 那個月底已結案；有遞補人員姓名但找不到對應到職日（姓名沒對上／人選還沒填到職日）→ 保守視為已結案，避免高估未結案數；
+// 判斷「未結案」：到職日在該月月底之前 → 那個月底已結案；有遞補人員姓名但還沒填到職日 → 保守視為已結案，避免高估未結案數；
 // 完全沒有遞補人員姓名 → 一直算未結案，直到有人遞補為止。
 function computeMonthlyHeadcountOnboard() {
   var months = [];
@@ -2207,41 +2212,42 @@ function computeMonthlyHeadcountOnboard() {
   var reqKey = (hcRawData && hcRawData.length)
     ? (Object.keys(hcRawData[0]).find(function(k){return k.trim()==='Requisition Date' || k.trim()==='開缺日';}) || 'Requisition Date')
     : 'Requisition Date';
+  var onboardKeyHc = (hcRawData && hcRawData.length)
+    ? (Object.keys(hcRawData[0]).find(function(k){return k.trim()==='Onboard date';}) || 'Onboard date')
+    : 'Onboard date';
   var divKey = (hcRawData && hcRawData.length) ? (Object.keys(hcRawData[0]).find(function(k){return k.trim()==='Division';}) || 'Division') : 'Division';
   var jobKeyHc = (hcRawData && hcRawData.length) ? (Object.keys(hcRawData[0]).find(function(k){return k.trim()==='Job Function';}) || 'Job Function') : 'Job Function';
   var succKeyHc = (hcRawData && hcRawData.length) ? (Object.keys(hcRawData[0]).find(function(k){return k.includes('Successor')||k.trim()==='遞補人員';}) || 'Successor') : 'Successor';
 
+  // 明細表格點下去要看候選人卡片，Headcount Records 本身欄位格式不一樣，所以還是用「遞補人員」姓名去 Candidate Records 找對應人選卡片
   var candidatePool = (typeof allDataFull !== 'undefined' && allDataFull && allDataFull.length) ? allDataFull : allData;
-  function onboardDateOfSuccessor(name) {
-    var n = String(name||'').trim();
-    if (!n) return null;
-    var cand = candidatePool.find(function(d){ return String(d.Name||'').trim() === n; });
-    return cand ? parseDateTime(cand['Onboard date']) : null;
-  }
 
   var hcCounts = months.map(function(){ return 0; });
+  var onboardCounts = months.map(function(){ return 0; });
+  var onboardRecords = months.map(function(){ return []; });
+
   (hcRawData||[]).forEach(function(r){
     if (!multiFilterPass('tr-bu', r[divKey])) return;
     if (!multiFilterPassMulti('tr-job', r[jobKeyHc])) return;
     var reqDate = parseDateTime(r[reqKey]);
-    if (!reqDate) return; // 沒有開缺日期就不計入
+    var onboardDate = parseDateTime(r[onboardKeyHc]);
     var succName = String(r[succKeyHc]||'').trim();
-    var onboardDate = succName ? onboardDateOfSuccessor(succName) : null;
-    months.forEach(function(m, idx){
-      if (reqDate > monthEnds[idx]) return; // 那個月底之後才開缺，還沒算進去
-      if (succName && onboardDate && onboardDate <= monthEnds[idx]) return; // 到職日在月底前 → 已結案
-      if (succName && !onboardDate) return; // 有遞補人員但找不到到職日 → 保守視為已結案
-      hcCounts[idx]++;
-    });
-  });
 
-  var onboardRecords = months.map(function(){ return []; });
-  allData.forEach(function(d){
-    if (!multiFilterPass('tr-bu', d['單位'])) return;
-    if (!multiFilterPassMulti('tr-job', d['Job Function'])) return;
-    var idx = monthIndexOf(d['Onboard date']);
-    if (idx < 0) return;
-    onboardRecords[idx].push(d);
+    if (reqDate) {
+      months.forEach(function(m, idx){
+        if (reqDate > monthEnds[idx]) return; // 那個月底之後才開缺，還沒算進去
+        if (succName && onboardDate && onboardDate <= monthEnds[idx]) return; // 到職日在月底前 → 已結案
+        if (succName && !onboardDate) return; // 有遞補人員但還沒填到職日 → 保守視為已結案
+        hcCounts[idx]++;
+      });
+    }
+
+    var onboardIdx = monthIndexOf(onboardDate);
+    if (onboardIdx >= 0) {
+      onboardCounts[onboardIdx]++;
+      var cand = succName ? candidatePool.find(function(d){ return String(d.Name||'').trim() === succName; }) : null;
+      if (cand) onboardRecords[onboardIdx].push(cand);
+    }
   });
 
   return {
@@ -2249,7 +2255,7 @@ function computeMonthlyHeadcountOnboard() {
     // Headcount 這條線不附 records：Headcount Records 的欄位跟候選人卡片格式不同，明細表格點下去不適合用候選人卡片呈現
     series: [
       { name:'Headcount（未結案缺額）', data: hcCounts },
-      { name:'Onboard', data: onboardRecords.map(function(a){return a.length;}), records: onboardRecords }
+      { name:'Onboard', data: onboardCounts, records: onboardRecords }
     ]
   };
 }
