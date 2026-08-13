@@ -2535,7 +2535,7 @@ function renderProgressTree(trendData) {
 
   // 每個節點所在的欄位（0=邀約階段／1=電訪階段／2=面試階段／3=錄取階段），決定畫在哪一直排
   var COL_LABELS = ['邀約階段', '電訪階段', '面試階段', '錄取階段'];
-  var COL_W = 168, BOX_W = 132, BOX_H = 46, ROW_H = 62, HEADER_H = 34;
+  var COL_W = 210, BOX_W = 168, BOX_H = 46, ROW_H = 62, HEADER_H = 34;
   var leafCounter = 0, maxDepth = 0;
   function layout(node, depth) {
     maxDepth = Math.max(maxDepth, depth);
@@ -2635,10 +2635,9 @@ function renderStageConversionFunnel(trendData) {
     return;
   }
   var rows = steps.map(function(s, i){
+    // 統一用「佔邀約總人數」的累積比例，跟色塊寬度的縮放基準一致
     var pct = Math.round(s.count/invitedCount*1000)/10;
-    var prevCount = i === 0 ? null : steps[i-1].count;
-    var step = prevCount ? Math.round(s.count/prevCount*1000)/10 : null;
-    return { label: s.label, count: s.count, pct: pct, step: step, isFirst: i === 0 };
+    return { label: s.label, count: s.count, pct: pct, isFirst: i === 0 };
   });
   // 傳統漏斗圖：每階段一個梯形，上下緊密相連（不留縫隙），由寬到窄逐漸收攏，梯形裡放階段名稱＋人數（白字）；
   // 轉換率是重點，改放在圖形「右側」用跟該階段同色的大字顯示（呼應參考圖的排版，但不用圖示、顏色也收斂成同一色系）；
@@ -2669,8 +2668,9 @@ function renderStageConversionFunnel(trendData) {
   var pctsHtml = rows.map(function(r, i){
     if (r.isFirst) return '<div class="funnel-pct-cell"></div>'; // 邀約一定是 100%，不用再顯示轉換率
     var hasData = r.count > 0;
-    // 其餘階段用「占上一階段」轉換率，若剛好前一階段是 0（理論上不會有這階段）就退回用占邀約比例，避免顯示 null
-    var displayPct = r.step !== null ? r.step : r.pct;
+    // 改成跟色塊寬度同一個基準：佔「邀約總人數」的累積比例（不是佔上一階段的轉換率），
+    // 避免文字比例跟色塊寬度縮收幅度對不上、看起來很奇怪
+    var displayPct = r.pct;
     var color = hasData ? FUNNEL_COLORS[i % FUNNEL_COLORS.length] : EMPTY_TEXT;
     return '<div class="funnel-pct-cell" style="color:'+color+';">'+displayPct+'%</div>';
   }).join('');
