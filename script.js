@@ -2563,21 +2563,47 @@ function renderProgressTree(trendData) {
   wrap.innerHTML = '<div style="overflow-x:auto;"><svg width="'+canvasW+'" height="'+canvasH+'" viewBox="0 0 '+canvasW+' '+canvasH+'">'+svgParts.join('')+'</svg></div>';
 }
 
-// 階段轉換率漏斗圖：直接依「里程碑欄位是否有值」判斷每個人是否到達該階段，
-// 邀約＝invite_date有值；電訪＝Phone Interview Scheduled有值；面試＝Interview Scheduled有值；錄取＝Hired date有值
-// （Phone/Interview Scheduled、Hired date 都是後端在對應欄位變動時自動蓋上當天日期，等於「曾到達該階段」的累計記錄）
-// 「分類Result」工作表的階段欄位改成完全動態（欄名／選項都可能隨時調整），不再假設固定有電訪/面試/錄取結果幾個
-// 特定欄位可以拿來對應這裡的 4 個階段，所以這裡固定用里程碑欄位判斷，不依賴分類Result工作表的欄位結構。
+// 階段轉換率漏斗圖：優先依「分類Result」工作表的「階段轉換率」欄位分組計算——
+// 欄位裡填了什麼字、幾個階段、順序，都以工作表由上到下「第一次出現」的順序為準，完全不寫死；
+// 每個階段的人數＝「目前分類在這個階段、或更後面階段」的人選累計加總（越後面階段的人選一定也經過前面階段），
+// 才會呈現逐階段收攏的漏斗圖。如果「階段轉換率」這欄還沒有填資料，就退回用舊的里程碑欄位判斷方式
+// （邀約＝invite_date有值；電訪＝Phone Interview Scheduled有值；面試＝Interview Scheduled有值；錄取＝Hired date有值），
+// 這樣欄位還沒填好之前畫面也不會空白。
 function renderStageConversionFunnel(trendData) {
   var wrap = document.getElementById('stageConversionFunnel');
   if (!wrap) return;
   var hasVal = function(v){ return !!(v && String(v).trim()); };
-  var steps = [
-    { label:'邀約', count: trendData.filter(function(d){ return hasVal(d.invite_date || d['invite date']); }).length },
-    { label:'電訪', count: trendData.filter(function(d){ return hasVal(d['Phone Interview Scheduled']); }).length },
-    { label:'面試', count: trendData.filter(function(d){ return hasVal(d['Interview Scheduled']); }).length },
-    { label:'錄取', count: trendData.filter(function(d){ return hasVal(d['Hired date']); }).length }
-  ];
+
+  var stageOrder = [];
+  resultCategories.forEach(function(rc){
+    var v = String(rc.stageConversion || '').trim();
+    if (v && stageOrder.indexOf(v) < 0) stageOrder.push(v);
+  });
+
+  var steps;
+  if (stageOrder.length) {
+    var resultsByStage = stageOrder.map(function(stageName){
+      var set = [];
+      resultCategories.forEach(function(rc){
+        if (String(rc.stageConversion || '').trim() === stageName) set.push(rc.Result);
+      });
+      return set;
+    });
+    steps = stageOrder.map(function(stageName, i){
+      var cumulativeResults = [];
+      for (var j = i; j < stageOrder.length; j++) cumulativeResults = cumulativeResults.concat(resultsByStage[j]);
+      var count = trendData.filter(function(d){ return cumulativeResults.indexOf(d.Result) >= 0; }).length;
+      return { label: stageName, count: count };
+    });
+  } else {
+    steps = [
+      { label:'邀約', count: trendData.filter(function(d){ return hasVal(d.invite_date || d['invite date']); }).length },
+      { label:'電訪', count: trendData.filter(function(d){ return hasVal(d['Phone Interview Scheduled']); }).length },
+      { label:'面試', count: trendData.filter(function(d){ return hasVal(d['Interview Scheduled']); }).length },
+      { label:'錄取', count: trendData.filter(function(d){ return hasVal(d['Hired date']); }).length }
+    ];
+  }
+
   var invitedCount = steps[0].count;
   if (!invitedCount) {
     wrap.innerHTML = '<div class="empty" style="padding:10px 0;">尚無足夠資料計算轉換率</div>';
