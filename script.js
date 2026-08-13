@@ -2574,10 +2574,15 @@ function renderStageConversionFunnel(trendData) {
   if (!wrap) return;
   var hasVal = function(v){ return !!(v && String(v).trim()); };
 
+  // 邀約人數固定用跟「人選進度統計」樹狀圖根節點（邀約階段）完全一樣的判斷方式（invite_date 有值），
+  // 這裡永遠當作漏斗圖第一階段，不管「階段轉換率」欄位裡有沒有另外填「邀約」這個字，都會自動補上，
+  // 兩邊的邀約數字才會對得起來。
+  var invitedCount = trendData.filter(function(d){ return hasVal(d.invite_date || d['invite date']); }).length;
+
   var stageOrder = [];
   resultCategories.forEach(function(rc){
     var v = String(rc.stageConversion || '').trim();
-    if (v && stageOrder.indexOf(v) < 0) stageOrder.push(v);
+    if (v && v !== '邀約' && stageOrder.indexOf(v) < 0) stageOrder.push(v);
   });
 
   var steps;
@@ -2595,16 +2600,16 @@ function renderStageConversionFunnel(trendData) {
       var count = trendData.filter(function(d){ return cumulativeResults.indexOf(d.Result) >= 0; }).length;
       return { label: stageName, count: count };
     });
+    steps.unshift({ label: '邀約', count: invitedCount });
   } else {
     steps = [
-      { label:'邀約', count: trendData.filter(function(d){ return hasVal(d.invite_date || d['invite date']); }).length },
+      { label:'邀約', count: invitedCount },
       { label:'電訪', count: trendData.filter(function(d){ return hasVal(d['Phone Interview Scheduled']); }).length },
       { label:'面試', count: trendData.filter(function(d){ return hasVal(d['Interview Scheduled']); }).length },
       { label:'錄取', count: trendData.filter(function(d){ return hasVal(d['Hired date']); }).length }
     ];
   }
 
-  var invitedCount = steps[0].count;
   if (!invitedCount) {
     wrap.innerHTML = '<div class="empty" style="padding:10px 0;">尚無足夠資料計算轉換率</div>';
     return;
