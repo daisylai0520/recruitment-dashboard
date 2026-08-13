@@ -2339,18 +2339,36 @@ function buildProgressCheckpoints() {
   var byResult = {};
   resultCategories.forEach(function(rc){ byResult[rc.Result] = rc; });
   function metaOf(result) { return byResult[result] || {}; }
+
+  // 「已聯繫上」／「已結案」／「已面試」／「待面試」是固定的判斷依據值，維持不變；
+  // 「未聯繫上」／「未結案」／「未面試」這三個顯示名稱，改成直接讀「分類Result」工作表對應欄位裡實際出現過的另一個選項文字，
+  // 不是寫死的中文（例如工作表裡如果用「尚未聯繫」而不是「未聯繫上」，樹狀圖就會顯示「尚未聯繫」）；
+  // 工作表裡找不到其他選項可用時，才退回這幾個預設名稱。
+  function findOtherLabel(field, excludeValues, fallback) {
+    for (var i = 0; i < resultCategories.length; i++) {
+      var v = String(resultCategories[i][field] || '').trim();
+      if (v && excludeValues.indexOf(v) < 0) return v;
+    }
+    return fallback;
+  }
+  var NOT_CONTACTED = findOtherLabel('contact', ['已聯繫上'], '未聯繫上');
+  var NOT_CLOSED = findOtherLabel('closed', ['已結案'], '未結案');
+  var NOT_INTERVIEWED = findOtherLabel('interviewProgress', ['已面試','待面試'], '未面試');
+  var CLOSED_KEY = NOT_CONTACTED + '－已結案';
+  var OPEN_KEY = NOT_CONTACTED + '－' + NOT_CLOSED;
+
   // 沒有 Result、或 Result 不在「分類Result」工作表清單裡的人選，視為還沒真的被處理過，保守歸類到「未聯繫上－未結案」
-  function contactOf(result) { return metaOf(result).contact === '已聯繫上' ? '已聯繫上' : '未聯繫上'; }
-  function closedOf(result) { return metaOf(result).closed === '已結案' ? '已結案' : '未結案'; }
+  function contactOf(result) { return metaOf(result).contact === '已聯繫上' ? '已聯繫上' : NOT_CONTACTED; }
+  function closedOf(result) { return metaOf(result).closed === '已結案' ? '已結案' : NOT_CLOSED; }
   function interviewProgressOf(result) {
     var v = metaOf(result).interviewProgress;
-    return (v === '待面試' || v === '已面試') ? v : '未面試';
+    return (v === '待面試' || v === '已面試') ? v : NOT_INTERVIEWED;
   }
   function offerResultOf(result) { return metaOf(result).offerResult || ''; }
 
   // 各分類實際包含哪些 Result（給下方二層鑽取的「依 Result 細分」用）
-  var phoneBuckets = { '已聯繫上': [], '未聯繫上－未結案': [], '未聯繫上－已結案': [] };
-  var interviewBuckets = { '未面試': [], '待面試': [], '已面試': [] };
+  var phoneBuckets = {}; phoneBuckets['已聯繫上'] = []; phoneBuckets[OPEN_KEY] = []; phoneBuckets[CLOSED_KEY] = [];
+  var interviewBuckets = {}; interviewBuckets[NOT_INTERVIEWED] = []; interviewBuckets['待面試'] = []; interviewBuckets['已面試'] = [];
   var offerBuckets = {}; var offerOrder = [];
   resultCategories.forEach(function(rc){
     if (contactOf(rc.Result) === '已聯繫上') {
@@ -2365,12 +2383,14 @@ function buildProgressCheckpoints() {
         }
       }
     } else {
-      phoneBuckets[closedOf(rc.Result) === '已結案' ? '未聯繫上－已結案' : '未聯繫上－未結案'].push(rc.Result);
+      phoneBuckets[closedOf(rc.Result) === '已結案' ? CLOSED_KEY : OPEN_KEY].push(rc.Result);
     }
   });
 
   return { contactOf: contactOf, closedOf: closedOf, interviewProgressOf: interviewProgressOf, offerResultOf: offerResultOf,
-    phoneBuckets: phoneBuckets, interviewBuckets: interviewBuckets, offerBuckets: offerBuckets, offerOrder: offerOrder };
+    phoneBuckets: phoneBuckets, interviewBuckets: interviewBuckets, offerBuckets: offerBuckets, offerOrder: offerOrder,
+    notContactedLabel: NOT_CONTACTED, notClosedLabel: NOT_CLOSED, notInterviewedLabel: NOT_INTERVIEWED,
+    closedKey: CLOSED_KEY, openKey: OPEN_KEY };
 }
 
 // 每次 render 都重新建立，index 對應到目前畫面上每個節點的「標題＋篩選條件」，供點擊鑽取使用
@@ -2504,9 +2524,9 @@ function renderProgressTree(trendData) {
       if (!invitedTest(d)) return false;
       var contact = cp.contactOf(d.Result);
       if (bucketLabel === '已聯繫上') return contact === '已聯繫上';
-      if (contact !== '未聯繫上') return false;
+      if (contact !== cp.notContactedLabel) return false;
       var closed = cp.closedOf(d.Result);
-      return bucketLabel === '未聯繫上－已結案' ? closed === '已結案' : closed === '未結案';
+      return bucketLabel === cp.closedKey ? closed === '已結案' : closed === cp.notClosedLabel;
     };
   }
   function interviewBucketTest(bucketLabel) {
@@ -2526,17 +2546,18 @@ function renderProgressTree(trendData) {
 
   // 建立真正有父子連線的樹狀結構（不是分開幾個並排的箱子）：邀約 → 已聯繫上／未聯繫上 → 未聯繫上底下再分已結案／未結案，
   // 已聯繫上底下再分已面試／待面試／未面試 → 已面試底下再依「錄取結果」欄位動態分錄取／未錄取…
+  // 「未聯繫上」／「未結案」／「未面試」這幾個節點名稱都改用 cp 讀出來的實際字串（見 buildProgressCheckpoints）
   var offerChildren = cp.offerOrder.map(function(lb){
     return makeNode(lb, offerBucketTest(lb), cp.offerBuckets[lb]);
   });
   var interviewedNode = makeNode('已面試', interviewedTest, cp.interviewBuckets['已面試'], offerChildren);
   var waitingNode = makeNode('待面試', interviewBucketTest('待面試'), cp.interviewBuckets['待面試']);
-  var notInterviewedNode = makeNode('未面試', interviewBucketTest('未面試'), cp.interviewBuckets['未面試']);
+  var notInterviewedNode = makeNode(cp.notInterviewedLabel, interviewBucketTest(cp.notInterviewedLabel), cp.interviewBuckets[cp.notInterviewedLabel]);
   var contactedNode = makeNode('已聯繫上', contactedTest, cp.phoneBuckets['已聯繫上'], [interviewedNode, waitingNode, notInterviewedNode]);
-  var closedNode = makeNode('已結案', phoneBucketTest('未聯繫上－已結案'), cp.phoneBuckets['未聯繫上－已結案']);
-  var openNode = makeNode('未結案', phoneBucketTest('未聯繫上－未結案'), cp.phoneBuckets['未聯繫上－未結案']);
-  var notContactedTest = function(d){ return invitedTest(d) && cp.contactOf(d.Result) === '未聯繫上'; };
-  var notContactedNode = makeNode('未聯繫上', notContactedTest, cp.phoneBuckets['未聯繫上－已結案'].concat(cp.phoneBuckets['未聯繫上－未結案']), [closedNode, openNode]);
+  var closedNode = makeNode('已結案', phoneBucketTest(cp.closedKey), cp.phoneBuckets[cp.closedKey]);
+  var openNode = makeNode(cp.notClosedLabel, phoneBucketTest(cp.openKey), cp.phoneBuckets[cp.openKey]);
+  var notContactedTest = function(d){ return invitedTest(d) && cp.contactOf(d.Result) === cp.notContactedLabel; };
+  var notContactedNode = makeNode(cp.notContactedLabel, notContactedTest, cp.phoneBuckets[cp.closedKey].concat(cp.phoneBuckets[cp.openKey]), [closedNode, openNode]);
   var root = makeNode('邀約', invitedTest, undefined, [contactedNode, notContactedNode]);
 
   // 每個節點所在的欄位（0=邀約階段／1=電訪階段／2=面試階段／3=錄取階段），決定畫在哪一直排
