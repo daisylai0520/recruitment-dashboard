@@ -36,8 +36,11 @@ async function fetchJsonWithRetry(urlBuilder, options, retries) {
 
 var userRole = null;
 var allData=[], salaryData=[], scheduleData=[], managerDirectoryData=[], managerInfoData=[], resultOptions=[], positionOptions=[], sourceOptions=[], declineReasonOptions=[];
-// 「分類Result」工作表的 階段／分類1／分類2／Result 對照，人選進度統計樹狀圖依這個動態分組顯示
+// 「分類Result」工作表：Result 欄位 + 其他任意幾欄「階段欄位」（欄名、欄數、選項文字都不寫死，
+// 完全依工作表實際內容動態決定，例如目前是 電訪階段／面試階段／錄取階段／Offer結果，以後改了也不用改程式）。
+// resultCategories 每筆是 {Result, stages:{欄名:值,...}}；resultStageColumns 是欄位順序（由左到右）。
 var resultCategories = [];
+var resultStageColumns = [];
 // allDataFull：完整（未依單位過濾）的人選名單，只給「新增人選時檢查是否已有其他 HR/單位約過」這個功能用，
 // 畫面上其他地方（看板、搜尋、篩選…）一律還是用有經過單位過濾的 allData，不會讓 HR 看到不屬於自己單位的完整資料。
 var allDataFull = [];
@@ -474,9 +477,10 @@ function applyCoreData(json) {
     });
   }
   resultOptions=(json.resultOptions||[]).map(function(v){return String(v).trim();}).filter(Boolean);
-  // 「分類Result」工作表的 階段／分類1／分類2／電訪聯繫／電訪結案／面試進度／錄取結果 欄位，
-  // 人選進度統計樹狀圖靠這幾欄動態計算累計進度（不再寫死在程式裡）
+  // 「分類Result」工作表的 Result 欄位以外的其他欄位，全部當作人選進度統計樹狀圖的階段欄位動態使用，
+  // 欄名、欄數、選項文字都跟著工作表走，不寫死在程式裡
   resultCategories=(json.resultCategories||[]).filter(function(rc){return rc && rc.Result;});
+  resultStageColumns=(json.resultStageColumns||[]).map(function(v){return String(v).trim();}).filter(Boolean);
   positionOptions=(json.positionOptions||[]).map(function(v){return String(v).trim();}).filter(Boolean);
   // Source 選項來源同 104_Position：試算表資料驗證清單（若有設定），前端再跟實際資料合併
   sourceOptions=(json.sourceOptions||[]).map(function(v){return String(v).trim();}).filter(Boolean);
@@ -2335,62 +2339,32 @@ var lastTrendData = [];
 // 「這個人選最遠曾經走到哪裡」的固定檢查點（邀約→電訪→面試→錄取），而不是只看「目前 Result 剛好落在哪一格」。
 // 例如目前是「待面試」的人選，理所當然也算進電訪階段的「已聯繫上」——這樣才會跟真實的漏斗進度一致，
 // 符合「待面試的人選要同時算進電訪已聯繫上、面試待面試、邀約」這個規則。
-function buildProgressCheckpoints() {
-  var byResult = {};
-  resultCategories.forEach(function(rc){ byResult[rc.Result] = rc; });
-  function metaOf(result) { return byResult[result] || {}; }
-
-  // 「已聯繫上」／「已結案」／「已面試」／「待面試」是固定的判斷依據值，維持不變；
-  // 「未聯繫上」／「未結案」／「未面試」這三個顯示名稱，改成直接讀「分類Result」工作表對應欄位裡實際出現過的另一個選項文字，
-  // 不是寫死的中文（例如工作表裡如果用「尚未聯繫」而不是「未聯繫上」，樹狀圖就會顯示「尚未聯繫」）；
-  // 工作表裡找不到其他選項可用時，才退回這幾個預設名稱。
-  function findOtherLabel(field, excludeValues, fallback) {
-    for (var i = 0; i < resultCategories.length; i++) {
-      var v = String(resultCategories[i][field] || '').trim();
-      if (v && excludeValues.indexOf(v) < 0) return v;
-    }
-    return fallback;
-  }
-  var NOT_CONTACTED = findOtherLabel('contact', ['已聯繫上'], '未聯繫上');
-  var NOT_CLOSED = findOtherLabel('closed', ['已結案'], '未結案');
-  var NOT_INTERVIEWED = findOtherLabel('interviewProgress', ['已面試','待面試'], '未面試');
-  var CLOSED_KEY = NOT_CONTACTED + '－已結案';
-  var OPEN_KEY = NOT_CONTACTED + '－' + NOT_CLOSED;
-
-  // 沒有 Result、或 Result 不在「分類Result」工作表清單裡的人選，視為還沒真的被處理過，保守歸類到「未聯繫上－未結案」
-  function contactOf(result) { return metaOf(result).contact === '已聯繫上' ? '已聯繫上' : NOT_CONTACTED; }
-  function closedOf(result) { return metaOf(result).closed === '已結案' ? '已結案' : NOT_CLOSED; }
-  function interviewProgressOf(result) {
-    var v = metaOf(result).interviewProgress;
-    return (v === '待面試' || v === '已面試') ? v : NOT_INTERVIEWED;
-  }
-  function offerResultOf(result) { return metaOf(result).offerResult || ''; }
-
-  // 各分類實際包含哪些 Result（給下方二層鑽取的「依 Result 細分」用）
-  var phoneBuckets = {}; phoneBuckets['已聯繫上'] = []; phoneBuckets[OPEN_KEY] = []; phoneBuckets[CLOSED_KEY] = [];
-  var interviewBuckets = {}; interviewBuckets[NOT_INTERVIEWED] = []; interviewBuckets['待面試'] = []; interviewBuckets['已面試'] = [];
-  var offerBuckets = {}; var offerOrder = [];
-  resultCategories.forEach(function(rc){
-    if (contactOf(rc.Result) === '已聯繫上') {
-      phoneBuckets['已聯繫上'].push(rc.Result);
-      var ip = interviewProgressOf(rc.Result);
-      interviewBuckets[ip].push(rc.Result);
-      if (ip === '已面試') {
-        var oc = offerResultOf(rc.Result);
-        if (oc) {
-          if (!(oc in offerBuckets)) { offerBuckets[oc] = []; offerOrder.push(oc); }
-          offerBuckets[oc].push(rc.Result);
-        }
-      }
-    } else {
-      phoneBuckets[closedOf(rc.Result) === '已結案' ? CLOSED_KEY : OPEN_KEY].push(rc.Result);
-    }
+// 「分類Result」工作表：Result 欄位以外的其他欄位，都當作樹狀圖的階段欄位，依欄位順序（resultStageColumns）
+// 動態組成一層一層的分支；欄名、選項文字、欄位數量完全不寫死，工作表以後想怎麼調整（改欄名、加欄、減欄、換選項文字）
+// 前端都會自動跟著變，不用再改程式。
+// 分支規則：這個分組裡只要有任何一列在「下一欄」有填值，才會繼續往下長一層；否則這裡就是葉節點，
+// 不會多長一層沒有意義的空白節點（例如「已結案」通常後面幾欄都是空的，就會停在這裡）。
+function buildDynamicProgressLevels(rows, colIdx) {
+  if (colIdx >= resultStageColumns.length) return [];
+  var col = resultStageColumns[colIdx];
+  var groups = {}; var order = [];
+  rows.forEach(function(rc){
+    var raw = String((rc.stages && rc.stages[col]) || '').trim();
+    var key = raw || ' BLANK ';
+    if (!(key in groups)) { groups[key] = { label: raw || ('尚未：'+col), rows: [] }; order.push(key); }
+    groups[key].rows.push(rc);
   });
-
-  return { contactOf: contactOf, closedOf: closedOf, interviewProgressOf: interviewProgressOf, offerResultOf: offerResultOf,
-    phoneBuckets: phoneBuckets, interviewBuckets: interviewBuckets, offerBuckets: offerBuckets, offerOrder: offerOrder,
-    notContactedLabel: NOT_CONTACTED, notClosedLabel: NOT_CLOSED, notInterviewedLabel: NOT_INTERVIEWED,
-    closedKey: CLOSED_KEY, openKey: OPEN_KEY };
+  return order.map(function(key){
+    var g = groups[key];
+    var hasNextCol = colIdx + 1 < resultStageColumns.length;
+    var nextCol = hasNextCol ? resultStageColumns[colIdx+1] : null;
+    var anyNext = hasNextCol && g.rows.some(function(rc){ return String((rc.stages && rc.stages[nextCol]) || '').trim(); });
+    return {
+      label: g.label,
+      resultValues: g.rows.map(function(rc){ return rc.Result; }),
+      children: anyNext ? buildDynamicProgressLevels(g.rows, colIdx+1) : []
+    };
+  });
 }
 
 // 每次 render 都重新建立，index 對應到目前畫面上每個節點的「標題＋篩選條件」，供點擊鑽取使用
@@ -2478,32 +2452,17 @@ function closeTrendDrilldownDetail() {
   document.querySelectorAll('.cand-mini-card').forEach(function(node){ node.classList.remove('mc-active'); });
 }
 
-// 共用給「人選進度統計」樹狀圖與「階段轉換率」漏斗圖：兩個區塊都要顯示完全一致的電訪／面試／錄取人數，
-// 所以邀約／已聯繫上／已面試／錄取的判斷邏輯只寫這一份，兩邊都呼叫這裡，不會各自算出不同的數字。
-function computeProgressTreeCounts(trendData) {
-  var cp = buildProgressCheckpoints();
-  // 「有沒有填邀約日」＝所有曾經邀約過的人選（不管後來有沒有往下一階段推進）
-  var invitedTest = function(d){ return !!(d.invite_date || d['invite date']); };
-  var contactedTest = function(d){ return invitedTest(d) && cp.contactOf(d.Result) === '已聯繫上'; };
-  var interviewedTest = function(d){ return contactedTest(d) && cp.interviewProgressOf(d.Result) === '已面試'; };
-  function offerBucketTest(bucketLabel) {
-    return function(d){ return interviewedTest(d) && cp.offerResultOf(d.Result) === bucketLabel; };
+// 樹狀圖裡淺到深的漸層色階，依實際欄位數量（含邀約階段那一欄）動態產生對應數量的漸層，
+// 欄位數量不管有幾層都能自動配色，不用寫死剛好 4 種顏色
+var PROGRESS_TREE_PALETTE = ['#EEF2FF','#C7D2FE','#A5B4FC','#818CF8','#6366F1','#4F46E5','#4338CA','#3730A3','#312E81'];
+function buildProgressTreeGradStops(n) {
+  var arr = [];
+  for (var i = 0; i < n; i++) {
+    var t = n <= 1 ? 0 : i/(n-1);
+    var idx = Math.round(t*(PROGRESS_TREE_PALETTE.length-2));
+    arr.push({ stops: [PROGRESS_TREE_PALETTE[idx], PROGRESS_TREE_PALETTE[Math.min(idx+1, PROGRESS_TREE_PALETTE.length-1)]], textColor: t < 0.5 ? '#1E1B4B' : '#fff' });
   }
-  // 錄取數：優先抓「錄取結果」欄位裡真的叫「錄取」的分類；如果試算表裡用了別的名稱，退回全部有填錄取結果的人數，避免算成 0
-  var hireLabel = cp.offerOrder.indexOf('錄取') >= 0 ? '錄取' : null;
-  var hiredTest = hireLabel ? offerBucketTest(hireLabel) : function(d){ return interviewedTest(d) && !!cp.offerResultOf(d.Result); };
-  return {
-    cp: cp,
-    invitedTest: invitedTest,
-    contactedTest: contactedTest,
-    interviewedTest: interviewedTest,
-    offerBucketTest: offerBucketTest,
-    hiredTest: hiredTest,
-    invitedCount: trendData.filter(invitedTest).length,
-    contactedCount: trendData.filter(contactedTest).length,
-    interviewedCount: trendData.filter(interviewedTest).length,
-    hiredCount: trendData.filter(hiredTest).length
-  };
+  return arr;
 }
 
 function renderProgressTree(trendData) {
@@ -2511,27 +2470,14 @@ function renderProgressTree(trendData) {
   if (!wrap) return;
   _progressTreeDrilldown = [];
 
-  if (!resultCategories.length) {
+  if (!resultCategories.length || !resultStageColumns.length) {
     wrap.innerHTML = '<div class="empty" style="padding:20px 0;">「分類Result」工作表還沒有設定分類欄位，樹狀圖暫時無法顯示，請參考先前討論的分類方式填寫</div>';
     return;
   }
 
-  var pt = computeProgressTreeCounts(trendData);
-  var cp = pt.cp, invitedTest = pt.invitedTest, contactedTest = pt.contactedTest, interviewedTest = pt.interviewedTest, offerBucketTest = pt.offerBucketTest;
-
-  function phoneBucketTest(bucketLabel) {
-    return function(d){
-      if (!invitedTest(d)) return false;
-      var contact = cp.contactOf(d.Result);
-      if (bucketLabel === '已聯繫上') return contact === '已聯繫上';
-      if (contact !== cp.notContactedLabel) return false;
-      var closed = cp.closedOf(d.Result);
-      return bucketLabel === cp.closedKey ? closed === '已結案' : closed === cp.notClosedLabel;
-    };
-  }
-  function interviewBucketTest(bucketLabel) {
-    return function(d){ return contactedTest(d) && cp.interviewProgressOf(d.Result) === bucketLabel; };
-  }
+  // 「有沒有填邀約日」＝所有曾經邀約過的人選（不管後來有沒有往下一階段推進）；這是候選人自己的欄位，
+  // 不是「分類Result」工作表的內容，所以邀約這個根節點維持固定，其餘每一層才是動態讀工作表欄位
+  var invitedTest = function(d){ return !!(d.invite_date || d['invite date']); };
 
   function pushDrill(label, testFn, resultValues) {
     var idx = _progressTreeDrilldown.length;
@@ -2543,25 +2489,19 @@ function renderProgressTree(trendData) {
     var idx = pushDrill(label, testFn, resultValues);
     return { label: label, count: count, drillIdx: idx, children: children || [] };
   }
+  // 把 buildDynamicProgressLevels 算出來的資料節點，轉成畫面用的節點（含人數統計、鑽取條件）
+  function toRenderNode(dataNode) {
+    var resultSet = dataNode.resultValues;
+    var testFn = function(d){ return invitedTest(d) && resultSet.indexOf(d.Result) >= 0; };
+    return makeNode(dataNode.label, testFn, resultSet, dataNode.children.map(toRenderNode));
+  }
 
-  // 建立真正有父子連線的樹狀結構（不是分開幾個並排的箱子）：邀約 → 已聯繫上／未聯繫上 → 未聯繫上底下再分已結案／未結案，
-  // 已聯繫上底下再分已面試／待面試／未面試 → 已面試底下再依「錄取結果」欄位動態分錄取／未錄取…
-  // 「未聯繫上」／「未結案」／「未面試」這幾個節點名稱都改用 cp 讀出來的實際字串（見 buildProgressCheckpoints）
-  var offerChildren = cp.offerOrder.map(function(lb){
-    return makeNode(lb, offerBucketTest(lb), cp.offerBuckets[lb]);
-  });
-  var interviewedNode = makeNode('已面試', interviewedTest, cp.interviewBuckets['已面試'], offerChildren);
-  var waitingNode = makeNode('待面試', interviewBucketTest('待面試'), cp.interviewBuckets['待面試']);
-  var notInterviewedNode = makeNode(cp.notInterviewedLabel, interviewBucketTest(cp.notInterviewedLabel), cp.interviewBuckets[cp.notInterviewedLabel]);
-  var contactedNode = makeNode('已聯繫上', contactedTest, cp.phoneBuckets['已聯繫上'], [interviewedNode, waitingNode, notInterviewedNode]);
-  var closedNode = makeNode('已結案', phoneBucketTest(cp.closedKey), cp.phoneBuckets[cp.closedKey]);
-  var openNode = makeNode(cp.notClosedLabel, phoneBucketTest(cp.openKey), cp.phoneBuckets[cp.openKey]);
-  var notContactedTest = function(d){ return invitedTest(d) && cp.contactOf(d.Result) === cp.notContactedLabel; };
-  var notContactedNode = makeNode(cp.notContactedLabel, notContactedTest, cp.phoneBuckets[cp.closedKey].concat(cp.phoneBuckets[cp.openKey]), [closedNode, openNode]);
-  var root = makeNode('邀約', invitedTest, undefined, [contactedNode, notContactedNode]);
+  var dynamicLevels = buildDynamicProgressLevels(resultCategories, 0);
+  var root = makeNode('邀約', invitedTest, undefined, dynamicLevels.map(toRenderNode));
 
-  // 每個節點所在的欄位（0=邀約階段／1=電訪階段／2=面試階段／3=錄取階段），決定畫在哪一直排
-  var COL_LABELS = ['邀約階段', '電訪階段', '面試階段', '錄取階段'];
+  // 每個節點所在的欄位：第 0 欄固定是「邀約階段」，第 1 欄以後直接用「分類Result」工作表實際的欄位名稱
+  // （resultStageColumns），欄位數量也完全跟著工作表變動，不寫死
+  var COL_LABELS = ['邀約階段'].concat(resultStageColumns);
   var COL_W = 210, BOX_W = 168, BOX_H = 46, ROW_H = 62, HEADER_H = 34;
   var leafCounter = 0, maxDepth = 0;
   function layout(node, depth) {
@@ -2581,19 +2521,13 @@ function renderProgressTree(trendData) {
   var canvasW = maxDepth * COL_W + BOX_W + 20;
   var canvasH = HEADER_H + leafCounter * ROW_H + 14;
 
-  // 色塊背景太不明顯，改成狀態卡片本身用漸層底色，越後面的階段顏色越深，對比更清楚
-  var STAGE_GRAD_STOPS = [
-    ['#EEF2FF', '#C7D2FE'], // 邀約階段：最淺
-    ['#C7D2FE', '#818CF8'], // 電訪階段
-    ['#818CF8', '#4F46E5'], // 面試階段
-    ['#4F46E5', '#3730A3']  // 錄取階段：最深
-  ];
-  var STAGE_TEXT_COLORS = ['#312E81', '#1E1B4B', '#fff', '#fff'];
+  // 狀態卡片本身用漸層底色，越後面的階段顏色越深，對比更清楚；漸層階數跟著實際欄位數量走
+  var gradStops = buildProgressTreeGradStops(maxDepth + 1);
   var svgParts = ['<defs>'];
-  STAGE_GRAD_STOPS.forEach(function(stops, i){
+  gradStops.forEach(function(g, i){
     svgParts.push('<linearGradient id="ptGrad'+i+'" x1="0%" y1="0%" x2="100%" y2="100%">'+
-      '<stop offset="0%" stop-color="'+stops[0]+'"></stop>'+
-      '<stop offset="100%" stop-color="'+stops[1]+'"></stop>'+
+      '<stop offset="0%" stop-color="'+g.stops[0]+'"></stop>'+
+      '<stop offset="100%" stop-color="'+g.stops[1]+'"></stop>'+
     '</linearGradient>');
   });
   svgParts.push('</defs>');
@@ -2611,9 +2545,9 @@ function renderProgressTree(trendData) {
   walk(root);
   function drawNode(node) {
     var y = node._y + HEADER_H;
-    var depthIdx = Math.min(node._depth, STAGE_GRAD_STOPS.length - 1);
+    var depthIdx = Math.min(node._depth, gradStops.length - 1);
     var fillUrl = 'url(#ptGrad'+depthIdx+')';
-    var textColor = STAGE_TEXT_COLORS[depthIdx];
+    var textColor = gradStops[depthIdx].textColor;
     var faded = node.count === 0 ? ' opacity="0.4"' : '';
     svgParts.push(
       '<g style="cursor:pointer;"'+faded+' onclick="showProgressTreeDrilldown('+node.drillIdx+')">'+
@@ -2632,30 +2566,18 @@ function renderProgressTree(trendData) {
 // 階段轉換率漏斗圖：直接依「里程碑欄位是否有值」判斷每個人是否到達該階段，
 // 邀約＝invite_date有值；電訪＝Phone Interview Scheduled有值；面試＝Interview Scheduled有值；錄取＝Hired date有值
 // （Phone/Interview Scheduled、Hired date 都是後端在對應欄位變動時自動蓋上當天日期，等於「曾到達該階段」的累計記錄）
+// 「分類Result」工作表的階段欄位改成完全動態（欄名／選項都可能隨時調整），不再假設固定有電訪/面試/錄取結果幾個
+// 特定欄位可以拿來對應這裡的 4 個階段，所以這裡固定用里程碑欄位判斷，不依賴分類Result工作表的欄位結構。
 function renderStageConversionFunnel(trendData) {
   var wrap = document.getElementById('stageConversionFunnel');
   if (!wrap) return;
   var hasVal = function(v){ return !!(v && String(v).trim()); };
-  var steps;
-  if (resultCategories.length) {
-    // 跟「人選進度統計」樹狀圖共用同一套累計勾稽邏輯（computeProgressTreeCounts），
-    // 確保這裡的電訪／面試／錄取人數，跟樹狀圖的已聯繫上／已面試／錄取人數完全一致
-    var pt = computeProgressTreeCounts(trendData);
-    steps = [
-      { label:'邀約', count: pt.invitedCount },
-      { label:'電訪', count: pt.contactedCount },
-      { label:'面試', count: pt.interviewedCount },
-      { label:'錄取', count: pt.hiredCount }
-    ];
-  } else {
-    // 「分類Result」工作表還沒設定分類欄位時的備用算法：直接看里程碑欄位是否有值
-    steps = [
-      { label:'邀約', count: trendData.filter(function(d){ return hasVal(d.invite_date || d['invite date']); }).length },
-      { label:'電訪', count: trendData.filter(function(d){ return hasVal(d['Phone Interview Scheduled']); }).length },
-      { label:'面試', count: trendData.filter(function(d){ return hasVal(d['Interview Scheduled']); }).length },
-      { label:'錄取', count: trendData.filter(function(d){ return hasVal(d['Hired date']); }).length }
-    ];
-  }
+  var steps = [
+    { label:'邀約', count: trendData.filter(function(d){ return hasVal(d.invite_date || d['invite date']); }).length },
+    { label:'電訪', count: trendData.filter(function(d){ return hasVal(d['Phone Interview Scheduled']); }).length },
+    { label:'面試', count: trendData.filter(function(d){ return hasVal(d['Interview Scheduled']); }).length },
+    { label:'錄取', count: trendData.filter(function(d){ return hasVal(d['Hired date']); }).length }
+  ];
   var invitedCount = steps[0].count;
   if (!invitedCount) {
     wrap.innerHTML = '<div class="empty" style="padding:10px 0;">尚無足夠資料計算轉換率</div>';
