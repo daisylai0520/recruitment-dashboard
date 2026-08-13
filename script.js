@@ -209,15 +209,15 @@ function isDoneInterview(d){return isPast(d.Interview_date||'');}
 // ===== 共用：日期範圍篩選元件 =====
 var dateFilterState = {}; // { pageKey: {field, start, end} }
 
-// 把使用者實際選擇的時間篩選存進 sessionStorage（同一個瀏覽器分頁內有效）：
-// 這樣不管是背景自動刷新（setInterval fetchData）還是使用者自己按 F5 重新整理，
-// 都會沿用剛剛選過的篩選，不會又被預設值「本週」蓋掉——只有分頁第一次真正打開時才會套用「本週」預設值。
+// 把使用者實際選擇的時間篩選存進 localStorage（跨瀏覽器分頁、跨天、關掉瀏覽器再打開都還在）：
+// 一旦手動選過（或按過本週／本月／過去一個月），就永久沿用這個篩選，不會自己被重設回「本週」——
+// 只有從來沒選過（第一次使用、或自己按過「清除」）的時候，才會套用一次性的「本週」預設值。
 var DATE_FILTER_STORAGE_PREFIX = 'rc_datefilter_v1_';
 function saveDateFilterState(pageKey) {
   try {
     var s = dateFilterState[pageKey];
-    if (!s) { sessionStorage.removeItem(DATE_FILTER_STORAGE_PREFIX + pageKey); return; }
-    sessionStorage.setItem(DATE_FILTER_STORAGE_PREFIX + pageKey, JSON.stringify({
+    if (!s) { localStorage.removeItem(DATE_FILTER_STORAGE_PREFIX + pageKey); return; }
+    localStorage.setItem(DATE_FILTER_STORAGE_PREFIX + pageKey, JSON.stringify({
       field: s.field,
       start: s.start ? s.start.toISOString() : null,
       end: s.end ? s.end.toISOString() : null,
@@ -227,15 +227,15 @@ function saveDateFilterState(pageKey) {
 }
 function loadDateFilterState(pageKey) {
   try {
-    var raw = sessionStorage.getItem(DATE_FILTER_STORAGE_PREFIX + pageKey);
+    var raw = localStorage.getItem(DATE_FILTER_STORAGE_PREFIX + pageKey);
     if (!raw) return null;
     var o = JSON.parse(raw);
     return { field: o.field, start: o.start ? new Date(o.start) : null, end: o.end ? new Date(o.end) : null, quickRange: o.quickRange || undefined };
   } catch (e) { return null; }
 }
 // 把之前存起來的篩選條件原封不動套回畫面上——不管原本是快速範圍還是手動選的起訖日期，一律照存起來的日期還原，
-// 不會重新計算「今天」是哪一天。這樣不管背景自動刷新幾次、放著幾天沒關、中途跨了一週，篩選範圍都不會自己跑掉，
-// 只有真正第一次打開這個畫面（分頁）才會用「今天」重新算一次本週。
+// 不會重新計算「今天」是哪一天。這樣不管背景自動刷新幾次、隔多久沒開、中途跨了幾週，篩選範圍都不會自己跑掉，
+// 永遠維持使用者自己上次選的範圍，直到自己手動改掉或按「清除」為止。
 function restoreDateFilterUi(pageKey, saved) {
   var fieldEl = document.getElementById('df-field-' + pageKey);
   var startEl = document.getElementById('df-start-' + pageKey);
@@ -384,7 +384,8 @@ function initDateFilterSlots() {
     {value:'Interview_date', label:'Interview_date'},
     {value:'Result Update_date', label:'Result Update_date'}
   ];
-  // 全站時間篩選統一比照「Candidate」畫面：欄位、快速範圍按鈕都一致；每個畫面一打開都自動套用「本週」
+  // 全站時間篩選統一比照「Candidate」畫面：欄位、快速範圍按鈕都一致；只有「從來沒選過」時才自動套用「本週」，
+  // 選過一次之後會永久記住（localStorage），不會自己被重設
   var maintainQuickRanges = [{label:'本週',range:'thisWeek'},{label:'本月',range:'thisMonth'},{label:'過去一個月',range:'past1m'}];
   var slots = {
     'kbDateFilterSlot': {key:'kanban', fields:candFields, quickRanges:maintainQuickRanges, defaultQuickRange:'thisWeek'},
@@ -406,10 +407,10 @@ function initDateFilterSlots() {
       el.innerHTML = buildDateFilterHtml(cfg.key, cfg.fields, cfg.quickRanges);
       var saved = loadDateFilterState(cfg.key);
       if (saved) {
-        // 這個瀏覽器分頁裡之前已經篩選過（不管是手動改的還是背景自動刷新前選的），沿用上次的篩選，不要又蓋回「本週」
+        // 之前已經篩選過（不管手動改的、還是按過快速按鈕），永久沿用這個篩選，不會又蓋回「本週」
         restoreDateFilterUi(cfg.key, saved);
       } else if (cfg.defaultQuickRange) {
-        // 這個瀏覽器分頁第一次打開這個畫面，才自動帶出「本週」資料
+        // 從來沒選過（第一次使用、或按過「清除」），才自動帶出「本週」資料；選過一次之後就會存起來，不會再自動改動
         quickDateFilter(cfg.key, cfg.defaultQuickRange);
       }
     }
@@ -2539,6 +2540,7 @@ function renderProgressTree(trendData) {
   function layout(node, depth) {
     maxDepth = Math.max(maxDepth, depth);
     node._x = depth * COL_W;
+    node._depth = depth;
     if (!node.children.length) {
       node._y = leafCounter * ROW_H + ROW_H / 2;
       leafCounter++;
@@ -2552,13 +2554,24 @@ function renderProgressTree(trendData) {
   var canvasW = maxDepth * COL_W + BOX_W + 20;
   var canvasH = HEADER_H + leafCounter * ROW_H + 14;
 
-  var svgParts = [];
-  // 不用分隔直線區分各欄位，改用淺色色塊（跟階段轉換率漏斗圖同一組顏色，兩個區塊視覺呼應），每欄位上方寫欄位標題
-  var COL_BG_COLORS = ['#4338CA','#4F46E5','#6366F1','#818CF8'];
+  // 色塊背景太不明顯，改成狀態卡片本身用漸層底色，越後面的階段顏色越深，對比更清楚
+  var STAGE_GRAD_STOPS = [
+    ['#EEF2FF', '#C7D2FE'], // 邀約階段：最淺
+    ['#C7D2FE', '#818CF8'], // 電訪階段
+    ['#818CF8', '#4F46E5'], // 面試階段
+    ['#4F46E5', '#3730A3']  // 錄取階段：最深
+  ];
+  var STAGE_TEXT_COLORS = ['#312E81', '#1E1B4B', '#fff', '#fff'];
+  var svgParts = ['<defs>'];
+  STAGE_GRAD_STOPS.forEach(function(stops, i){
+    svgParts.push('<linearGradient id="ptGrad'+i+'" x1="0%" y1="0%" x2="100%" y2="100%">'+
+      '<stop offset="0%" stop-color="'+stops[0]+'"></stop>'+
+      '<stop offset="100%" stop-color="'+stops[1]+'"></stop>'+
+    '</linearGradient>');
+  });
+  svgParts.push('</defs>');
   for (var ci = 0; ci <= maxDepth; ci++) {
     var colCx = ci * COL_W + BOX_W / 2;
-    var bandColor = COL_BG_COLORS[ci % COL_BG_COLORS.length];
-    svgParts.push('<rect x="'+(ci*COL_W)+'" y="0" width="'+COL_W+'" height="'+canvasH+'" style="fill:'+bandColor+';fill-opacity:0.08;"></rect>');
     svgParts.push('<text x="'+colCx+'" y="18" font-size="13" font-weight="700" text-anchor="middle" style="fill:var(--text-primary);">'+(COL_LABELS[ci]||'')+'</text>');
   }
   function walk(node) {
@@ -2571,10 +2584,13 @@ function renderProgressTree(trendData) {
   walk(root);
   function drawNode(node) {
     var y = node._y + HEADER_H;
-    var textColor = node.count > 0 ? 'var(--text-primary)' : 'var(--text-tertiary)';
+    var depthIdx = Math.min(node._depth, STAGE_GRAD_STOPS.length - 1);
+    var fillUrl = 'url(#ptGrad'+depthIdx+')';
+    var textColor = STAGE_TEXT_COLORS[depthIdx];
+    var faded = node.count === 0 ? ' opacity="0.4"' : '';
     svgParts.push(
-      '<g style="cursor:pointer;" onclick="showProgressTreeDrilldown('+node.drillIdx+')">'+
-        '<rect x="'+node._x+'" y="'+(y-BOX_H/2)+'" width="'+BOX_W+'" height="'+BOX_H+'" rx="10" style="fill:var(--surface);stroke:var(--border);stroke-width:1.5;"></rect>'+
+      '<g style="cursor:pointer;"'+faded+' onclick="showProgressTreeDrilldown('+node.drillIdx+')">'+
+        '<rect x="'+node._x+'" y="'+(y-BOX_H/2)+'" width="'+BOX_W+'" height="'+BOX_H+'" rx="10" style="fill:'+fillUrl+';stroke:rgba(0,0,0,.15);stroke-width:1;"></rect>'+
         '<text x="'+(node._x+BOX_W/2)+'" y="'+(y-4)+'" font-size="12.5" font-weight="700" text-anchor="middle" style="fill:'+textColor+';">'+node.label+'</text>'+
         '<text x="'+(node._x+BOX_W/2)+'" y="'+(y+14)+'" font-size="12" text-anchor="middle" style="fill:'+textColor+';">'+node.count+' 人</text>'+
       '</g>'
