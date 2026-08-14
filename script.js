@@ -1518,8 +1518,8 @@ function clearDropdownSelectValue(btn) {
   commitMaintainSelect(sel);
 }
 
-// 畫面上用「新增其他選項」新增一位不在名單裡的 Inviter 時，同步把這個人加進 Manager Information 工作表，
-// 這樣其他單位／其他 HR 身分之後打開畫面，都看得到這個新 Inviter，不會只存在剛剛那筆人選自己的資料裡。
+// 畫面上用「新增其他選項」新增一位不在名單裡的 Inviter 或 面試主管 時，同步把這個人加進 Manager Information 工作表，
+// 這樣其他單位／其他 HR 身分之後打開畫面，都看得到這個新名字，不會只存在剛剛那筆人選自己的資料裡。
 // 本地也馬上補進 managerInfoData，不用等下次重新整理資料才看得到（跟其它「先更新本地、背景寫回試算表」的做法一致）。
 function syncNewInviterToManagerInfo(name, bu) {
   if (!name) return;
@@ -1608,8 +1608,9 @@ function addInviterMsName(uid) {
   label.innerHTML = '<input type="checkbox" checked data-val="'+nameSafe+'" onchange="toggleInviterMsOption(\''+uid+'\',this)"> '+nameDisp;
   panel.insertBefore(label, panel.querySelector('.invms-add-row'));
   commitMaintainInputList(hidden);
-  // 新增的是 Inviter 欄位的新名字時，同步加進 Manager Information 工作表（依這筆人選目前的單位）
-  if (hidden.getAttribute('data-field') === 'Inviter') {
+  // 新增的是 Inviter 或 面試主管 欄位的新名字時，同步加進 Manager Information 工作表（依這筆人選目前的單位）
+  var syncField = hidden.getAttribute('data-field');
+  if (syncField === 'Inviter' || syncField === '面試主管') {
     var rec = allDataFull.find(function(d){ return String(d._row) === String(hidden.getAttribute('data-row')); });
     var units = rec ? splitMultiValue(rec['單位']) : [];
     if (units.length) units.forEach(function(u){ syncNewInviterToManagerInfo(name, u); });
@@ -4013,8 +4014,9 @@ function addFormInviterMsName(uid) {
   label.innerHTML = '<input type="checkbox" checked data-val="'+nameSafe+'" onchange="toggleFormInviterMsOption(\''+uid+'\',this)"> '+nameDisp;
   panel.insertBefore(label, panel.querySelector('.invms-add-row'));
   runFormAutoSyncIfNeeded(hidden);
-  // 新增的是 Inviter 欄位的新名字時，同步加進 Manager Information 工作表（依表單目前已選的單位）
-  if (hidden.getAttribute('data-field') === 'Inviter') {
+  // 新增的是 Inviter 或 面試主管 欄位的新名字時，同步加進 Manager Information 工作表（依表單目前已選的單位）
+  var syncField2 = hidden.getAttribute('data-field');
+  if (syncField2 === 'Inviter' || syncField2 === '面試主管') {
     var buHidden2 = document.querySelector(getNewCandFormSelector() + '[data-field="單位"]');
     var units2 = buHidden2 ? splitMultiValue(buHidden2.value) : [];
     if (units2.length) units2.forEach(function(u){ syncNewInviterToManagerInfo(name, u); });
