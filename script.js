@@ -2579,11 +2579,17 @@ function renderStageConversionFunnel(trendData) {
   // 兩邊的邀約數字才會對得起來。
   var invitedCount = trendData.filter(function(d){ return hasVal(d.invite_date || d['invite date']); }).length;
 
-  var stageOrder = [];
+  // 漏斗圖固定順序是 邀約／電訪／面試／錄取（招募流程本來的先後順序），所以「階段轉換率」欄位裡
+  // 只要出現這幾個字，一律照這個順序排；欄位裡如果出現這份清單以外的字（以後可能新增其他階段名稱），
+  // 才依工作表由上到下第一次出現的順序，接在後面。
+  var FUNNEL_FIXED_ORDER = ['電訪','面試','錄取'];
+  var presentStages = [];
   resultCategories.forEach(function(rc){
     var v = String(rc.stageConversion || '').trim();
-    if (v && v !== '邀約' && stageOrder.indexOf(v) < 0) stageOrder.push(v);
+    if (v && v !== '邀約' && presentStages.indexOf(v) < 0) presentStages.push(v);
   });
+  var stageOrder = FUNNEL_FIXED_ORDER.filter(function(s){ return presentStages.indexOf(s) >= 0; })
+    .concat(presentStages.filter(function(s){ return FUNNEL_FIXED_ORDER.indexOf(s) < 0; }));
 
   var steps;
   if (stageOrder.length) {
