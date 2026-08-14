@@ -660,7 +660,9 @@ async function fetchData() {
     var now=new Date();
     setSyncStatus('ok', '已同步 '+String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0'));
     document.getElementById('errorBanner').style.display='none';
-    initDateFilterSlots();
+    // 這裡不再呼叫 initDateFilterSlots()：每個畫面的時間篩選在「選擇身分」進入畫面時就已經初始化過一次，
+    // 之後不管是每 5 分鐘一次的背景自動同步、還是每次存檔後的重新整理，都不應該再去動時間篩選的狀態，
+    // 直接沿用使用者目前選的範圍就好，避免不必要地重跑初始化邏輯而看起來像跳回「本週」。
     renderAll();
   } catch(e) {
     setSyncStatus('error', '同步失敗');
