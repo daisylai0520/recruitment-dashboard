@@ -3026,8 +3026,8 @@ function saveLastUsedHR(name) {
   try { if (name) localStorage.setItem(LAST_HR_STORAGE_KEY, name); } catch(e) {}
 }
 
-var MAINTAIN_DATE_FIELDS = ['invite_date','invite date','Phone Interview_date','Interview_date','Phone Interview Scheduled','Interview Scheduled','Result Update_date','Memo Update_date','Update_date','Update date','Onboard date','Hired date'];
-var MAINTAIN_DATEONLY_FIELDS = ['invite_date','invite date','Phone Interview Scheduled','Interview Scheduled','Result Update_date','Memo Update_date','Update_date','Update date','Onboard date','Requisition Date','開缺日','Hired date'];
+var MAINTAIN_DATE_FIELDS = ['invite_date','invite date','Phone Interview_date','Interview_date','Phone Interview Scheduled','Interview Scheduled','Result Update_date','Memo Update_date','Update_date','Update date','Onboard date','Offer Date','Hired date'];
+var MAINTAIN_DATEONLY_FIELDS = ['invite_date','invite date','Phone Interview Scheduled','Interview Scheduled','Result Update_date','Memo Update_date','Update_date','Update date','Onboard date','Offer Date','Requisition Date','開缺日','Hired date'];
 var SCHEDULED_DATE_FIELD_MAP = {
   'Phone Interview_date': 'Phone Interview Scheduled',
   'Interview_date': 'Interview Scheduled'
