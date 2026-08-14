@@ -418,8 +418,10 @@ function initDateFilterSlots() {
     'candDateFilterSlot': {key:'candidateMaintenance', fields:candFields, quickRanges:maintainQuickRanges},
     'trDateFilterSlot': {key:'trends', fields:candFields, quickRanges:maintainQuickRanges, defaultQuickRange:'thisWeek'},
     'expDateFilterSlot': {key:'export', fields:candFields, quickRanges:maintainQuickRanges, defaultQuickRange:'thisWeek'},
-    // Headcount：可切換用「開缺日」或「到職日」篩選（見 hcDateFilterPass，會自動對應到試算表實際欄名）
-    'hcDateFilterSlot': {key:'hc', fields:[{value:'Requisition Date',label:'Requisition Date（開缺日）'},{value:'Onboard date',label:'Onboard date（到職日）'}], quickRanges:maintainQuickRanges, defaultQuickRange:'thisWeek'},
+    // Headcount：可切換用「開缺日」或「到職日」篩選（見 hcDateFilterPass，會自動對應到試算表實際欄名）；
+    // 不設 defaultQuickRange——每次進入畫面預設不篩選、直接顯示所有 Headcount 資料，
+    // 跟 Candidate 畫面（candidateMaintenance）一樣，只有使用者自己選過範圍之後才會套用、並記住那次選擇。
+    'hcDateFilterSlot': {key:'hc', fields:[{value:'Requisition Date',label:'Requisition Date（開缺日）'},{value:'Onboard date',label:'Onboard date（到職日）'}], quickRanges:maintainQuickRanges},
     // Market Salary：依「Update date」篩選（任何欄位被改動都會自動蓋上當天日期，是這張表唯一穩定維護的日期欄位）
     'saDateFilterSlot': {key:'salary', fields:[{value:'Update date',label:'Update date'}], quickRanges:maintainQuickRanges, defaultQuickRange:'thisWeek'}
   };
@@ -1980,7 +1982,8 @@ function renderHeadcount() {
 
       if (countInJob === 0) return ''; // 沒有符合目前模式的資料就不顯示
 
-      // 欄寬設定：Department／Section／Location／開缺理由縮窄，職等／遞補人員職等再縮窄一次，
+      // 欄寬設定：Department／Section／Location 縮窄，職等／遞補人員職等再縮窄一次，開缺日／到職日這種
+      // 日期欄位也縮窄（內容固定是 YYYY/MM/DD，不需要太寬）；開缺理由選項文字通常比較長，改成加寬；
       // Duties／Memo 則依目前顯示資料的實際內容長度自動加長（像 Excel 欄位一樣），其他欄位可以寬一點。
       var colWidths = displayHeaders.map(function(h){
         if (h === 'Duties' || h === 'Memo') {
@@ -1990,9 +1993,11 @@ function renderHeadcount() {
           });
           return Math.max(160, Math.min(480, maxLen*8+28));
         }
-        if (h==='Department' || h==='Section' || h==='Location' || h==='開缺理由' || h.includes('Reason')) return 85;
+        if (h==='Department' || h==='Section' || h==='Location' || h.includes('Reason')) return 85;
         if (h.includes('職等')) return 55;
         if (h==='急缺') return 50;
+        if (h==='Requisition Date' || h==='開缺日' || h==='Onboard date') return 110;
+        if (h==='開缺理由') return 220;
         return 190;
       });
       colWidths.push(40); // 最後一欄放刪除按鈕
