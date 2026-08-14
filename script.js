@@ -36,6 +36,9 @@ async function fetchJsonWithRetry(urlBuilder, options, retries) {
 
 var userRole = null;
 var allData=[], salaryData=[], scheduleData=[], managerDirectoryData=[], managerInfoData=[], resultOptions=[], positionOptions=[], sourceOptions=[], declineReasonOptions=[];
+// 「特定欄位選項」工作表的「開缺理由」「產業」欄位：分別給 Headcount 的開缺理由、Market Salary 的產業用，
+// 嚴格對應這張表、不能自己新增（跟 Candidate Records 的 declineReasonOptions 做法一致）。
+var hcReasonOptions=[], salaryIndustryOptions=[];
 // 「分類Result」工作表：Result 欄位 + 其他任意幾欄「階段欄位」（欄名、欄數、選項文字都不寫死，
 // 完全依工作表實際內容動態決定，例如目前是 電訪階段／面試階段／錄取階段／Offer結果，以後改了也不用改程式）。
 // resultCategories 每筆是 {Result, stages:{欄名:值,...}}；resultStageColumns 是欄位順序（由左到右）。
@@ -367,6 +370,21 @@ function dateFilterPass(pageKey, rec) {
   return true;
 }
 
+// Headcount 專用的時間篩選判斷：跟 dateFilterPass 邏輯一樣，差別是欄位選單給的是語意名稱
+// （Requisition Date／Onboard date），但試算表實際欄名可能是「開缺日」，這裡用呼叫端先解析好的
+// reqKeyHc／onboardKeyHc 找到真正的欄位再比對，避免欄名對不起來篩不到任何資料。
+function hcDateFilterPass(rec, reqKeyHc, onboardKeyHc) {
+  var state = dateFilterState['hc'];
+  if (!state || !state.field || (!state.start && !state.end)) return true;
+  var actualKey = state.field === 'Onboard date' ? onboardKeyHc : reqKeyHc;
+  var raw = rec[actualKey] || '';
+  var d = parseDateTime(raw);
+  if (!d) return false;
+  if (state.start && d < state.start) return false;
+  if (state.end && d > state.end) return false;
+  return true;
+}
+
 function triggerPageRerender(pageKey) {
   var renderMap = {
     kanban: renderKanban,
@@ -375,7 +393,8 @@ function triggerPageRerender(pageKey) {
     candidateSearch: renderCandidateSearch,
     candidateMaintenance: renderCandQuery,
     trends: renderTrends,
-    'export': updateExportPreview
+    'export': updateExportPreview,
+    salary: renderSalaryScreen
   };
   if (renderMap[pageKey]) renderMap[pageKey]();
 }
@@ -399,7 +418,10 @@ function initDateFilterSlots() {
     'candDateFilterSlot': {key:'candidateMaintenance', fields:candFields, quickRanges:maintainQuickRanges},
     'trDateFilterSlot': {key:'trends', fields:candFields, quickRanges:maintainQuickRanges, defaultQuickRange:'thisWeek'},
     'expDateFilterSlot': {key:'export', fields:candFields, quickRanges:maintainQuickRanges, defaultQuickRange:'thisWeek'},
-    'hcDateFilterSlot': {key:'hc', fields:[{value:'Update_date',label:'Update_date（缺額更新時間，依異動記錄推算暫不支援）'}], disabled:true}
+    // Headcount：可切換用「開缺日」或「到職日」篩選（見 hcDateFilterPass，會自動對應到試算表實際欄名）
+    'hcDateFilterSlot': {key:'hc', fields:[{value:'Requisition Date',label:'Requisition Date（開缺日）'},{value:'Onboard date',label:'Onboard date（到職日）'}], quickRanges:maintainQuickRanges, defaultQuickRange:'thisWeek'},
+    // Market Salary：依「Update date」篩選（任何欄位被改動都會自動蓋上當天日期，是這張表唯一穩定維護的日期欄位）
+    'saDateFilterSlot': {key:'salary', fields:[{value:'Update date',label:'Update date'}], quickRanges:maintainQuickRanges, defaultQuickRange:'thisWeek'}
   };
   Object.keys(slots).forEach(function(slotId){
     var el = document.getElementById(slotId);
@@ -484,7 +506,7 @@ function applyCoreData(json) {
   positionOptions=(json.positionOptions||[]).map(function(v){return String(v).trim();}).filter(Boolean);
   // Source 選項來源同 104_Position：試算表資料驗證清單（若有設定），前端再跟實際資料合併
   sourceOptions=(json.sourceOptions||[]).map(function(v){return String(v).trim();}).filter(Boolean);
-  // 「婉拒理由」工作表的「婉拒理由」欄位為唯一選項來源，不能自己新增
+  // 「特定欄位選項」工作表（原「婉拒理由」工作表改名）的「婉拒理由」欄位為唯一選項來源，不能自己新增
   declineReasonOptions=(json.declineReasonOptions||[]).map(function(v){return String(v).trim();}).filter(Boolean);
   managerInfoData=(json.managerInfo||[]).filter(function(d){return d.Name;});
   Object.assign(maintainHeaders, json.sheetHeaders || {});
@@ -560,6 +582,7 @@ function findJobFunctionByInviterName(name) {
 
 function applyHeadcountData(json) {
   headcountDropdownData = json.headcountDropdowns || {};
+  hcReasonOptions = (json.hcReasonOptions||[]).map(function(v){return String(v).trim();}).filter(Boolean);
   rebuildHeadcountDropdowns();
   Object.assign(maintainHeaders, json.sheetHeaders || {});
   var newHcRecords = json.headcount||[];
@@ -575,6 +598,8 @@ async function fetchHeadcountData() {
 
 function applySalaryData(json) {
   salaryData=(json.salaryRecords||[]).filter(function(d){return d.Company;});
+  salaryIndustryOptions = (json.salaryIndustryOptions||[]).map(function(v){return String(v).trim();}).filter(Boolean);
+  rebuildSalaryDropdowns();
   reapplyRecentEdits('Market Salary Records', salaryData);
   Object.assign(maintainHeaders, json.sheetHeaders || {});
   loadedResources.salary = true;
@@ -1534,7 +1559,24 @@ function syncNewInviterToManagerInfo(name, bu) {
 // 清單來源見 MAINTAIN_DROPDOWNS；勾選清單以外的值（例如舊資料、或用「新增」手動加入的新選項）也能維持顯示與勾選。
 var MULTI_SELECT_FIELDS = ['Inviter', '面試主管', '單位', 'Job Function', '104_Position', '負責HR', 'Source'];
 // Headcount Records 裡改用「打勾＋可新增選項」下拉選單樣式的欄位（跟上面 Candidate Records 的 MULTI_SELECT_FIELDS 共用同一套元件）
-var HC_CHECKBOX_DROPDOWN_FIELDS = ['Location', '開缺理由'];
+// 開缺理由改成嚴格單選（見 STRICT_SELECT_FIELDS_BY_SHEET），不再放在這裡（不能自己新增選項）
+var HC_CHECKBOX_DROPDOWN_FIELDS = ['Location'];
+// 嚴格單選欄位（比照 Candidate Records 的 STRICT_SELECT_FIELDS）：選項固定來自「特定欄位選項」工作表，
+// 用普通 <select> 呈現、不能自己新增選項，也不能像 datalist 一樣手動打字帶入清單外的值。
+var STRICT_SELECT_FIELDS_BY_SHEET = {
+  'Headcount Records': ['開缺理由'],
+  'Market Salary Records': ['產業']
+};
+// 勾選（checkbox）欄位：目前只有 Headcount Records 的「急缺」是布林值（是／否），用打勾呈現。
+var CHECKBOX_FIELDS_BY_SHEET = {
+  'Headcount Records': ['急缺']
+};
+// 判斷各種可能存在試算表裡代表「已勾選」的值（Google Sheet 原生核取方塊存的是布林 true/false，
+// 但也兼容舊資料可能填的文字，例如「是」「V」「1」），統一在這裡判斷，避免各處各自寫一套規則。
+function isCheckboxTruthy(v) {
+  var s = String(v==null?'':v).trim().toLowerCase();
+  return s === 'true' || s === '1' || s === '是' || s === 'v' || s === 'yes';
+}
 function buildInviterMultiSelectInput(sheetName, rec, field, col, idx, options, inputStyle) {
   var uid = 'invms_' + (_dlIdCounter++);
   var rawVal = rec[field] !== undefined ? rec[field] : '';
@@ -1753,10 +1795,22 @@ function renderTableCellInput(sheetName, rec, field, idx, customWidth) {
   var rawSafe = String(rawVal||'').replace(/"/g,'&quot;');
   var widthStyle = customWidth ? ('width:'+customWidth+';min-width:'+customWidth+';') : 'min-width:60px;';
 
+  // 急缺：布林值勾選欄位，直接顯示一個核取方塊，勾選狀態改變就存檔
+  var checkboxFields = CHECKBOX_FIELDS_BY_SHEET[sheetName] || [];
+  if (checkboxFields.indexOf(field) >= 0) {
+    return '<input type="checkbox" '+(isCheckboxTruthy(rawVal)?'checked':'')+' data-sheet="'+sheetName+'" data-row="'+rec._row+'" data-col="'+col+'" data-field="'+field+'" data-idx="'+idx+'" data-raw="'+rawSafe+'" '+
+      'onchange="commitMaintainCheckbox(this)" style="width:16px;height:16px;cursor:pointer;">';
+  }
+
   if (dropdowns[field]) {
     var options = dropdowns[field]();
     var ddStyle = 'font-size:12px;padding:5px 6px;border:1px solid var(--border);border-radius:6px;background:var(--surface);'+(customWidth?('width:'+customWidth+';'):'max-width:170px;width:100%;')+'box-sizing:border-box;';
-    // Location／開缺理由改用跟 Inviter 等欄位一樣的「打勾＋可新增選項」下拉選單樣式，跟其他畫面的下拉選單風格一致
+    var strictFields = STRICT_SELECT_FIELDS_BY_SHEET[sheetName] || [];
+    // 開缺理由／產業：嚴格單選，選項固定來自「特定欄位選項」工作表，不能自己新增
+    if (strictFields.indexOf(field) >= 0) {
+      return buildDropdownSelectInput(sheetName, rec, field, col, idx, options, ddStyle);
+    }
+    // Location 改用跟 Inviter 等欄位一樣的「打勾＋可新增選項」下拉選單樣式，跟其他畫面的下拉選單風格一致
     if (sheetName === 'Headcount Records' && HC_CHECKBOX_DROPDOWN_FIELDS.indexOf(field) >= 0) {
       return buildInviterMultiSelectInput(sheetName, rec, field, col, idx, options, ddStyle);
     }
@@ -1855,6 +1909,9 @@ function renderHeadcount() {
   var succKey = Object.keys(hcRawData[0]).find(function(k){return k.includes('Successor')||k.trim()==='遞補人員';}) || 'Successor';
   var deptKey = Object.keys(hcRawData[0]).find(function(k){return k.trim()==='Department';}) || 'Department';
   var sectionKey = Object.keys(hcRawData[0]).find(function(k){return k.trim()==='Section';}) || 'Section';
+  // 時間篩選可切換用「開缺日」或「到職日」，這裡先解析出試算表實際的欄名（可能是 Requisition Date 或 開缺日）
+  var reqKeyHc = Object.keys(hcRawData[0]).find(function(k){return k.trim()==='Requisition Date' || k.trim()==='開缺日';}) || 'Requisition Date';
+  var onboardKeyHc2 = Object.keys(hcRawData[0]).find(function(k){return k.trim()==='Onboard date';}) || 'Onboard date';
 
   // 表格顯示欄位：跟「Headcount Records」工作表保持一致，不再寫死清單，工作表增減/改名欄位這裡會自動跟著變。
   // Division／Job Function 已經是卡片分組依據（上面的單位標題／職稱區塊），這裡不重複顯示；PS 開頭的內部欄位也不顯示。
@@ -1872,7 +1929,7 @@ function renderHeadcount() {
   renderTrendHcChart();
 
   var filtered = hcRawData.filter(function(r){
-    return multiFilterPass('hc-bu', r[divKey]) && multiFilterPassMulti('hc-job', r[jobKey]);
+    return multiFilterPass('hc-bu', r[divKey]) && multiFilterPassMulti('hc-job', r[jobKey]) && hcDateFilterPass(r, reqKeyHc, onboardKeyHc2);
   });
 
   var groups = {};
@@ -1935,6 +1992,7 @@ function renderHeadcount() {
         }
         if (h==='Department' || h==='Section' || h==='Location' || h==='開缺理由' || h.includes('Reason')) return 85;
         if (h.includes('職等')) return 55;
+        if (h==='急缺') return 50;
         return 190;
       });
       colWidths.push(40); // 最後一欄放刪除按鈕
@@ -2971,7 +3029,7 @@ function rebuildHeadcountDropdowns() {
   Object.keys(headcountDropdownData).forEach(function(field){
     map[field] = function(){ return headcountDropdownData[field] || []; };
   });
-  // Job Function／Location／開缺理由 一律當成「可新增的單選下拉選單」：不管試算表欄位本身有沒有設資料驗證規則，
+  // Job Function／Location 一律當成「可新增的單選下拉選單」：不管試算表欄位本身有沒有設資料驗證規則，
   // 選項都用「目前資料裡實際出現過的值」＋（若有的話）試算表的資料驗證選項，選單裡沒有的話也可以直接手動輸入新增一個。
   function buildCreatableFieldOptions(fieldName) {
     var fromSheet = headcountDropdownData[fieldName] || [];
@@ -2981,8 +3039,16 @@ function rebuildHeadcountDropdowns() {
   }
   map['Job Function'] = function(){ return buildCreatableFieldOptions('Job Function'); };
   map['Location'] = function(){ return buildCreatableFieldOptions('Location'); };
-  map['開缺理由'] = function(){ return buildCreatableFieldOptions('開缺理由'); };
+  // 開缺理由改成嚴格單選：選項只來自「特定欄位選項」工作表的「開缺理由」欄位，不能自己新增
+  map['開缺理由'] = function(){ return hcReasonOptions.slice(); };
   MAINTAIN_DROPDOWNS['Headcount Records'] = map;
+}
+
+// Market Salary Records「產業」欄位：選項只來自「特定欄位選項」工作表的「產業」欄位，嚴格單選、不能自己新增。
+function rebuildSalaryDropdowns() {
+  MAINTAIN_DROPDOWNS['Market Salary Records'] = {
+    '產業': function(){ return salaryIndustryOptions.slice(); }
+  };
 }
 
 // 哪些欄位是下拉選單
@@ -3518,7 +3584,7 @@ function renderSalaryScreen() {
     var buMatch = !buKey || multiFilterPass('salary-bu', r[buKey]);
     var jobMatch = !jobKey || multiFilterPassMulti('salary-job', r[jobKey]);
     var searchMatch = !search || headers.some(function(h){return String(r[h]||'').toLowerCase().includes(search);});
-    return buMatch && jobMatch && searchMatch;
+    return buMatch && jobMatch && searchMatch && dateFilterPass('salary', r);
   });
 
   if (!headers.length) {
@@ -3561,10 +3627,18 @@ function ensureNewSalaryFieldsRendered() {
 
 function renderNewSalaryFields() {
   var headers = maintainHeaders['Market Salary Records'] || (salaryData.length ? Object.keys(salaryData[0]).filter(function(k){return k!=='_row';}) : []);
+  var dropdowns = MAINTAIN_DROPDOWNS['Market Salary Records'] || {};
   document.getElementById('newSalaryFields').innerHTML = headers.map(function(h){
     var isRequired = h === 'Company';
     var label = h + (isRequired ? ' <span style="color:#EF4444;">*</span>' : '');
-    return '<div><div class="modal-label" style="margin-bottom:4px;">'+label+'</div><input type="text" class="new-salary-input" data-field="'+h+'" style="width:100%;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;box-sizing:border-box;"></div>';
+    var fieldInner;
+    if ((STRICT_SELECT_FIELDS_BY_SHEET['Market Salary Records']||[]).indexOf(h) >= 0) {
+      // 產業：嚴格單選，不能自己新增
+      fieldInner = buildFormSelectInput('new-salary-input', h, dropdowns[h] ? dropdowns[h]() : [], '');
+    } else {
+      fieldInner = '<input type="text" class="new-salary-input" data-field="'+h+'" style="width:100%;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;box-sizing:border-box;">';
+    }
+    return '<div><div class="modal-label" style="margin-bottom:4px;">'+label+'</div>'+fieldInner+'</div>';
   }).join('');
 }
 
@@ -3874,6 +3948,18 @@ async function commitMaintainDateCell(el) {
 async function commitMaintainSelect(selectEl) {
   var newVal = selectEl.value;
   await saveMaintainField(selectEl.getAttribute('data-sheet'), selectEl.getAttribute('data-row'), selectEl.getAttribute('data-col'), selectEl.getAttribute('data-field'), parseInt(selectEl.getAttribute('data-idx')), newVal);
+}
+
+// 急缺等勾選（checkbox）欄位：打勾／取消勾選就直接存檔，存回 TRUE／FALSE（對應 Google 試算表原生核取方塊的布林值）；
+// 存檔失敗的話把畫面上的勾選狀態還原，避免看起來已經改成功、但實際上試算表沒存到。
+async function commitMaintainCheckbox(checkboxEl) {
+  var newVal = checkboxEl.checked ? 'TRUE' : 'FALSE';
+  var ok = await saveMaintainField(checkboxEl.getAttribute('data-sheet'), checkboxEl.getAttribute('data-row'), checkboxEl.getAttribute('data-col'), checkboxEl.getAttribute('data-field'), parseInt(checkboxEl.getAttribute('data-idx')), newVal);
+  if (ok) {
+    checkboxEl.setAttribute('data-raw', newVal);
+  } else {
+    checkboxEl.checked = !checkboxEl.checked;
+  }
 }
 
 // ---- 新增人選資料（常駐空白表單，不再跳出視窗）----
@@ -4405,7 +4491,13 @@ function buildHcInlineAddRowHtml(divisionName) {
 
   var cellsHtml = fields.map(function(h){
     var cellInner;
-    if (dropdowns[h] && HC_CHECKBOX_DROPDOWN_FIELDS.indexOf(h) >= 0) {
+    if ((CHECKBOX_FIELDS_BY_SHEET['Headcount Records']||[]).indexOf(h) >= 0) {
+      // 急缺：新增列時預設不勾選
+      cellInner = '<input type="checkbox" data-field="'+h+'" class="hc-inline-new-input" style="width:16px;height:16px;cursor:pointer;">';
+    } else if ((STRICT_SELECT_FIELDS_BY_SHEET['Headcount Records']||[]).indexOf(h) >= 0) {
+      // 開缺理由：嚴格單選，不能自己新增
+      cellInner = buildFormSelectInput('hc-inline-new-input', h, dropdowns[h] ? dropdowns[h]() : [], '');
+    } else if (dropdowns[h] && HC_CHECKBOX_DROPDOWN_FIELDS.indexOf(h) >= 0) {
       cellInner = buildFormInviterMultiSelectInput('hc-inline-new-input', h, dropdowns[h](), '');
     } else if (dropdowns[h]) {
       cellInner = buildFormDatalistInput('hc-inline-new-input', h, dropdowns[h](), '');
@@ -4442,9 +4534,15 @@ async function submitHcInlineNewRow() {
   values[divisionKey] = division;
   document.querySelectorAll('#hcInlineAddRow .hc-inline-new-input').forEach(function(inp){
     var field = inp.getAttribute('data-field');
-    var val = inp.value.trim();
-    if (val && (MAINTAIN_DATE_FIELDS.indexOf(field) >= 0 || MAINTAIN_DATEONLY_FIELDS.indexOf(field) >= 0)) {
-      val = normalizeDateForSave(field, val);
+    var val;
+    if (inp.type === 'checkbox') {
+      // 急缺：checkbox 沒勾就存 FALSE，跟 Google 試算表原生核取方塊的布林值一致
+      val = inp.checked ? 'TRUE' : 'FALSE';
+    } else {
+      val = inp.value.trim();
+      if (val && (MAINTAIN_DATE_FIELDS.indexOf(field) >= 0 || MAINTAIN_DATEONLY_FIELDS.indexOf(field) >= 0)) {
+        val = normalizeDateForSave(field, val);
+      }
     }
     values[field] = val;
   });
