@@ -2584,11 +2584,21 @@ function renderProgressTree(trendData) {
   // （resultStageColumns），欄位數量也完全跟著工作表變動，不寫死
   var COL_LABELS = ['邀約階段'].concat(resultStageColumns);
   // 階段轉換率的數據（邀約／電訪／面試／錄取的累計人數，跟原本階段轉換率漏斗圖同一套計算）合併呈現在
-  // 樹狀圖最上面的欄位標題：第 ci 欄如果有對應的階段轉換率資料，標題改成「標籤＋人數」的卡片樣式，
-  // 相鄰兩欄之間再畫一個灰色箭頭顯示這兩階段之間的轉換率（後一階段人數 ÷ 前一階段人數）。
-  // 欄位數量比階段轉換率涵蓋的階段還多時（例如「分類Result」多了 Offer結果 這一欄），超出的欄位
-  // 就維持原本的純文字標題，不會沒資料硬湊數字。
+  // 樹狀圖最上面的欄位標題：每一欄的標題都改成「標籤＋人數」的卡片樣式，相鄰兩欄之間再畫一個灰色箭頭
+  // 顯示這兩階段之間的轉換率（後一階段人數 ÷ 前一階段人數）。
+  // 人數優先用「階段轉換率」欄位分類的資料（電訪／面試／錄取這幾個已經在那個欄位分類過的階段）；
+  // 「分類Result」工作表裡比「階段轉換率」欄位涵蓋範圍更後面的欄位（例如 Offer結果，還沒在「階段轉換率」
+  // 欄位分類時），改用「這個欄位本身有沒有填值」來判斷有沒有到達這個階段——對 Offer結果這種最後一欄
+  // 的終點欄位來說已經足夠準確，不需要額外在「階段轉換率」欄位重複設定一次。
   var funnelRows = computeFunnelRows(trendData);
+  // 某個「分類Result」階段欄位（不是「階段轉換率」欄位）裡，有多少人選目前已經到達這個欄位（欄位本身有填值）
+  function columnReachedCount(colName) {
+    var resultsWithValue = [];
+    resultCategories.forEach(function(rc){
+      if (String((rc.stages && rc.stages[colName]) || '').trim() && resultsWithValue.indexOf(rc.Result) < 0) resultsWithValue.push(rc.Result);
+    });
+    return trendData.filter(function(d){ return resultsWithValue.indexOf(d.Result) >= 0; }).length;
+  }
   var COL_W = 210, BOX_W = 168, BOX_H = 36, ROW_H = 50;
   var HEADER_BOX_Y = 4, HEADER_BOX_H = 36, HEADER_H = HEADER_BOX_Y + HEADER_BOX_H + 14;
   var leafCounter = 0, maxDepth = 0;
@@ -2609,6 +2619,15 @@ function renderProgressTree(trendData) {
   var canvasW = maxDepth * COL_W + BOX_W + 20;
   var canvasH = HEADER_H + leafCounter * ROW_H + 14;
 
+  // 每一欄的累計人數：第 0 欄固定是邀約總人數（root.count）；其餘每一欄優先用「階段轉換率」欄位算出來的數據，
+  // 沒有的話用 columnReachedCount 這個通用備援算法（見上面），確保不管「階段轉換率」欄位分類到哪裡，
+  // 樹狀圖最上面每一欄都一定會顯示人數，欄位之間也都會有轉換率箭頭。
+  var colCounts = [root.count];
+  for (var fci = 1; fci <= maxDepth; fci++) {
+    var funnelEntry = funnelRows[fci];
+    colCounts.push(funnelEntry ? funnelEntry.count : columnReachedCount(resultStageColumns[fci-1]));
+  }
+
   // 狀態卡片本身用漸層底色，越後面的階段顏色越深，對比更清楚；漸層階數跟著實際欄位數量走
   var gradStops = buildProgressTreeGradStops(maxDepth + 1);
   var svgParts = ['<defs>'];
@@ -2622,21 +2641,16 @@ function renderProgressTree(trendData) {
   for (var ci = 0; ci <= maxDepth; ci++) {
     var colX = ci * COL_W;
     var colCx = colX + BOX_W / 2;
-    var fr = funnelRows[ci];
-    if (fr) {
-      svgParts.push(
-        '<rect x="'+colX+'" y="'+HEADER_BOX_Y+'" width="'+BOX_W+'" height="'+HEADER_BOX_H+'" rx="9" style="fill:var(--surface);stroke:var(--text-primary);stroke-width:1.5;"></rect>'+
-        '<text x="'+colCx+'" y="'+(HEADER_BOX_Y+15)+'" font-size="12" font-weight="700" text-anchor="middle" style="fill:var(--text-primary);">'+(COL_LABELS[ci]||'')+'</text>'+
-        '<text x="'+colCx+'" y="'+(HEADER_BOX_Y+29)+'" font-size="11" text-anchor="middle" style="fill:var(--text-secondary);">'+fr.count+' 人</text>'
-      );
-    } else {
-      // 階段轉換率沒有涵蓋到的欄位（例如 Offer結果還沒在「階段轉換率」欄位填資料時），維持原本的純文字標題
-      svgParts.push('<text x="'+colCx+'" y="'+(HEADER_BOX_Y+HEADER_BOX_H/2+5)+'" font-size="13" font-weight="700" text-anchor="middle" style="fill:var(--text-primary);">'+(COL_LABELS[ci]||'')+'</text>');
-    }
-    // 相鄰兩欄都有階段轉換率資料時，中間畫一個灰色箭頭，顯示這兩階段之間的轉換率
-    if (ci > 0 && fr && funnelRows[ci-1]) {
-      var prevCount = funnelRows[ci-1].count;
-      var stepPct = prevCount > 0 ? Math.round(fr.count/prevCount*1000)/10 : null;
+    var colCount = colCounts[ci];
+    svgParts.push(
+      '<rect x="'+colX+'" y="'+HEADER_BOX_Y+'" width="'+BOX_W+'" height="'+HEADER_BOX_H+'" rx="9" style="fill:var(--surface);stroke:var(--text-primary);stroke-width:1.5;"></rect>'+
+      '<text x="'+colCx+'" y="'+(HEADER_BOX_Y+15)+'" font-size="12" font-weight="700" text-anchor="middle" style="fill:var(--text-primary);">'+(COL_LABELS[ci]||'')+'</text>'+
+      '<text x="'+colCx+'" y="'+(HEADER_BOX_Y+29)+'" font-size="11" text-anchor="middle" style="fill:var(--text-secondary);">'+colCount+' 人</text>'
+    );
+    // 相鄰兩欄之間畫一個灰色箭頭，顯示這兩階段之間的轉換率
+    if (ci > 0) {
+      var prevCount = colCounts[ci-1];
+      var stepPct = prevCount > 0 ? Math.round(colCount/prevCount*1000)/10 : null;
       var arrowX0 = colX - COL_W + BOX_W, arrowX1 = colX, arrowMidY = HEADER_BOX_Y + HEADER_BOX_H/2, tipW = 10, arrowHalfH = HEADER_BOX_H/2 - 2;
       var arrowPoints = arrowX0+','+(arrowMidY-arrowHalfH)+' '+(arrowX1-tipW)+','+(arrowMidY-arrowHalfH)+' '+arrowX1+','+arrowMidY+' '+(arrowX1-tipW)+','+(arrowMidY+arrowHalfH)+' '+arrowX0+','+(arrowMidY+arrowHalfH);
       svgParts.push('<polygon points="'+arrowPoints+'" style="fill:#E5E7EB;"></polygon>');
@@ -2692,8 +2706,9 @@ function computeFunnelRows(trendData) {
   // 固定順序是 邀約／電訪／面試／錄取／Offer結果（招募流程本來的先後順序），所以「階段轉換率」欄位裡
   // 只要出現這幾個字，一律照這個順序排；欄位裡如果出現這份清單以外的字（以後可能新增其他階段名稱），
   // 才依工作表由上到下第一次出現的順序，接在後面。
-  // 「Offer結果」要顯示人數／轉換率的話，「分類Result」工作表的「階段轉換率」欄位裡也要有標成「Offer結果」的資料列，
-  // 沒有的話這欄還是會維持原本的純文字標題（見 renderProgressTree 的 fallback 邏輯），不會出錯，只是不會顯示數字。
+  // 「Offer結果」這類還沒在「階段轉換率」欄位分類的階段，renderProgressTree 會改用 columnReachedCount
+  // 這個通用備援算法（依「分類Result」工作表該欄位本身有沒有填值來判斷），不需要一定要在「階段轉換率」
+  // 欄位裡也重複設定一次；如果之後有填，這裡的分類結果會優先採用。
   var FUNNEL_FIXED_ORDER = ['電訪','面試','錄取','Offer結果'];
   var presentStages = [];
   resultCategories.forEach(function(rc){
