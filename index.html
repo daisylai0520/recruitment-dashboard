@@ -272,30 +272,29 @@
     <div class="page-title">Headcount</div>
     <div class="page-sub" id="hcSub">尚未載入資料</div>
 
+    <div class="cal-outer" style="margin-bottom:20px;">
+      <div style="font-size:13px;font-weight:600;color:var(--text-secondary);margin-bottom:10px;">各單位 Headcount</div>
+      <div id="trendHcChart" style="overflow-x:auto;"></div>
+    </div>
+
     <div id="hcEmptyState" style="text-align:center;padding:60px 20px;color:var(--text-tertiary);">
       <div style="font-size:40px;margin-bottom:12px;">📊</div>
       <div style="font-size:14px;">尚無 Headcount 資料</div>
     </div>
 
     <div id="hcContent" style="display:none">
-      <div style="display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap;margin-bottom:16px;">
-        <div class="filter-bar" id="hcFilterBar" style="flex:1 1 360px;margin-bottom:0;">
-          <div class="filter-group">
-            <div class="filter-group-label">單位</div>
-            <div class="filter-btns" id="hcBuBar"></div>
-          </div>
-          <div class="filter-divider"></div>
-          <div class="filter-group">
-            <div class="filter-group-label">Job Function</div>
-            <div class="filter-btns" id="hcJobBar"></div>
-          </div>
-          <div class="filter-divider"></div>
-          <div id="hcDateFilterSlot"></div>
+      <div class="filter-bar" id="hcFilterBar">
+        <div class="filter-group">
+          <div class="filter-group-label">單位</div>
+          <div class="filter-btns" id="hcBuBar"></div>
         </div>
-        <div class="cal-outer" style="flex:1 1 320px;margin-bottom:0;">
-          <div style="font-size:13px;font-weight:600;color:var(--text-secondary);margin-bottom:10px;">各單位 Headcount</div>
-          <div id="trendHcChart" style="overflow-x:auto;"></div>
+        <div class="filter-divider"></div>
+        <div class="filter-group">
+          <div class="filter-group-label">Job Function</div>
+          <div class="filter-btns" id="hcJobBar"></div>
         </div>
+        <div class="filter-divider"></div>
+        <div id="hcDateFilterSlot"></div>
       </div>
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
         <button class="tab-toggle-btn active" id="hcViewCurrentBtn" onclick="switchHcView('current')">目前缺額</button>
