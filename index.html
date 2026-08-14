@@ -233,11 +233,22 @@
     </div>
 
     <div style="display:grid;grid-template-columns:1fr 2.2fr;gap:16px;margin-bottom:20px;align-items:start;">
-      <div class="cal-outer" id="trendCard-days">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
-          <div style="font-size:14px;font-weight:600;">各階段平均天數</div>
+      <div style="display:flex;flex-direction:column;gap:16px;">
+        <div class="cal-outer" id="trendCard-monthly">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+            <div style="font-size:14px;font-weight:600;">每月 Headcount & Onboard</div>
+          </div>
+          <div id="trendMonthlyChart" style="overflow-x:auto;"></div>
+          <div style="margin-top:8px;"><span style="font-size:11px;color:var(--accent);cursor:pointer;text-decoration:underline;" onclick="toggleTrendDetail('monthly')">查看明細表格</span></div>
+          <div class="table-wrap" id="trendMonthlyDetail" style="display:none;margin-top:10px;"><table class="pi-table"><thead><tr id="trendMonthlyTableHead"></tr></thead><tbody id="trendMonthlyTableBody"></tbody></table></div>
         </div>
-        <div id="stageConversionDays"></div>
+
+        <div class="cal-outer" id="trendCard-days">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+            <div style="font-size:14px;font-weight:600;">各階段平均天數</div>
+          </div>
+          <div id="stageConversionDays"></div>
+        </div>
       </div>
 
       <div class="cal-outer" id="trendCard-progress">
@@ -247,15 +258,6 @@
         </div>
         <div class="tree-h-wrap" id="progressTreeFlow"></div>
       </div>
-    </div>
-
-    <div class="cal-outer" id="trendCard-monthly">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
-        <div style="font-size:14px;font-weight:600;">每月 Headcount & Onboard</div>
-      </div>
-      <div id="trendMonthlyChart" style="overflow-x:auto;"></div>
-      <div style="margin-top:8px;"><span style="font-size:11px;color:var(--accent);cursor:pointer;text-decoration:underline;" onclick="toggleTrendDetail('monthly')">查看明細表格</span></div>
-      <div class="table-wrap" id="trendMonthlyDetail" style="display:none;margin-top:10px;"><table class="pi-table"><thead><tr id="trendMonthlyTableHead"></tr></thead><tbody id="trendMonthlyTableBody"></tbody></table></div>
     </div>
   </div>
 

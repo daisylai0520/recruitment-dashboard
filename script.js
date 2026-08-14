@@ -2541,6 +2541,10 @@ function renderProgressTree(trendData) {
     return;
   }
 
+  // Result 為「其他主管/近期已邀約」的人選不算是真正走過招募流程（通常是轉介其他主管或近期已經邀約過），
+  // 不納入人選進度統計區塊（含合併呈現的階段轉換率數據）的任何計算
+  trendData = trendData.filter(function(d){ return d.Result !== '其他主管/近期已邀約'; });
+
   // 「有沒有填邀約日」＝所有曾經邀約過的人選（不管後來有沒有往下一階段推進）；這是候選人自己的欄位，
   // 不是「分類Result」工作表的內容，所以邀約這個根節點維持固定，其餘每一層才是動態讀工作表欄位
   var invitedTest = function(d){ return !!(d.invite_date || d['invite date']); };
@@ -2574,8 +2578,8 @@ function renderProgressTree(trendData) {
   // 欄位數量比階段轉換率涵蓋的階段還多時（例如「分類Result」多了 Offer結果 這一欄），超出的欄位
   // 就維持原本的純文字標題，不會沒資料硬湊數字。
   var funnelRows = computeFunnelRows(trendData);
-  var COL_W = 210, BOX_W = 168, BOX_H = 46, ROW_H = 62;
-  var HEADER_BOX_Y = 4, HEADER_BOX_H = 44, HEADER_H = HEADER_BOX_Y + HEADER_BOX_H + 16;
+  var COL_W = 210, BOX_W = 168, BOX_H = 36, ROW_H = 50;
+  var HEADER_BOX_Y = 4, HEADER_BOX_H = 36, HEADER_H = HEADER_BOX_Y + HEADER_BOX_H + 14;
   var leafCounter = 0, maxDepth = 0;
   function layout(node, depth) {
     maxDepth = Math.max(maxDepth, depth);
@@ -2610,22 +2614,22 @@ function renderProgressTree(trendData) {
     var fr = funnelRows[ci];
     if (fr) {
       svgParts.push(
-        '<rect x="'+colX+'" y="'+HEADER_BOX_Y+'" width="'+BOX_W+'" height="'+HEADER_BOX_H+'" rx="10" style="fill:var(--surface);stroke:var(--text-primary);stroke-width:1.5;"></rect>'+
-        '<text x="'+colCx+'" y="'+(HEADER_BOX_Y+19)+'" font-size="13" font-weight="700" text-anchor="middle" style="fill:var(--text-primary);">'+(COL_LABELS[ci]||'')+'</text>'+
-        '<text x="'+colCx+'" y="'+(HEADER_BOX_Y+36)+'" font-size="12" text-anchor="middle" style="fill:var(--text-secondary);">'+fr.count+' 人</text>'
+        '<rect x="'+colX+'" y="'+HEADER_BOX_Y+'" width="'+BOX_W+'" height="'+HEADER_BOX_H+'" rx="9" style="fill:var(--surface);stroke:var(--text-primary);stroke-width:1.5;"></rect>'+
+        '<text x="'+colCx+'" y="'+(HEADER_BOX_Y+15)+'" font-size="12" font-weight="700" text-anchor="middle" style="fill:var(--text-primary);">'+(COL_LABELS[ci]||'')+'</text>'+
+        '<text x="'+colCx+'" y="'+(HEADER_BOX_Y+29)+'" font-size="11" text-anchor="middle" style="fill:var(--text-secondary);">'+fr.count+' 人</text>'
       );
     } else {
-      // 階段轉換率沒有涵蓋到的欄位（例如 Offer結果），維持原本的純文字標題
+      // 階段轉換率沒有涵蓋到的欄位（例如 Offer結果還沒在「階段轉換率」欄位填資料時），維持原本的純文字標題
       svgParts.push('<text x="'+colCx+'" y="'+(HEADER_BOX_Y+HEADER_BOX_H/2+5)+'" font-size="13" font-weight="700" text-anchor="middle" style="fill:var(--text-primary);">'+(COL_LABELS[ci]||'')+'</text>');
     }
     // 相鄰兩欄都有階段轉換率資料時，中間畫一個灰色箭頭，顯示這兩階段之間的轉換率
     if (ci > 0 && fr && funnelRows[ci-1]) {
       var prevCount = funnelRows[ci-1].count;
       var stepPct = prevCount > 0 ? Math.round(fr.count/prevCount*1000)/10 : null;
-      var arrowX0 = colX - COL_W + BOX_W, arrowX1 = colX, arrowMidY = HEADER_BOX_Y + HEADER_BOX_H/2, tipW = 10;
-      var arrowPoints = arrowX0+','+(arrowMidY-11)+' '+(arrowX1-tipW)+','+(arrowMidY-11)+' '+arrowX1+','+arrowMidY+' '+(arrowX1-tipW)+','+(arrowMidY+11)+' '+arrowX0+','+(arrowMidY+11);
+      var arrowX0 = colX - COL_W + BOX_W, arrowX1 = colX, arrowMidY = HEADER_BOX_Y + HEADER_BOX_H/2, tipW = 10, arrowHalfH = HEADER_BOX_H/2 - 2;
+      var arrowPoints = arrowX0+','+(arrowMidY-arrowHalfH)+' '+(arrowX1-tipW)+','+(arrowMidY-arrowHalfH)+' '+arrowX1+','+arrowMidY+' '+(arrowX1-tipW)+','+(arrowMidY+arrowHalfH)+' '+arrowX0+','+(arrowMidY+arrowHalfH);
       svgParts.push('<polygon points="'+arrowPoints+'" style="fill:#E5E7EB;"></polygon>');
-      svgParts.push('<text x="'+((arrowX0+arrowX1)/2)+'" y="'+(arrowMidY+4)+'" font-size="11" font-weight="700" text-anchor="middle" style="fill:var(--text-secondary);">'+(stepPct===null?'—':stepPct+'%')+'</text>');
+      svgParts.push('<text x="'+((arrowX0+arrowX1)/2)+'" y="'+(arrowMidY+3)+'" font-size="10.5" font-weight="700" text-anchor="middle" style="fill:var(--text-secondary);">'+(stepPct===null?'—':stepPct+'%')+'</text>');
     }
   }
   function walk(node) {
@@ -2644,9 +2648,9 @@ function renderProgressTree(trendData) {
     var faded = node.count === 0 ? ' opacity="0.4"' : '';
     svgParts.push(
       '<g style="cursor:pointer;"'+faded+' onclick="showProgressTreeDrilldown('+node.drillIdx+')">'+
-        '<rect x="'+node._x+'" y="'+(y-BOX_H/2)+'" width="'+BOX_W+'" height="'+BOX_H+'" rx="10" style="fill:'+fillUrl+';stroke:rgba(0,0,0,.15);stroke-width:1;"></rect>'+
-        '<text x="'+(node._x+BOX_W/2)+'" y="'+(y-4)+'" font-size="12.5" font-weight="700" text-anchor="middle" style="fill:'+textColor+';">'+node.label+'</text>'+
-        '<text x="'+(node._x+BOX_W/2)+'" y="'+(y+14)+'" font-size="12" text-anchor="middle" style="fill:'+textColor+';">'+node.count+' 人</text>'+
+        '<rect x="'+node._x+'" y="'+(y-BOX_H/2)+'" width="'+BOX_W+'" height="'+BOX_H+'" rx="9" style="fill:'+fillUrl+';stroke:rgba(0,0,0,.15);stroke-width:1;"></rect>'+
+        '<text x="'+(node._x+BOX_W/2)+'" y="'+(y-4)+'" font-size="11.5" font-weight="700" text-anchor="middle" style="fill:'+textColor+';">'+node.label+'</text>'+
+        '<text x="'+(node._x+BOX_W/2)+'" y="'+(y+10)+'" font-size="10.5" text-anchor="middle" style="fill:'+textColor+';">'+node.count+' 人</text>'+
       '</g>'
     );
     node.children.forEach(drawNode);
@@ -2674,10 +2678,12 @@ function computeFunnelRows(trendData) {
   var invitedCount = trendData.filter(function(d){ return hasVal(d.invite_date || d['invite date']); }).length;
   if (!invitedCount) return [];
 
-  // 固定順序是 邀約／電訪／面試／錄取（招募流程本來的先後順序），所以「階段轉換率」欄位裡
+  // 固定順序是 邀約／電訪／面試／錄取／Offer結果（招募流程本來的先後順序），所以「階段轉換率」欄位裡
   // 只要出現這幾個字，一律照這個順序排；欄位裡如果出現這份清單以外的字（以後可能新增其他階段名稱），
   // 才依工作表由上到下第一次出現的順序，接在後面。
-  var FUNNEL_FIXED_ORDER = ['電訪','面試','錄取'];
+  // 「Offer結果」要顯示人數／轉換率的話，「分類Result」工作表的「階段轉換率」欄位裡也要有標成「Offer結果」的資料列，
+  // 沒有的話這欄還是會維持原本的純文字標題（見 renderProgressTree 的 fallback 邏輯），不會出錯，只是不會顯示數字。
+  var FUNNEL_FIXED_ORDER = ['電訪','面試','錄取','Offer結果'];
   var presentStages = [];
   resultCategories.forEach(function(rc){
     var v = String(rc.stageConversion || '').trim();
