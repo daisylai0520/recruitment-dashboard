@@ -219,6 +219,17 @@ var dateFilterState = {}; // { pageKey: {field, start, end} }
 // 一旦手動選過（或按過本週／本月／過去一個月），就永久沿用這個篩選，不會自己被重設回「本週」——
 // 只有從來沒選過（第一次使用、或自己按過「清除」）的時候，才會套用一次性的「本週」預設值。
 var DATE_FILTER_STORAGE_PREFIX = 'rc_datefilter_v1_';
+// 一次性修正：Headcount 的時間篩選改成「預設不篩選、顯示全部資料」之前，舊版程式會自動把「本週」存進
+// localStorage，光拿掉程式裡的預設值沒辦法覆蓋掉瀏覽器裡已經存在的這筆舊紀錄（永久記憶的邏輯本來就是
+// 「只要存過就優先套用已存的」）。這裡用一個一次性旗標，每個瀏覽器只會清一次 Headcount 的舊篩選紀錄，
+// 清掉之後「預設顯示全部資料」才會真的生效；之後使用者自己在 Headcount 選的範圍還是會照樣被永久記住，
+// 不會被這段程式碼再清掉。
+try {
+  if (!localStorage.getItem('rc_hc_datefilter_reset_v1')) {
+    localStorage.removeItem(DATE_FILTER_STORAGE_PREFIX + 'hc');
+    localStorage.setItem('rc_hc_datefilter_reset_v1', '1');
+  }
+} catch (e) {}
 function saveDateFilterState(pageKey) {
   try {
     var s = dateFilterState[pageKey];
@@ -1997,7 +2008,7 @@ function renderHeadcount() {
         if (h.includes('職等')) return 55;
         if (h==='急缺') return 50;
         if (h==='Requisition Date' || h==='開缺日' || h==='Onboard date') return 110;
-        if (h==='開缺理由') return 220;
+        if (h==='開缺理由') return 110;
         return 190;
       });
       colWidths.push(40); // 最後一欄放刪除按鈕
