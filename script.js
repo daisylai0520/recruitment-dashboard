@@ -2563,7 +2563,14 @@ function renderProgressTree(trendData) {
   // 每個節點所在的欄位：第 0 欄固定是「邀約階段」，第 1 欄以後直接用「分類Result」工作表實際的欄位名稱
   // （resultStageColumns），欄位數量也完全跟著工作表變動，不寫死
   var COL_LABELS = ['邀約階段'].concat(resultStageColumns);
-  var COL_W = 210, BOX_W = 168, BOX_H = 46, ROW_H = 62, HEADER_H = 34;
+  // 階段轉換率的數據（邀約／電訪／面試／錄取的累計人數，跟原本階段轉換率漏斗圖同一套計算）合併呈現在
+  // 樹狀圖最上面的欄位標題：第 ci 欄如果有對應的階段轉換率資料，標題改成「標籤＋人數」的卡片樣式，
+  // 相鄰兩欄之間再畫一個灰色箭頭顯示這兩階段之間的轉換率（後一階段人數 ÷ 前一階段人數）。
+  // 欄位數量比階段轉換率涵蓋的階段還多時（例如「分類Result」多了 Offer結果 這一欄），超出的欄位
+  // 就維持原本的純文字標題，不會沒資料硬湊數字。
+  var funnelRows = computeFunnelRows(trendData);
+  var COL_W = 210, BOX_W = 168, BOX_H = 46, ROW_H = 62;
+  var HEADER_BOX_Y = 4, HEADER_BOX_H = 44, HEADER_H = HEADER_BOX_Y + HEADER_BOX_H + 16;
   var leafCounter = 0, maxDepth = 0;
   function layout(node, depth) {
     maxDepth = Math.max(maxDepth, depth);
@@ -2593,8 +2600,28 @@ function renderProgressTree(trendData) {
   });
   svgParts.push('</defs>');
   for (var ci = 0; ci <= maxDepth; ci++) {
-    var colCx = ci * COL_W + BOX_W / 2;
-    svgParts.push('<text x="'+colCx+'" y="18" font-size="13" font-weight="700" text-anchor="middle" style="fill:var(--text-primary);">'+(COL_LABELS[ci]||'')+'</text>');
+    var colX = ci * COL_W;
+    var colCx = colX + BOX_W / 2;
+    var fr = funnelRows[ci];
+    if (fr) {
+      svgParts.push(
+        '<rect x="'+colX+'" y="'+HEADER_BOX_Y+'" width="'+BOX_W+'" height="'+HEADER_BOX_H+'" rx="10" style="fill:var(--surface);stroke:var(--text-primary);stroke-width:1.5;"></rect>'+
+        '<text x="'+colCx+'" y="'+(HEADER_BOX_Y+19)+'" font-size="13" font-weight="700" text-anchor="middle" style="fill:var(--text-primary);">'+(COL_LABELS[ci]||'')+'</text>'+
+        '<text x="'+colCx+'" y="'+(HEADER_BOX_Y+36)+'" font-size="12" text-anchor="middle" style="fill:var(--text-secondary);">'+fr.count+' 人</text>'
+      );
+    } else {
+      // 階段轉換率沒有涵蓋到的欄位（例如 Offer結果），維持原本的純文字標題
+      svgParts.push('<text x="'+colCx+'" y="'+(HEADER_BOX_Y+HEADER_BOX_H/2+5)+'" font-size="13" font-weight="700" text-anchor="middle" style="fill:var(--text-primary);">'+(COL_LABELS[ci]||'')+'</text>');
+    }
+    // 相鄰兩欄都有階段轉換率資料時，中間畫一個灰色箭頭，顯示這兩階段之間的轉換率
+    if (ci > 0 && fr && funnelRows[ci-1]) {
+      var prevCount = funnelRows[ci-1].count;
+      var stepPct = prevCount > 0 ? Math.round(fr.count/prevCount*1000)/10 : null;
+      var arrowX0 = colX - COL_W + BOX_W, arrowX1 = colX, arrowMidY = HEADER_BOX_Y + HEADER_BOX_H/2, tipW = 10;
+      var arrowPoints = arrowX0+','+(arrowMidY-11)+' '+(arrowX1-tipW)+','+(arrowMidY-11)+' '+arrowX1+','+arrowMidY+' '+(arrowX1-tipW)+','+(arrowMidY+11)+' '+arrowX0+','+(arrowMidY+11);
+      svgParts.push('<polygon points="'+arrowPoints+'" style="fill:#E5E7EB;"></polygon>');
+      svgParts.push('<text x="'+((arrowX0+arrowX1)/2)+'" y="'+(arrowMidY+4)+'" font-size="11" font-weight="700" text-anchor="middle" style="fill:var(--text-secondary);">'+(stepPct===null?'—':stepPct+'%')+'</text>');
+    }
   }
   function walk(node) {
     node.children.forEach(function(c){
@@ -2624,23 +2651,25 @@ function renderProgressTree(trendData) {
   wrap.innerHTML = '<div style="overflow-x:auto;"><svg width="'+canvasW+'" height="'+canvasH+'" viewBox="0 0 '+canvasW+' '+canvasH+'">'+svgParts.join('')+'</svg></div>';
 }
 
-// 階段轉換率漏斗圖：優先依「分類Result」工作表的「階段轉換率」欄位分組計算——
+// 階段轉換率的核心計算：優先依「分類Result」工作表的「階段轉換率」欄位分組計算——
 // 欄位裡填了什麼字、幾個階段、順序，都以工作表由上到下「第一次出現」的順序為準，完全不寫死；
-// 每個階段的人數＝「目前分類在這個階段、或更後面階段」的人選累計加總（越後面階段的人選一定也經過前面階段），
-// 才會呈現逐階段收攏的漏斗圖。如果「階段轉換率」這欄還沒有填資料，就退回用舊的里程碑欄位判斷方式
+// 每個階段的人數＝「目前分類在這個階段、或更後面階段」的人選累計加總（越後面階段的人選一定也經過前面階段）。
+// 如果「階段轉換率」這欄還沒有填資料，就退回用舊的里程碑欄位判斷方式
 // （邀約＝invite_date有值；電訪＝Phone Interview Scheduled有值；面試＝Interview Scheduled有值；錄取＝Hired date有值），
-// 這樣欄位還沒填好之前畫面也不會空白。
-function renderStageConversionFunnel(trendData) {
-  var wrap = document.getElementById('stageConversionFunnel');
-  if (!wrap) return;
+// 這樣欄位還沒填好之前也還是能顯示合理的數字。
+// 這個數據現在直接合併呈現在「人選進度統計」樹狀圖最上面的欄位標題裡（見 renderProgressTree），
+// 不再有獨立的階段轉換率漏斗圖區塊。
+// 回傳 rows：[{label, count}, ...]，第 0 筆固定是「邀約」；完全沒有邀約過的人選時回傳空陣列。
+function computeFunnelRows(trendData) {
   var hasVal = function(v){ return !!(v && String(v).trim()); };
 
   // 邀約人數固定用跟「人選進度統計」樹狀圖根節點（邀約階段）完全一樣的判斷方式（invite_date 有值），
-  // 這裡永遠當作漏斗圖第一階段，不管「階段轉換率」欄位裡有沒有另外填「邀約」這個字，都會自動補上，
+  // 這裡永遠當作第一階段，不管「階段轉換率」欄位裡有沒有另外填「邀約」這個字，都會自動補上，
   // 兩邊的邀約數字才會對得起來。
   var invitedCount = trendData.filter(function(d){ return hasVal(d.invite_date || d['invite date']); }).length;
+  if (!invitedCount) return [];
 
-  // 漏斗圖固定順序是 邀約／電訪／面試／錄取（招募流程本來的先後順序），所以「階段轉換率」欄位裡
+  // 固定順序是 邀約／電訪／面試／錄取（招募流程本來的先後順序），所以「階段轉換率」欄位裡
   // 只要出現這幾個字，一律照這個順序排；欄位裡如果出現這份清單以外的字（以後可能新增其他階段名稱），
   // 才依工作表由上到下第一次出現的順序，接在後面。
   var FUNNEL_FIXED_ORDER = ['電訪','面試','錄取'];
@@ -2676,56 +2705,7 @@ function renderStageConversionFunnel(trendData) {
       { label:'錄取', count: trendData.filter(function(d){ return hasVal(d['Hired date']); }).length }
     ];
   }
-
-  if (!invitedCount) {
-    wrap.innerHTML = '<div class="empty" style="padding:10px 0;">尚無足夠資料計算轉換率</div>';
-    return;
-  }
-  var rows = steps.map(function(s, i){
-    // 統一用「佔邀約總人數」的累積比例，跟色塊寬度的縮放基準一致
-    var pct = Math.round(s.count/invitedCount*1000)/10;
-    return { label: s.label, count: s.count, pct: pct, isFirst: i === 0 };
-  });
-  // 傳統漏斗圖：每階段一個梯形，上下緊密相連（不留縫隙），由寬到窄逐漸收攏，梯形裡放階段名稱＋人數（白字）；
-  // 轉換率是重點，改放在圖形「右側」用跟該階段同色的大字顯示（呼應參考圖的排版，但不用圖示、顏色也收斂成同一色系）；
-  // 該階段人數為 0 時，色塊改成灰色空白、右側轉換率也改用灰色，不會誤導視覺
-  var FUNNEL_COLORS = ['#4338CA','#4F46E5','#6366F1','#818CF8'];
-  var EMPTY_FILL = '#E8EAED', EMPTY_TEXT = '#9CA3AF';
-  var chartW = 320, segH = 64, MIN_W = 48;
-  var chartH = segH * rows.length;
-  var cx = chartW/2;
-  // 寬度用「佔邀約總數的比例」開根號縮放（不是直接線性），招募漏斗常常第一階段掉很多、後面幾階段人數雖然
-  // 差很多、佔比卻都個位數百分比，如果直接照比例線性算寬度，後面幾個階段幾乎都會撞到最小寬度、變得一樣寬，
-  // 看起來就會很奇怪（明明人數差很多，色塊卻一樣寬）。開根號可以放大這些小比例之間的差異，讓色塊寬度更明顯反映人數差距。
-  var widths = rows.map(function(r){ return Math.max(chartW * Math.sqrt(Math.max(r.pct,0)/100), MIN_W); });
-  var svgBody = rows.map(function(r, i){
-    var y0 = i*segH, y1 = y0+segH, midY = y0+segH/2;
-    var hasData = r.count > 0;
-    var topW = i === 0 ? chartW : widths[i-1];
-    var botW = widths[i];
-    var points = (cx-topW/2)+','+y0+' '+(cx+topW/2)+','+y0+' '+(cx+botW/2)+','+y1+' '+(cx-botW/2)+','+y1;
-    var fill = hasData ? FUNNEL_COLORS[i % FUNNEL_COLORS.length] : EMPTY_FILL;
-    var textColor = hasData ? '#fff' : EMPTY_TEXT;
-    var texts = '<text x="'+cx+'" y="'+(midY-2)+'" font-size="14" font-weight="700" fill="'+textColor+'" text-anchor="middle">'+r.label+'</text>'+
-      '<text x="'+cx+'" y="'+(midY+14)+'" font-size="10" fill="'+textColor+'" text-anchor="middle">'+r.count+' 人</text>';
-    return '<polygon points="'+points+'" fill="'+fill+'"></polygon>'+texts;
-  }).join('');
-  var svg = '<svg width="100%" height="'+chartH+'" viewBox="0 0 '+chartW+' '+chartH+'" preserveAspectRatio="xMidYMid meet">'+svgBody+'</svg>';
-
-  var pctsHtml = rows.map(function(r, i){
-    if (r.isFirst) return '<div class="funnel-pct-cell"></div>'; // 邀約一定是 100%，不用再顯示轉換率
-    var hasData = r.count > 0;
-    // 改成跟色塊寬度同一個基準：佔「邀約總人數」的累積比例（不是佔上一階段的轉換率），
-    // 避免文字比例跟色塊寬度縮收幅度對不上、看起來很奇怪
-    var displayPct = r.pct;
-    var color = hasData ? FUNNEL_COLORS[i % FUNNEL_COLORS.length] : EMPTY_TEXT;
-    return '<div class="funnel-pct-cell" style="color:'+color+';">'+displayPct+'%</div>';
-  }).join('');
-
-  wrap.innerHTML = '<div class="funnel-wrap" style="height:'+chartH+'px;">'+
-    '<div class="funnel-chart">'+svg+'</div>'+
-    '<div class="funnel-pcts">'+pctsHtml+'</div>'+
-  '</div>';
+  return steps;
 }
 
 // 進入下一階段平均天數：同一人前後兩個里程碑欄位（都有填值時）相減取天數再平均，樣本不足時顯示「—」
@@ -2817,11 +2797,10 @@ function renderTrends() {
   });
   lastTrendData = trendData;
 
-  // ---- 人選進度統計（橫向樹狀圖，依「分類Result」工作表動態產生）----
+  // ---- 人選進度統計（橫向樹狀圖，依「分類Result」工作表動態產生；階段轉換率的數據已合併呈現在樹狀圖最上面的欄位標題）----
   renderProgressTree(trendData);
 
-  // ---- 階段轉換率（漏斗圖 + 各階段平均天數，沿用上方相同的單位/職務別/目前狀態篩選）----
-  renderStageConversionFunnel(trendData);
+  // ---- 各階段平均天數（沿用上方相同的單位/職務別/目前狀態篩選）----
   renderStageConversionDays(trendData);
 
   // ---- 每月 Headcount & Onboard（最近 6 個月）：Headcount 固定長條、Onboard 固定折線 ----

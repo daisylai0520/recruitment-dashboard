@@ -233,25 +233,17 @@
     </div>
 
     <div style="display:grid;grid-template-columns:1fr 2.2fr;gap:16px;margin-bottom:20px;align-items:start;">
-      <div style="display:flex;flex-direction:column;gap:16px;">
-        <div class="cal-outer" id="trendCard-funnel">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
-            <div style="font-size:14px;font-weight:600;">階段轉換率</div>
-          </div>
-          <div id="stageConversionFunnel"></div>
+      <div class="cal-outer" id="trendCard-days">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+          <div style="font-size:14px;font-weight:600;">各階段平均天數</div>
         </div>
-
-        <div class="cal-outer" id="trendCard-days">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
-            <div style="font-size:14px;font-weight:600;">各階段平均天數</div>
-          </div>
-          <div id="stageConversionDays"></div>
-        </div>
+        <div id="stageConversionDays"></div>
       </div>
 
       <div class="cal-outer" id="trendCard-progress">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
           <div style="font-size:14px;font-weight:600;">人選進度統計</div>
+          <div style="font-size:11px;color:var(--text-tertiary);">各階段人數與轉換率</div>
         </div>
         <div class="tree-h-wrap" id="progressTreeFlow"></div>
       </div>

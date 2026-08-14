@@ -217,7 +217,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
 .empty{font-size:13px;color:var(--text-tertiary);padding:12px 0;}
 
 /* PI TABLE */
-.table-wrap{overflow-x:auto;background:var(--surface);border:1px solid var(--border);border-radius:12px;}
+.table-wrap{overflow-x:auto;max-width:100%;box-sizing:border-box;background:var(--surface);border:1px solid var(--border);border-radius:12px;}
 .pi-table{width:100%;border-collapse:collapse;font-size:13px;min-width:780px;}
 .pi-table th{font-size:11px;font-weight:600;color:var(--text-secondary);text-align:left;padding:10px 14px;border-bottom:1px solid var(--border);background:var(--bg);white-space:nowrap;}
 .pi-table td{padding:10px 14px;border-bottom:.5px solid var(--border);vertical-align:top;}
