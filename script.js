@@ -2603,7 +2603,7 @@ function renderProgressTree(trendData) {
   // 寬度改短（不是高度）；同時整體視覺重新設計：卡片加陰影、圓角、底色強調條，
   // 連接線改成弧線，轉換率箭頭改成依數值上色，看起來更俐落好看
   var COL_W = 162, BOX_W = 120, BOX_H = 32, ROW_H = 40;
-  var HEADER_BOX_Y = 6, HEADER_BOX_H = 30, HEADER_H = HEADER_BOX_Y + HEADER_BOX_H + 20;
+  var HEADER_BOX_Y = 6, HEADER_BOX_H = 36, HEADER_H = HEADER_BOX_Y + HEADER_BOX_H + 20;
   var leafCounter = 0, maxDepth = 0;
   function layout(node, depth) {
     maxDepth = Math.max(maxDepth, depth);
@@ -2650,9 +2650,10 @@ function renderProgressTree(trendData) {
     svgParts.push(
       '<rect x="'+colX+'" y="'+HEADER_BOX_Y+'" width="'+BOX_W+'" height="'+HEADER_BOX_H+'" rx="9" filter="url(#ptShadow)" style="fill:var(--surface);"></rect>'+
       '<rect x="'+(colX+8)+'" y="'+(HEADER_BOX_Y+HEADER_BOX_H-4)+'" width="'+(BOX_W-16)+'" height="3" rx="1.5" style="fill:'+accent+';opacity:0.85;"></rect>'+
-      '<text x="'+colCx+'" y="'+(HEADER_BOX_Y+HEADER_BOX_H/2+3)+'" font-size="12" font-weight="700" text-anchor="middle" style="fill:var(--text-primary);">'+(COL_LABELS[ci]||'')+' <tspan font-weight="600" opacity="0.75">'+colCount+'人</tspan></text>'
+      '<text x="'+colCx+'" y="'+(HEADER_BOX_Y+HEADER_BOX_H/2-6)+'" font-size="11.5" font-weight="700" text-anchor="middle" style="fill:var(--text-primary);">'+(COL_LABELS[ci]||'')+'</text>'+
+      '<text x="'+colCx+'" y="'+(HEADER_BOX_Y+HEADER_BOX_H/2+15)+'" font-size="18" font-weight="700" text-anchor="middle" style="fill:'+accent+';">'+colCount+'<tspan font-size="11" font-weight="600" opacity="0.75">人</tspan></text>'
     );
-    // 相鄰兩欄之間畫一個箭頭，顯示這兩階段之間的轉換率；不依數值變色，統一深灰色
+    // 相鄰兩欄之間畫一個箭頭，顯示這兩階段之間的轉換率（字放大）；不依數值變色，統一深灰色
     if (ci > 0) {
       var prevCount = colCounts[ci-1];
       var stepPct = prevCount > 0 ? Math.round(colCount/prevCount*1000)/10 : null;
@@ -2660,7 +2661,7 @@ function renderProgressTree(trendData) {
       var arrowX0 = colX - COL_W + BOX_W, arrowX1 = colX, arrowMidY = HEADER_BOX_Y + HEADER_BOX_H/2, tipW = 8, arrowHalfH = 7;
       var arrowPoints = arrowX0+','+(arrowMidY-arrowHalfH)+' '+(arrowX1-tipW)+','+(arrowMidY-arrowHalfH)+' '+arrowX1+','+arrowMidY+' '+(arrowX1-tipW)+','+(arrowMidY+arrowHalfH)+' '+arrowX0+','+(arrowMidY+arrowHalfH);
       svgParts.push('<polygon points="'+arrowPoints+'" style="fill:#EEF0F2;"></polygon>');
-      svgParts.push('<text x="'+((arrowX0+arrowX1)/2)+'" y="'+(arrowMidY+4)+'" font-size="10.5" font-weight="700" text-anchor="middle" style="fill:'+pctColor+';">'+(stepPct===null?'—':stepPct+'%')+'</text>');
+      svgParts.push('<text x="'+((arrowX0+arrowX1)/2)+'" y="'+(arrowMidY+5)+'" font-size="13" font-weight="700" text-anchor="middle" style="fill:'+pctColor+';">'+(stepPct===null?'—':stepPct+'%')+'</text>');
     }
   }
   function walk(node) {
@@ -2751,7 +2752,23 @@ function computeFunnelRows(trendData) {
   return steps;
 }
 
-// 兩個日期之間相差幾個工作天（排除週六、週日），只算 fromDate（不含）到 toDate（含）之間的天數
+// 台灣國定假日（政府行政機關辦公日曆表公告的實際放假日，含連假、補假），逐年登錄，資料來源：行政院人事行政總處。
+// 之後每年官方公布新年度日曆表後，只要在這裡加一個新的年度陣列即可，不用改任何計算邏輯。
+var TW_HOLIDAYS = {
+  '2024': ['01-01','02-08','02-09','02-10','02-11','02-12','02-13','02-14','02-28','04-04','04-05','04-06','04-07','06-08','06-09','06-10','09-17','10-10'],
+  '2025': ['01-01','01-25','01-26','01-27','01-28','01-29','01-30','01-31','02-01','02-02','02-28','03-01','03-02','04-03','04-04','04-05','04-06','05-30','05-31','06-01','09-27','09-28','09-29','10-04','10-05','10-06','10-10','10-11','10-12','10-24','10-25','10-26','12-25'],
+  '2026': ['01-01','02-14','02-15','02-16','02-17','02-18','02-19','02-20','02-21','02-22','02-27','02-28','03-01','04-03','04-04','04-05','04-06','05-01','05-02','05-03','06-19','06-20','06-21','09-25','09-26','09-27','09-28','10-09','10-10','10-11','10-24','10-25','10-26','12-25','12-26','12-27'],
+  '2027': ['01-01','01-02','01-03','02-04','02-05','02-06','02-07','02-08','02-09','02-10','02-27','02-28','03-01','04-03','04-04','04-05','04-06','04-30','05-01','05-02','06-09','09-15','09-28','10-09','10-10','10-11','10-23','10-24','10-25','12-24','12-25','12-26']
+};
+function isTwHoliday(d) {
+  var y = String(d.getFullYear());
+  var mmdd = String(d.getMonth()+1).length<2 ? '0'+(d.getMonth()+1) : String(d.getMonth()+1);
+  var dd = String(d.getDate()).length<2 ? '0'+d.getDate() : String(d.getDate());
+  var list = TW_HOLIDAYS[y];
+  return !!(list && list.indexOf(mmdd+'-'+dd) >= 0);
+}
+
+// 兩個日期之間相差幾個工作天（排除週六、週日、台灣國定假日），只算 fromDate（不含）到 toDate（含）之間的天數
 function countWorkdaysBetween(fromDate, toDate) {
   var d1 = new Date(fromDate.getFullYear(), fromDate.getMonth(), fromDate.getDate());
   var d2 = new Date(toDate.getFullYear(), toDate.getMonth(), toDate.getDate());
@@ -2761,13 +2778,13 @@ function countWorkdaysBetween(fromDate, toDate) {
   cur.setDate(cur.getDate() + 1);
   while (cur <= d2) {
     var dow = cur.getDay();
-    if (dow !== 0 && dow !== 6) count++;
+    if (dow !== 0 && dow !== 6 && !isTwHoliday(cur)) count++;
     cur.setDate(cur.getDate() + 1);
   }
   return count;
 }
 
-// 進入下一階段平均天數：同一人前後兩個里程碑欄位（都有填值時）相減取「工作天」數再平均（排除週六日），樣本不足時顯示「—」
+// 進入下一階段平均天數：同一人前後兩個里程碑欄位（都有填值時）相減取「工作天」數再平均（排除週六日、台灣國定假日），樣本不足時顯示「—」
 function renderStageConversionDays(trendData) {
   var wrap = document.getElementById('stageConversionDays');
   if (!wrap) return;
