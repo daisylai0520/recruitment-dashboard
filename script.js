@@ -2552,10 +2552,11 @@ function renderProgressTree(trendData) {
     return;
   }
 
-  // Result 為「其他主管/近期已邀約」的人選不算是真正走過招募流程（通常是轉介其他主管或近期已經邀約過），
-  // 不納入人選進度統計區塊（含合併呈現的階段轉換率數據）的任何計算，這個分類本身也完全不顯示在樹狀圖上
-  trendData = trendData.filter(function(d){ return d.Result !== '其他主管/近期已邀約'; });
-  var visibleResultCategories = resultCategories.filter(function(rc){ return rc.Result !== '其他主管/近期已邀約'; });
+  // 「其他主管/近期已邀約」「104已邀約未回覆」這兩種 Result 不算是真正走過招募流程，
+  // 不納入人選進度統計區塊（含合併呈現的階段轉換率數據）的任何計算，這兩個分類本身也完全不顯示在樹狀圖上
+  var EXCLUDED_PROGRESS_RESULTS = ['其他主管/近期已邀約', '104已邀約未回覆'];
+  trendData = trendData.filter(function(d){ return EXCLUDED_PROGRESS_RESULTS.indexOf(d.Result) < 0; });
+  var visibleResultCategories = resultCategories.filter(function(rc){ return EXCLUDED_PROGRESS_RESULTS.indexOf(rc.Result) < 0; });
 
   // 「有沒有填邀約日」＝所有曾經邀約過的人選（不管後來有沒有往下一階段推進）；這是候選人自己的欄位，
   // 不是「分類Result」工作表的內容，所以邀約這個根節點維持固定，其餘每一層才是動態讀工作表欄位
@@ -2581,33 +2582,19 @@ function renderProgressTree(trendData) {
   var dynamicLevels = buildDynamicProgressLevels(visibleResultCategories, 0);
   var root = makeNode('邀約', invitedTest, undefined, dynamicLevels.map(toRenderNode));
 
-  // 每個節點所在的欄位：第 0 欄固定是「邀約階段」，第 1 欄以後直接用「分類Result」工作表實際的欄位名稱
-  // （resultStageColumns），欄位數量也完全跟著工作表變動，不寫死
-  var COL_LABELS = ['邀約階段'].concat(resultStageColumns);
-  // 階段轉換率的數據（邀約／電訪／面試／錄取的累計人數，跟原本階段轉換率漏斗圖同一套計算）合併呈現在
-  // 樹狀圖最上面的欄位標題：每一欄的標題都改成「標籤＋人數」的卡片樣式，相鄰兩欄之間再畫一個灰色箭頭
-  // 顯示這兩階段之間的轉換率（後一階段人數 ÷ 前一階段人數）。
-  // 人數優先用「階段轉換率」欄位分類的資料（電訪／面試／錄取這幾個已經在那個欄位分類過的階段）；
-  // 「分類Result」工作表裡比「階段轉換率」欄位涵蓋範圍更後面的欄位（例如 Offer結果，還沒在「階段轉換率」
-  // 欄位分類時），改用「這個欄位本身有沒有填值」來判斷有沒有到達這個階段——對 Offer結果這種最後一欄
-  // 的終點欄位來說已經足夠準確，不需要額外在「階段轉換率」欄位重複設定一次。
-  var funnelRows = computeFunnelRows(trendData);
-  // 某個「分類Result」階段欄位（不是「階段轉換率」欄位）裡，有多少人選目前已經到達這個欄位（欄位本身有填值）
-  function columnReachedCount(colName) {
-    var resultsWithValue = [];
-    visibleResultCategories.forEach(function(rc){
-      if (String((rc.stages && rc.stages[colName]) || '').trim() && resultsWithValue.indexOf(rc.Result) < 0) resultsWithValue.push(rc.Result);
-    });
-    return trendData.filter(function(d){ return resultsWithValue.indexOf(d.Result) >= 0; }).length;
-  }
-  // 寬度改短（不是高度）；同時整體視覺重新設計：卡片加陰影、圓角、底色強調條，
-  // 連接線改成弧線，轉換率箭頭改成依數值上色，看起來更俐落好看
+  // 最左邊「邀約階段」這一欄整個拿掉，樹狀圖直接從「分類Result」工作表的第一個階段欄位開始顯示；
+  // 欄位標籤就是 resultStageColumns 本身，不用再補一個固定的「邀約階段」
+  var COL_LABELS = resultStageColumns;
+  // 寬度改短（不是高度）；同時整體視覺重新設計：卡片加陰影、圓角，連接線改成弧線，
+  // 轉換率箭頭統一深灰色，看起來更俐落好看
   var COL_W = 162, BOX_W = 120, BOX_H = 32, ROW_H = 40;
   var HEADER_BOX_Y = 6, HEADER_BOX_H = 36, HEADER_H = HEADER_BOX_Y + HEADER_BOX_H + 20;
   var leafCounter = 0, maxDepth = 0;
+  // 根節點（邀約）維持在 depth 0，但畫面上這一欄不顯示，所以座標統一往左移一欄（depth-1），
+  // 讓原本 depth 1（分類Result 第一個階段欄位）變成畫面最左邊、x=0 的那一欄
   function layout(node, depth) {
     maxDepth = Math.max(maxDepth, depth);
-    node._x = depth * COL_W;
+    node._x = (depth - 1) * COL_W;
     node._depth = depth;
     if (!node.children.length) {
       node._y = leafCounter * ROW_H + ROW_H / 2;
@@ -2619,17 +2606,15 @@ function renderProgressTree(trendData) {
     }
   }
   layout(root, 0);
-  var canvasW = maxDepth * COL_W + BOX_W + 20;
+  var canvasW = Math.max(0, maxDepth - 1) * COL_W + BOX_W + 20;
   var canvasH = HEADER_H + leafCounter * ROW_H + 14;
 
-  // 每一欄的累計人數：第 0 欄固定是邀約總人數（root.count）；其餘每一欄優先用「階段轉換率」欄位算出來的數據，
-  // 沒有的話用 columnReachedCount 這個通用備援算法（見上面），確保不管「階段轉換率」欄位分類到哪裡，
-  // 樹狀圖最上面每一欄都一定會顯示人數，欄位之間也都會有轉換率箭頭。
-  var colCounts = [root.count];
-  for (var fci = 1; fci <= maxDepth; fci++) {
-    var funnelEntry = funnelRows[fci];
-    colCounts.push(funnelEntry ? funnelEntry.count : columnReachedCount(resultStageColumns[fci-1]));
-  }
+  // 最上面每一欄的人數，直接等於「下方同一欄所有方框人數的加總」，跟畫面上看到的完全一致
+  var depthSums = [];
+  (function collectDepthSums(node) {
+    depthSums[node._depth] = (depthSums[node._depth] || 0) + node.count;
+    node.children.forEach(collectDepthSums);
+  })(root);
 
   // 狀態卡片本身用漸層底色，越後面的階段顏色越深，對比更清楚；漸層階數跟著實際欄位數量走
   var gradStops = buildProgressTreeGradStops(maxDepth + 1);
@@ -2642,20 +2627,19 @@ function renderProgressTree(trendData) {
     '</linearGradient>');
   });
   svgParts.push('</defs>');
-  for (var ci = 0; ci <= maxDepth; ci++) {
-    var colX = ci * COL_W;
+  for (var ci = 1; ci <= maxDepth; ci++) {
+    var colX = (ci - 1) * COL_W;
     var colCx = colX + BOX_W / 2;
-    var colCount = colCounts[ci];
+    var colCount = depthSums[ci] || 0;
     var accent = gradStops[Math.min(ci, gradStops.length - 1)].stops[1];
     svgParts.push(
       '<rect x="'+colX+'" y="'+HEADER_BOX_Y+'" width="'+BOX_W+'" height="'+HEADER_BOX_H+'" rx="9" filter="url(#ptShadow)" style="fill:var(--surface);"></rect>'+
-      '<rect x="'+(colX+8)+'" y="'+(HEADER_BOX_Y+HEADER_BOX_H-4)+'" width="'+(BOX_W-16)+'" height="3" rx="1.5" style="fill:'+accent+';opacity:0.85;"></rect>'+
-      '<text x="'+colCx+'" y="'+(HEADER_BOX_Y+HEADER_BOX_H/2-6)+'" font-size="11.5" font-weight="700" text-anchor="middle" style="fill:var(--text-primary);">'+(COL_LABELS[ci]||'')+'</text>'+
+      '<text x="'+colCx+'" y="'+(HEADER_BOX_Y+HEADER_BOX_H/2-6)+'" font-size="11.5" font-weight="700" text-anchor="middle" style="fill:var(--text-primary);">'+(COL_LABELS[ci-1]||'')+'</text>'+
       '<text x="'+colCx+'" y="'+(HEADER_BOX_Y+HEADER_BOX_H/2+15)+'" font-size="18" font-weight="700" text-anchor="middle" style="fill:'+accent+';">'+colCount+'<tspan font-size="11" font-weight="600" opacity="0.75">人</tspan></text>'
     );
-    // 相鄰兩欄之間畫一個箭頭，顯示這兩階段之間的轉換率（字放大）；不依數值變色，統一深灰色
-    if (ci > 0) {
-      var prevCount = colCounts[ci-1];
+    // 相鄰兩欄之間畫一個箭頭，顯示這兩階段之間的轉換率；不依數值變色，統一深灰色
+    if (ci > 1) {
+      var prevCount = depthSums[ci-1] || 0;
       var stepPct = prevCount > 0 ? Math.round(colCount/prevCount*1000)/10 : null;
       var pctColor = '#4B5563';
       var arrowX0 = colX - COL_W + BOX_W, arrowX1 = colX, arrowMidY = HEADER_BOX_Y + HEADER_BOX_H/2, tipW = 8, arrowHalfH = 7;
@@ -2666,14 +2650,18 @@ function renderProgressTree(trendData) {
   }
   function walk(node) {
     node.children.forEach(function(c){
+      // 根節點（邀約）那一欄已經不顯示，所以從根節點出發的線也不畫，只畫看得到的欄位之間的連線；
       // 父節點右邊緣中點 → 子節點左邊緣中點，改用平滑弧線連起來，比直線更好看
-      var x1 = node._x+BOX_W, y1 = node._y+HEADER_H, x2 = c._x, y2 = c._y+HEADER_H, midX = (x1+x2)/2;
-      svgParts.push('<path d="M'+x1+','+y1+' C'+midX+','+y1+' '+midX+','+y2+' '+x2+','+y2+'" style="fill:none;stroke:var(--border);stroke-width:1.6;stroke-linecap:round;"/>');
+      if (node._depth > 0) {
+        var x1 = node._x+BOX_W, y1 = node._y+HEADER_H, x2 = c._x, y2 = c._y+HEADER_H, midX = (x1+x2)/2;
+        svgParts.push('<path d="M'+x1+','+y1+' C'+midX+','+y1+' '+midX+','+y2+' '+x2+','+y2+'" style="fill:none;stroke:var(--border);stroke-width:1.6;stroke-linecap:round;"/>');
+      }
       walk(c);
     });
   }
   walk(root);
   function drawNode(node) {
+    if (node._depth === 0) { node.children.forEach(drawNode); return; } // 根節點（邀約）不畫方框
     var y = node._y + HEADER_H;
     var depthIdx = Math.min(node._depth, gradStops.length - 1);
     var fillUrl = 'url(#ptGrad'+depthIdx+')';
@@ -4182,7 +4170,7 @@ function renderNewCandidateFields() {
   // 而不是只排除 MAINTAIN_QUERY_HIDDEN_FIELDS
   var headers = filterCandHeadersForMaintenance(maintainHeaders['Candidate Records'] || ['invite_date','單位','Job Function','104_Position','Name','性別','年齡','最高學歷','學校','科系','履歷代碼','Source','Inviter','Phone Interview_date','Interview_date','Result','Result Update_date','Onboard date','負責HR','Memo']);
   var dropdowns = MAINTAIN_DROPDOWNS['Candidate Records'] || {};
-  var requiredFields = ['Name','Result','invite_date'];
+  var requiredFields = ['Name','Result','invite_date','單位'];
   var todayStr = getTodayDateStr();
 
   // 電訪紀錄(HR)／(主管) 欄位並排顯示邏輯，跟 buildCandQueryCardsHtml 完全比照
@@ -4444,7 +4432,7 @@ function clearNewCandidateForm() {
 }
 
 async function submitNewCandidateForm() {
-  var requiredFields = ['Name','Result','invite_date'];
+  var requiredFields = ['Name','Result','invite_date','單位'];
   var headers = maintainHeaders['Candidate Records'] || [];
   var values = {};
   var missing = [];
