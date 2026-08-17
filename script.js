@@ -2599,9 +2599,10 @@ function renderProgressTree(trendData) {
     });
     return trendData.filter(function(d){ return resultsWithValue.indexOf(d.Result) >= 0; }).length;
   }
-  // 方框改矮一半：標籤跟人數改成同一行顯示（不再分兩行），才能在更矮的方框裡放更大的字
-  var COL_W = 210, BOX_W = 168, BOX_H = 20, ROW_H = 34;
-  var HEADER_BOX_Y = 4, HEADER_BOX_H = 20, HEADER_H = HEADER_BOX_Y + HEADER_BOX_H + 10;
+  // 寬度改短（不是高度）；同時整體視覺重新設計：卡片加陰影、圓角、底色強調條，
+  // 連接線改成弧線，轉換率箭頭改成依數值上色，看起來更俐落好看
+  var COL_W = 162, BOX_W = 120, BOX_H = 32, ROW_H = 40;
+  var HEADER_BOX_Y = 6, HEADER_BOX_H = 30, HEADER_H = HEADER_BOX_Y + HEADER_BOX_H + 20;
   var leafCounter = 0, maxDepth = 0;
   function layout(node, depth) {
     maxDepth = Math.max(maxDepth, depth);
@@ -2632,6 +2633,7 @@ function renderProgressTree(trendData) {
   // 狀態卡片本身用漸層底色，越後面的階段顏色越深，對比更清楚；漸層階數跟著實際欄位數量走
   var gradStops = buildProgressTreeGradStops(maxDepth + 1);
   var svgParts = ['<defs>'];
+  svgParts.push('<filter id="ptShadow" x="-40%" y="-60%" width="180%" height="220%"><feDropShadow dx="0" dy="1.5" stdDeviation="2" flood-color="#000" flood-opacity="0.18"/></filter>');
   gradStops.forEach(function(g, i){
     svgParts.push('<linearGradient id="ptGrad'+i+'" x1="0%" y1="0%" x2="100%" y2="100%">'+
       '<stop offset="0%" stop-color="'+g.stops[0]+'"></stop>'+
@@ -2643,24 +2645,28 @@ function renderProgressTree(trendData) {
     var colX = ci * COL_W;
     var colCx = colX + BOX_W / 2;
     var colCount = colCounts[ci];
+    var accent = gradStops[Math.min(ci, gradStops.length - 1)].stops[1];
     svgParts.push(
-      '<rect x="'+colX+'" y="'+HEADER_BOX_Y+'" width="'+BOX_W+'" height="'+HEADER_BOX_H+'" rx="7" style="fill:var(--surface);stroke:var(--text-primary);stroke-width:1.5;"></rect>'+
-      '<text x="'+colCx+'" y="'+(HEADER_BOX_Y+HEADER_BOX_H/2+5)+'" font-size="13" font-weight="700" text-anchor="middle" style="fill:var(--text-primary);">'+(COL_LABELS[ci]||'')+' <tspan font-weight="400" fill="var(--text-secondary)">'+colCount+'人</tspan></text>'
+      '<rect x="'+colX+'" y="'+HEADER_BOX_Y+'" width="'+BOX_W+'" height="'+HEADER_BOX_H+'" rx="9" filter="url(#ptShadow)" style="fill:var(--surface);"></rect>'+
+      '<rect x="'+(colX+8)+'" y="'+(HEADER_BOX_Y+HEADER_BOX_H-4)+'" width="'+(BOX_W-16)+'" height="3" rx="1.5" style="fill:'+accent+';opacity:0.85;"></rect>'+
+      '<text x="'+colCx+'" y="'+(HEADER_BOX_Y+HEADER_BOX_H/2+3)+'" font-size="12" font-weight="700" text-anchor="middle" style="fill:var(--text-primary);">'+(COL_LABELS[ci]||'')+' <tspan font-weight="600" opacity="0.75">'+colCount+'人</tspan></text>'
     );
-    // 相鄰兩欄之間畫一個灰色箭頭，顯示這兩階段之間的轉換率
+    // 相鄰兩欄之間畫一個箭頭，顯示這兩階段之間的轉換率，數字依高低上色（綠／橘／紅）更一目瞭然
     if (ci > 0) {
       var prevCount = colCounts[ci-1];
       var stepPct = prevCount > 0 ? Math.round(colCount/prevCount*1000)/10 : null;
-      var arrowX0 = colX - COL_W + BOX_W, arrowX1 = colX, arrowMidY = HEADER_BOX_Y + HEADER_BOX_H/2, tipW = 10, arrowHalfH = HEADER_BOX_H/2 - 1;
+      var pctColor = stepPct === null ? '#9CA3AF' : (stepPct >= 50 ? '#16A34A' : (stepPct >= 20 ? '#D97706' : '#DC2626'));
+      var arrowX0 = colX - COL_W + BOX_W, arrowX1 = colX, arrowMidY = HEADER_BOX_Y + HEADER_BOX_H/2, tipW = 8, arrowHalfH = 7;
       var arrowPoints = arrowX0+','+(arrowMidY-arrowHalfH)+' '+(arrowX1-tipW)+','+(arrowMidY-arrowHalfH)+' '+arrowX1+','+arrowMidY+' '+(arrowX1-tipW)+','+(arrowMidY+arrowHalfH)+' '+arrowX0+','+(arrowMidY+arrowHalfH);
-      svgParts.push('<polygon points="'+arrowPoints+'" style="fill:#E5E7EB;"></polygon>');
-      svgParts.push('<text x="'+((arrowX0+arrowX1)/2)+'" y="'+(arrowMidY+4)+'" font-size="11.5" font-weight="700" text-anchor="middle" style="fill:var(--text-secondary);">'+(stepPct===null?'—':stepPct+'%')+'</text>');
+      svgParts.push('<polygon points="'+arrowPoints+'" style="fill:#EEF0F2;"></polygon>');
+      svgParts.push('<text x="'+((arrowX0+arrowX1)/2)+'" y="'+(arrowMidY+4)+'" font-size="10.5" font-weight="700" text-anchor="middle" style="fill:'+pctColor+';">'+(stepPct===null?'—':stepPct+'%')+'</text>');
     }
   }
   function walk(node) {
     node.children.forEach(function(c){
-      // 父節點右邊緣中點 → 子節點左邊緣中點，畫一條直線連起來
-      svgParts.push('<line x1="'+(node._x+BOX_W)+'" y1="'+(node._y+HEADER_H)+'" x2="'+c._x+'" y2="'+(c._y+HEADER_H)+'" style="stroke:var(--border);stroke-width:1.5;"/>');
+      // 父節點右邊緣中點 → 子節點左邊緣中點，改用平滑弧線連起來，比直線更好看
+      var x1 = node._x+BOX_W, y1 = node._y+HEADER_H, x2 = c._x, y2 = c._y+HEADER_H, midX = (x1+x2)/2;
+      svgParts.push('<path d="M'+x1+','+y1+' C'+midX+','+y1+' '+midX+','+y2+' '+x2+','+y2+'" style="fill:none;stroke:var(--border);stroke-width:1.6;stroke-linecap:round;"/>');
       walk(c);
     });
   }
@@ -2673,8 +2679,8 @@ function renderProgressTree(trendData) {
     var faded = node.count === 0 ? ' opacity="0.4"' : '';
     svgParts.push(
       '<g style="cursor:pointer;"'+faded+' onclick="showProgressTreeDrilldown('+node.drillIdx+')">'+
-        '<rect x="'+node._x+'" y="'+(y-BOX_H/2)+'" width="'+BOX_W+'" height="'+BOX_H+'" rx="9" style="fill:'+fillUrl+';stroke:rgba(0,0,0,.15);stroke-width:1;"></rect>'+
-        '<text x="'+(node._x+BOX_W/2)+'" y="'+(y+4)+'" font-size="13" font-weight="700" text-anchor="middle" style="fill:'+textColor+';">'+node.label+' <tspan font-weight="400">'+node.count+'人</tspan></text>'+
+        '<rect x="'+node._x+'" y="'+(y-BOX_H/2)+'" width="'+BOX_W+'" height="'+BOX_H+'" rx="10" filter="url(#ptShadow)" style="fill:'+fillUrl+';"></rect>'+
+        '<text x="'+(node._x+BOX_W/2)+'" y="'+(y+4)+'" font-size="12.5" font-weight="700" text-anchor="middle" style="fill:'+textColor+';">'+node.label+' <tspan font-weight="400" opacity="0.85">'+node.count+'人</tspan></text>'+
       '</g>'
     );
     node.children.forEach(drawNode);
