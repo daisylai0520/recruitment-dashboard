@@ -2335,7 +2335,7 @@ function computeMonthlyHeadcountOnboard() {
     labels: labels,
     // Headcount 這條線不附 records：Headcount Records 的欄位跟候選人卡片格式不同，明細表格點下去不適合用候選人卡片呈現
     series: [
-      { name:'Headcount（未結案缺額）', data: hcCounts },
+      { name:'Headcount', data: hcCounts },
       { name:'Onboard', data: onboardCounts, records: onboardRecords }
     ]
   };
@@ -2553,8 +2553,9 @@ function renderProgressTree(trendData) {
   }
 
   // Result 為「其他主管/近期已邀約」的人選不算是真正走過招募流程（通常是轉介其他主管或近期已經邀約過），
-  // 不納入人選進度統計區塊（含合併呈現的階段轉換率數據）的任何計算
+  // 不納入人選進度統計區塊（含合併呈現的階段轉換率數據）的任何計算，這個分類本身也完全不顯示在樹狀圖上
   trendData = trendData.filter(function(d){ return d.Result !== '其他主管/近期已邀約'; });
+  var visibleResultCategories = resultCategories.filter(function(rc){ return rc.Result !== '其他主管/近期已邀約'; });
 
   // 「有沒有填邀約日」＝所有曾經邀約過的人選（不管後來有沒有往下一階段推進）；這是候選人自己的欄位，
   // 不是「分類Result」工作表的內容，所以邀約這個根節點維持固定，其餘每一層才是動態讀工作表欄位
@@ -2577,7 +2578,7 @@ function renderProgressTree(trendData) {
     return makeNode(dataNode.label, testFn, resultSet, dataNode.children.map(toRenderNode));
   }
 
-  var dynamicLevels = buildDynamicProgressLevels(resultCategories, 0);
+  var dynamicLevels = buildDynamicProgressLevels(visibleResultCategories, 0);
   var root = makeNode('邀約', invitedTest, undefined, dynamicLevels.map(toRenderNode));
 
   // 每個節點所在的欄位：第 0 欄固定是「邀約階段」，第 1 欄以後直接用「分類Result」工作表實際的欄位名稱
@@ -2594,7 +2595,7 @@ function renderProgressTree(trendData) {
   // 某個「分類Result」階段欄位（不是「階段轉換率」欄位）裡，有多少人選目前已經到達這個欄位（欄位本身有填值）
   function columnReachedCount(colName) {
     var resultsWithValue = [];
-    resultCategories.forEach(function(rc){
+    visibleResultCategories.forEach(function(rc){
       if (String((rc.stages && rc.stages[colName]) || '').trim() && resultsWithValue.indexOf(rc.Result) < 0) resultsWithValue.push(rc.Result);
     });
     return trendData.filter(function(d){ return resultsWithValue.indexOf(d.Result) >= 0; }).length;
@@ -2651,11 +2652,11 @@ function renderProgressTree(trendData) {
       '<rect x="'+(colX+8)+'" y="'+(HEADER_BOX_Y+HEADER_BOX_H-4)+'" width="'+(BOX_W-16)+'" height="3" rx="1.5" style="fill:'+accent+';opacity:0.85;"></rect>'+
       '<text x="'+colCx+'" y="'+(HEADER_BOX_Y+HEADER_BOX_H/2+3)+'" font-size="12" font-weight="700" text-anchor="middle" style="fill:var(--text-primary);">'+(COL_LABELS[ci]||'')+' <tspan font-weight="600" opacity="0.75">'+colCount+'人</tspan></text>'
     );
-    // 相鄰兩欄之間畫一個箭頭，顯示這兩階段之間的轉換率，數字依高低上色（綠／橘／紅）更一目瞭然
+    // 相鄰兩欄之間畫一個箭頭，顯示這兩階段之間的轉換率；不依數值變色，統一深灰色
     if (ci > 0) {
       var prevCount = colCounts[ci-1];
       var stepPct = prevCount > 0 ? Math.round(colCount/prevCount*1000)/10 : null;
-      var pctColor = stepPct === null ? '#9CA3AF' : (stepPct >= 50 ? '#16A34A' : (stepPct >= 20 ? '#D97706' : '#DC2626'));
+      var pctColor = '#4B5563';
       var arrowX0 = colX - COL_W + BOX_W, arrowX1 = colX, arrowMidY = HEADER_BOX_Y + HEADER_BOX_H/2, tipW = 8, arrowHalfH = 7;
       var arrowPoints = arrowX0+','+(arrowMidY-arrowHalfH)+' '+(arrowX1-tipW)+','+(arrowMidY-arrowHalfH)+' '+arrowX1+','+arrowMidY+' '+(arrowX1-tipW)+','+(arrowMidY+arrowHalfH)+' '+arrowX0+','+(arrowMidY+arrowHalfH);
       svgParts.push('<polygon points="'+arrowPoints+'" style="fill:#EEF0F2;"></polygon>');
@@ -2750,7 +2751,23 @@ function computeFunnelRows(trendData) {
   return steps;
 }
 
-// 進入下一階段平均天數：同一人前後兩個里程碑欄位（都有填值時）相減取天數再平均，樣本不足時顯示「—」
+// 兩個日期之間相差幾個工作天（排除週六、週日），只算 fromDate（不含）到 toDate（含）之間的天數
+function countWorkdaysBetween(fromDate, toDate) {
+  var d1 = new Date(fromDate.getFullYear(), fromDate.getMonth(), fromDate.getDate());
+  var d2 = new Date(toDate.getFullYear(), toDate.getMonth(), toDate.getDate());
+  if (d2 <= d1) return 0;
+  var count = 0;
+  var cur = new Date(d1);
+  cur.setDate(cur.getDate() + 1);
+  while (cur <= d2) {
+    var dow = cur.getDay();
+    if (dow !== 0 && dow !== 6) count++;
+    cur.setDate(cur.getDate() + 1);
+  }
+  return count;
+}
+
+// 進入下一階段平均天數：同一人前後兩個里程碑欄位（都有填值時）相減取「工作天」數再平均（排除週六日），樣本不足時顯示「—」
 function renderStageConversionDays(trendData) {
   var wrap = document.getElementById('stageConversionDays');
   if (!wrap) return;
@@ -2764,7 +2781,7 @@ function renderStageConversionDays(trendData) {
       var fromDate = parseDateTime(t.from(d));
       var toDate = parseDateTime(t.to(d));
       if (fromDate && toDate) {
-        var days = Math.round((toDate - fromDate) / 86400000);
+        var days = countWorkdaysBetween(fromDate, toDate);
         if (days >= 0) diffs.push(days);
       }
     });
@@ -2851,7 +2868,6 @@ function renderTrends() {
   monthly.series.forEach(function(s){ s.data.forEach(function(v){ if(v>monthlyMax) monthlyMax=v; }); });
   monthlyMax = Math.ceil(monthlyMax*1.2);
   drawComboBarLineChart('trendMonthlyChart', monthly.labels, monthly.series[0], monthly.series[1], monthlyMax);
-  drawTrendTable('trendMonthlyTableHead','trendMonthlyTableBody', monthly.labels, monthly.series, 'monthly');
 }
 
 // ===== 資料維護 =====
