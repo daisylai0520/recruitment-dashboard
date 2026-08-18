@@ -5395,15 +5395,29 @@ async function savePermCell(sheet, row, col, value) {
 }
 
 // ---- 單位 → 負責HR 對應表 ----
-// 「分類」「Job Function」是可自行新增的單選欄位：用 input+datalist 呈現，下拉選單顯示這張表格裡
-// 目前已經有的值，也可以直接手動輸入一個新的值，不用另外去哪裡維護選項清單
+// 「分類」是可自行新增的單選欄位：用 input+datalist 呈現，選項來自 Unit HR Mapping 工作表本身的「分類」欄位
+// （即 getUnitCategoryOptions()），也可以直接手動輸入一個新的值，不用另外去哪裡維護選項清單
 function buildCreatablePermTextInput(fieldName, idx, currentVal, updateFnName) {
   var dlId = 'permdl_' + (_dlIdCounter++);
-  var existing = [...new Set(unitHrMappingData.map(function(r){ return String(r[fieldName]||'').trim(); }))].filter(Boolean).sort();
+  var existing = fieldName === '分類' ? getUnitCategoryOptions() : [...new Set(unitHrMappingData.map(function(r){ return String(r[fieldName]||'').trim(); }))].filter(Boolean).sort();
   var optHtml = existing.map(function(o){ return '<option value="'+String(o).replace(/"/g,'&quot;')+'">'; }).join('');
   var valSafe = String(currentVal||'').replace(/"/g,'&quot;');
   return '<input type="text" list="'+dlId+'" value="'+valSafe+'" onchange="'+updateFnName+'('+idx+',this.value)" style="width:100%;font-size:13px;padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;box-sizing:border-box;">'+
     '<datalist id="'+dlId+'">'+optHtml+'</datalist>';
+}
+
+// 「Job Function」改為單選下拉選單（不可自行輸入新值），選項跟這張表格裡目前已經有的值同步；
+// 若目前值不在選項清單裡（例如資料被手動改壞），仍保留顯示並標成紅色，避免直接消失看不到原值
+function buildPermSingleSelect(fieldName, idx, currentVal, updateFnName) {
+  var existing = [...new Set(unitHrMappingData.map(function(r){ return String(r[fieldName]||'').trim(); }))].filter(Boolean).sort();
+  var valSafe = String(currentVal||'').trim();
+  if (valSafe && existing.indexOf(valSafe) < 0) existing.push(valSafe);
+  var optionsHtml = '<option value="">請選擇...</option>' + existing.map(function(o){
+    var oSafe = String(o).replace(/"/g,'&quot;');
+    var oDisp = String(o).replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    return '<option value="'+oSafe+'" '+(o===valSafe?'selected':'')+'>'+oDisp+'</option>';
+  }).join('');
+  return '<select onchange="'+updateFnName+'('+idx+',this.value)" style="width:100%;font-size:13px;padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;box-sizing:border-box;">'+optionsHtml+'</select>';
 }
 
 function renderUnitHrMappingTable() {
@@ -5425,7 +5439,7 @@ function renderUnitHrMappingTable() {
     }).join('');
     var buSelect = '<select onchange="updateUnitMappingBu('+idx+',this.value)" style="width:100%;font-size:13px;padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;'+(buInvalid?'color:#EF4444;border-color:#EF4444;':'')+'">'+buOptionsHtml+'</select>';
     var catInput = buildCreatablePermTextInput('分類', idx, rec['分類'], 'updateUnitMappingCategory');
-    var jobInput = buildCreatablePermTextInput('Job Function', idx, rec['Job Function'], 'updateUnitMappingJobFunction');
+    var jobInput = buildPermSingleSelect('Job Function', idx, rec['Job Function'], 'updateUnitMappingJobFunction');
     return '<tr>'+
       '<td style="padding:8px;">'+catInput+'</td>'+
       '<td style="padding:8px;">'+buSelect+'</td>'+
