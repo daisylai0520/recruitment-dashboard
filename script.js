@@ -53,6 +53,9 @@ var currentTab='kanban';
 // hrDirectoryData／unitHrMappingData 一開始（角色選擇畫面）就會抓一次輕量版（只有 HR 名冊 + 單位對應表），
 // 進到「權限管理」畫面時再用 getPermissionData 補齊 permUnitOptions／permHrOptions 並重新整包覆蓋。
 var hrDirectoryData = [], unitHrMappingData = [], permUnitOptions = [], permHrOptions = [];
+// Unit HR Mapping 工作表每個欄位實際對應到第幾欄（1-based），欄位順序完全依表頭動態決定，不寫死；
+// 存檔（editCell）時要用這裡查出來的欄號，工作表以後調欄位順序也不用改前端程式
+var unitHrMappingCols = {};
 var currentHRName = null;   // 目前登入的 HR 姓名；管理者是 '管理者'
 var currentHRUnits = null;  // 目前登入的 HR 負責哪些單位；null 代表不限制（管理者）
 var isAdmin = false;
@@ -539,6 +542,7 @@ async function fetchIdentityData() {
     var json = await fetchJsonWithRetry(function(){ return noCacheUrl(APPS_SCRIPT_URL + '?action=getIdentityData'); }, {cache:'no-store'}, 4);
     hrDirectoryData = (json.hrDirectory||[]).filter(function(d){return d['HR姓名'];});
     unitHrMappingData = (json.unitHrMapping||[]).filter(function(d){return d['單位']||d['負責HR'];});
+    unitHrMappingCols = json.unitHrMappingCols || {};
     renderRoleScreenIdentities();
   } catch(e) {
     var bpEl = document.getElementById('hrIdentityButtonsBP');
@@ -639,6 +643,7 @@ function applyPermissionData(json) {
   permUnitOptions = (json.unitOptions||[]).map(function(v){return String(v).trim();}).filter(Boolean);
   permHrOptions = (json.hrOptions||[]).map(function(v){return String(v).trim();}).filter(Boolean);
   unitHrMappingData = (json.unitHrMapping||[]).filter(function(d){return d['單位']||d['負責HR'];});
+  unitHrMappingCols = json.unitHrMappingCols || unitHrMappingCols;
   hrDirectoryData = (json.hrDirectory||[]).filter(function(d){return d['HR姓名'];});
   loadedResources.permissions = true;
 }
@@ -5344,11 +5349,22 @@ async function savePermCell(sheet, row, col, value) {
 }
 
 // ---- 單位 → 負責HR 對應表 ----
+// 「分類」「Job Function」是可自行新增的單選欄位：用 input+datalist 呈現，下拉選單顯示這張表格裡
+// 目前已經有的值，也可以直接手動輸入一個新的值，不用另外去哪裡維護選項清單
+function buildCreatablePermTextInput(fieldName, idx, currentVal, updateFnName) {
+  var dlId = 'permdl_' + (_dlIdCounter++);
+  var existing = [...new Set(unitHrMappingData.map(function(r){ return String(r[fieldName]||'').trim(); }))].filter(Boolean).sort();
+  var optHtml = existing.map(function(o){ return '<option value="'+String(o).replace(/"/g,'&quot;')+'">'; }).join('');
+  var valSafe = String(currentVal||'').replace(/"/g,'&quot;');
+  return '<input type="text" list="'+dlId+'" value="'+valSafe+'" onchange="'+updateFnName+'('+idx+',this.value)" style="width:100%;font-size:13px;padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;box-sizing:border-box;">'+
+    '<datalist id="'+dlId+'">'+optHtml+'</datalist>';
+}
+
 function renderUnitHrMappingTable() {
   var body = document.getElementById('permUnitMappingBody');
   if (!body) return;
   if (!unitHrMappingData.length) {
-    body.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--text-tertiary);padding:20px;">尚無資料，請點下方「＋ 新增單位」開始設定</td></tr>';
+    body.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-tertiary);padding:20px;">尚無資料，請點下方「＋ 新增單位」開始設定</td></tr>';
     return;
   }
   body.innerHTML = unitHrMappingData.map(function(rec, idx){
@@ -5362,8 +5378,12 @@ function renderUnitHrMappingTable() {
       return '<option value="'+oSafe+'" '+(o===buVal?'selected':'')+'>'+(o===buVal&&buInvalid?'⚠️ ':'')+oDisp+'</option>';
     }).join('');
     var buSelect = '<select onchange="updateUnitMappingBu('+idx+',this.value)" style="width:100%;font-size:13px;padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;'+(buInvalid?'color:#EF4444;border-color:#EF4444;':'')+'">'+buOptionsHtml+'</select>';
+    var catInput = buildCreatablePermTextInput('分類', idx, rec['分類'], 'updateUnitMappingCategory');
+    var jobInput = buildCreatablePermTextInput('Job Function', idx, rec['Job Function'], 'updateUnitMappingJobFunction');
     return '<tr>'+
+      '<td style="padding:8px;">'+catInput+'</td>'+
       '<td style="padding:8px;">'+buSelect+'</td>'+
+      '<td style="padding:8px;">'+jobInput+'</td>'+
       '<td style="padding:8px;">'+buildHrMultiSelectForPermission(rec, idx)+'</td>'+
       '<td style="padding:8px;text-align:center;"><button class="btn-cancel" style="padding:4px 10px;font-size:12px;" onclick="deleteUnitMappingRow('+idx+')">刪除</button></td>'+
     '</tr>';
@@ -5399,7 +5419,7 @@ async function togglePermHrOption(idx, checkboxEl) {
   var i = current.indexOf(val);
   if (checkboxEl.checked) { if (i < 0) current.push(val); } else if (i >= 0) { current.splice(i,1); }
   var newVal = current.join('、');
-  var ok = await savePermCell('Unit HR Mapping', rec._row, 2, newVal);
+  var ok = await savePermCell('Unit HR Mapping', rec._row, unitHrMappingCols['負責HR'] || 2, newVal);
   if (!ok) { checkboxEl.checked = !checkboxEl.checked; return; }
   rec['負責HR'] = newVal;
   showToast('✓ 已儲存');
@@ -5419,14 +5439,35 @@ async function togglePermHrOption(idx, checkboxEl) {
 async function updateUnitMappingBu(idx, newVal) {
   var rec = unitHrMappingData[idx];
   if (!rec) return;
-  var ok = await savePermCell('Unit HR Mapping', rec._row, 1, newVal);
+  var ok = await savePermCell('Unit HR Mapping', rec._row, unitHrMappingCols['單位'] || 1, newVal);
   if (ok) { rec['單位'] = newVal; showToast('✓ 已儲存'); renderPermissions(); }
+}
+
+async function updateUnitMappingCategory(idx, newVal) {
+  var rec = unitHrMappingData[idx];
+  if (!rec) return;
+  var col = unitHrMappingCols['分類'];
+  if (!col) { showToast('❌ 找不到「分類」欄位，請確認 Unit HR Mapping 工作表有這一欄'); return; }
+  var ok = await savePermCell('Unit HR Mapping', rec._row, col, newVal);
+  if (ok) { rec['分類'] = newVal; showToast('✓ 已儲存'); renderPermissions(); }
+}
+
+async function updateUnitMappingJobFunction(idx, newVal) {
+  var rec = unitHrMappingData[idx];
+  if (!rec) return;
+  var col = unitHrMappingCols['Job Function'];
+  if (!col) { showToast('❌ 找不到「Job Function」欄位，請確認 Unit HR Mapping 工作表有這一欄'); return; }
+  var ok = await savePermCell('Unit HR Mapping', rec._row, col, newVal);
+  if (ok) { rec['Job Function'] = newVal; showToast('✓ 已儲存'); renderPermissions(); }
 }
 
 async function addUnitMappingRow() {
   try {
+    // 新增一列空白資料，欄位數依目前工作表實際欄位數決定（不寫死 2 欄），避免欄位順序調整後新增列對不齊
+    var maxCol = Math.max(1, unitHrMappingCols['分類']||0, unitHrMappingCols['單位']||0, unitHrMappingCols['Job Function']||0, unitHrMappingCols['負責HR']||0);
+    var blankValues = new Array(maxCol).fill('');
     var url = APPS_SCRIPT_URL + '?action=addRow&sheet=' + encodeURIComponent('Unit HR Mapping') +
-      '&values=' + encodeURIComponent(JSON.stringify(['','']));
+      '&values=' + encodeURIComponent(JSON.stringify(blankValues));
     await fetch(noCacheUrl(url), {mode:'no-cors', cache:'no-store'});
     showToast('新增中...');
     await fetchPermissionData();
