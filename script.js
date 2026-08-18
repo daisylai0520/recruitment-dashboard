@@ -1973,6 +1973,7 @@ function renderHcAdminDashboard() {
     '</tbody></table>';
 
   wrap.innerHTML =
+    '<div style="text-align:right;font-size:11px;color:var(--text-tertiary);margin-bottom:8px;">只要找到遞補人選、或人選已經到職，就算已到職；兩者都還沒發生，才算是未結案的缺額</div>'+
     '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px;">'+metricsHtml+'</div>'+
     '<div class="cal-outer" style="margin-bottom:16px;">'+
       '<div style="font-size:14px;font-weight:600;margin-bottom:10px;">各單位缺額分布</div>'+
@@ -2350,14 +2351,43 @@ function makeTrendSeries(name, recordsPerWeek) {
 // 每月 Headcount（當月月底仍未結案的缺額數）＆ Onboard，兩條線都直接抓 Headcount Records 工作表自己的欄位：
 // Headcount 用「開缺日」（reqKey）、Onboard 用「Onboard date」（onboardKeyHc，遞補人員的到職日，
 // 選了遞補人員後後端會自動從 Candidate Records 帶一份存進這一欄，不用再回頭比對人選姓名）。
-// 只依目前 tr-bu／tr-job 篩選，不跟著上方時間篩選走（跟「各單位 Headcount 缺額」圖表口徑一致）；固定顯示最近 6 個月。
+// 只依目前 tr-bu／tr-job 篩選，不跟著上方時間篩選走（跟「各單位 Headcount 缺額」圖表口徑一致）；
+// 固定顯示過往一年（12 個月），如果資料裡有更晚（未來）月份的開缺日或到職日，範圍也會自動往後延伸到涵蓋那個月份。
 // 判斷「未結案」：純粹依開缺日／Onboard date 這兩個欄位——開缺日在該月月底前（已經開缺），且 Onboard date
 // 是空的或還沒到該月月底（人還沒到職），就算那個月月底仍未結案；不管有沒有填遞補人員都一樣，
 // 因為即使已經選定遞補人員，只要還沒到職，缺額就還沒真正補上。
 function computeMonthlyHeadcountOnboard() {
-  var months = [];
   var base = new Date(); base.setDate(1); base.setHours(0,0,0,0);
-  for (var i=5;i>=0;i--) months.push(new Date(base.getFullYear(), base.getMonth()-i, 1));
+
+  var reqKey = (hcRawData && hcRawData.length)
+    ? (Object.keys(hcRawData[0]).find(function(k){return k.trim()==='Requisition Date' || k.trim()==='開缺日';}) || 'Requisition Date')
+    : 'Requisition Date';
+  var onboardKeyHc = (hcRawData && hcRawData.length)
+    ? (Object.keys(hcRawData[0]).find(function(k){return k.trim()==='Onboard date';}) || 'Onboard date')
+    : 'Onboard date';
+  var divKey = (hcRawData && hcRawData.length) ? (Object.keys(hcRawData[0]).find(function(k){return k.trim()==='Division';}) || 'Division') : 'Division';
+  var jobKeyHc = (hcRawData && hcRawData.length) ? (Object.keys(hcRawData[0]).find(function(k){return k.trim()==='Job Function';}) || 'Job Function') : 'Job Function';
+  var succKeyHc = (hcRawData && hcRawData.length) ? (Object.keys(hcRawData[0]).find(function(k){return k.includes('Successor')||k.trim()==='遞補人員';}) || 'Successor') : 'Successor';
+
+  // 過往一年（含當月）是固定的最短範圍；如果資料裡（篩選後）有開缺日或到職日落在當月之後，
+  // 範圍的終點就自動延伸到那個最晚的月份，確保已經登記的未來資料也看得到
+  var latestMonth = new Date(base);
+  (hcRawData||[]).forEach(function(r){
+    if (!multiFilterPass('tr-bu', r[divKey])) return;
+    if (!multiFilterPassMulti('tr-job', r[jobKeyHc])) return;
+    [r[reqKey], r[onboardKeyHc]].forEach(function(v){
+      var dt = parseDateTime(v);
+      if (!dt) return;
+      var m = new Date(dt.getFullYear(), dt.getMonth(), 1);
+      if (m > latestMonth) latestMonth = m;
+    });
+  });
+
+  var startMonth = new Date(base.getFullYear(), base.getMonth()-11, 1);
+  var months = [];
+  for (var cur = new Date(startMonth); cur <= latestMonth; cur = new Date(cur.getFullYear(), cur.getMonth()+1, 1)) {
+    months.push(new Date(cur));
+  }
   var labels = months.map(function(m){ return m.getFullYear()+'/'+String(m.getMonth()+1).padStart(2,'0'); });
   var monthEnds = months.map(function(m){ return new Date(m.getFullYear(), m.getMonth()+1, 0, 23, 59, 59); });
 
@@ -2369,16 +2399,6 @@ function computeMonthlyHeadcountOnboard() {
     }
     return -1;
   }
-
-  var reqKey = (hcRawData && hcRawData.length)
-    ? (Object.keys(hcRawData[0]).find(function(k){return k.trim()==='Requisition Date' || k.trim()==='開缺日';}) || 'Requisition Date')
-    : 'Requisition Date';
-  var onboardKeyHc = (hcRawData && hcRawData.length)
-    ? (Object.keys(hcRawData[0]).find(function(k){return k.trim()==='Onboard date';}) || 'Onboard date')
-    : 'Onboard date';
-  var divKey = (hcRawData && hcRawData.length) ? (Object.keys(hcRawData[0]).find(function(k){return k.trim()==='Division';}) || 'Division') : 'Division';
-  var jobKeyHc = (hcRawData && hcRawData.length) ? (Object.keys(hcRawData[0]).find(function(k){return k.trim()==='Job Function';}) || 'Job Function') : 'Job Function';
-  var succKeyHc = (hcRawData && hcRawData.length) ? (Object.keys(hcRawData[0]).find(function(k){return k.includes('Successor')||k.trim()==='遞補人員';}) || 'Successor') : 'Successor';
 
   // 明細表格點下去要看候選人卡片，Headcount Records 本身欄位格式不一樣，所以還是用「遞補人員」姓名去 Candidate Records 找對應人選卡片
   var candidatePool = (typeof allDataFull !== 'undefined' && allDataFull && allDataFull.length) ? allDataFull : allData;
