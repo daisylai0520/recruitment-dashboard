@@ -1996,8 +1996,6 @@ function renderHeadcount() {
   }
   var divKey = Object.keys(hcRawData[0]).find(function(k){return k.trim()==='Division';}) || 'Division';
   var jobKey = Object.keys(hcRawData[0]).find(function(k){return k.trim()==='Job Function';}) || 'Job Function';
-  // 「過往 Headcount」的判斷要用「遞補人員職等」（遞補人員本身的職等），不是原職缺的「職等」欄位
-  var gradeKey = Object.keys(hcRawData[0]).find(function(k){return k.trim()==='遞補人員職等';}) || (Object.keys(hcRawData[0]).find(function(k){return k.includes('遞補') && k.includes('職等');})) || '遞補人員職等';
   var succKey = Object.keys(hcRawData[0]).find(function(k){return k.includes('Successor')||k.trim()==='遞補人員';}) || 'Successor';
   var deptKey = Object.keys(hcRawData[0]).find(function(k){return k.trim()==='Department';}) || 'Department';
   var sectionKey = Object.keys(hcRawData[0]).find(function(k){return k.trim()==='Section';}) || 'Section';
@@ -2033,9 +2031,9 @@ function renderHeadcount() {
     groups[div].total++;
     groups[div].jobs[job].total++;
     var succ = String(r[succKey]||'').trim();
-    var grade = String(r[gradeKey]||'').trim();
-    var isVacant = !succ;
-    var isPastFilled = !!succ && !!grade; // 過往 Headcount：遞補人員、職等都非空白
+    var onboardVal = String(r[onboardKeyHc2]||'').trim();
+    var isPastFilled = !!succ || !!onboardVal; // 過往 Headcount：遞補人員、Onboard date 只要有一個非空白就算
+    var isVacant = !isPastFilled;
     if (isVacant) groups[div].vacantTotal++;
     if (isPastFilled) groups[div].pastTotal++;
     groups[div].jobs[job].rows.push({
