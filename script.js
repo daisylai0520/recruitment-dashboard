@@ -1994,7 +1994,7 @@ function renderHcAdminDashboard() {
     : '<div style="font-size:12px;color:var(--text-tertiary);">目前無缺額</div>';
 
   var summaryHtml =
-    '<div class="cal-outer" style="margin-bottom:20px;">'+
+    '<div class="cal-outer">'+
       '<div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;">'+
         '<div style="border:1.5px solid var(--border);border-radius:16px;padding:16px 22px;min-width:130px;text-align:center;background:#F3E8FF;">'+
           '<div style="font-size:13px;font-weight:700;margin-bottom:8px;">在職</div>'+
@@ -2025,10 +2025,12 @@ function renderHcAdminDashboard() {
     '</tbody></table>';
 
   wrap.innerHTML =
-    summaryHtml +
-    '<div class="cal-outer" style="margin-bottom:16px;">'+
-      '<div style="font-size:14px;font-weight:600;margin-bottom:10px;">各單位缺額分布</div>'+
-      '<div id="hcAdminChart" style="overflow-x:auto;"></div>'+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;align-items:start;">'+
+      summaryHtml +
+      '<div class="cal-outer">'+
+        '<div style="font-size:14px;font-weight:600;margin-bottom:10px;">各單位缺額分布</div>'+
+        '<div id="hcAdminChart" style="overflow-x:auto;"></div>'+
+      '</div>'+
     '</div>'+
     '<div class="cal-outer">'+
       '<div style="font-size:14px;font-weight:600;margin-bottom:10px;">急缺待處理清單</div>'+
