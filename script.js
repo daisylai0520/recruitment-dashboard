@@ -2351,8 +2351,9 @@ function makeTrendSeries(name, recordsPerWeek) {
 // Headcount 用「開缺日」（reqKey）、Onboard 用「Onboard date」（onboardKeyHc，遞補人員的到職日，
 // 選了遞補人員後後端會自動從 Candidate Records 帶一份存進這一欄，不用再回頭比對人選姓名）。
 // 只依目前 tr-bu／tr-job 篩選，不跟著上方時間篩選走（跟「各單位 Headcount 缺額」圖表口徑一致）；固定顯示最近 6 個月。
-// 判斷「未結案」：到職日在該月月底之前 → 那個月底已結案；有遞補人員姓名但還沒填到職日 → 保守視為已結案，避免高估未結案數；
-// 完全沒有遞補人員姓名 → 一直算未結案，直到有人遞補為止。
+// 判斷「未結案」：純粹依開缺日／Onboard date 這兩個欄位——開缺日在該月月底前（已經開缺），且 Onboard date
+// 是空的或還沒到該月月底（人還沒到職），就算那個月月底仍未結案；不管有沒有填遞補人員都一樣，
+// 因為即使已經選定遞補人員，只要還沒到職，缺額就還沒真正補上。
 function computeMonthlyHeadcountOnboard() {
   var months = [];
   var base = new Date(); base.setDate(1); base.setHours(0,0,0,0);
@@ -2396,9 +2397,8 @@ function computeMonthlyHeadcountOnboard() {
     if (reqDate) {
       months.forEach(function(m, idx){
         if (reqDate > monthEnds[idx]) return; // 那個月底之後才開缺，還沒算進去
-        if (succName && onboardDate && onboardDate <= monthEnds[idx]) return; // 到職日在月底前 → 已結案
-        if (succName && !onboardDate) return; // 有遞補人員但還沒填到職日 → 保守視為已結案
-        hcCounts[idx]++;
+        if (onboardDate && onboardDate <= monthEnds[idx]) return; // 到職日在月底前 → 已結案
+        hcCounts[idx]++; // 開缺日已到、但到職日還沒到（或還沒填）→ 當月月底仍未結案
       });
     }
 
@@ -2631,11 +2631,13 @@ function renderProgressTree(trendData) {
     return;
   }
 
-  // 「其他主管/近期已邀約」「104已邀約未回覆」這兩種 Result 不算是真正走過招募流程，
-  // 不納入人選進度統計區塊（含合併呈現的階段轉換率數據）的任何計算，這兩個分類本身也完全不顯示在樹狀圖上
-  var EXCLUDED_PROGRESS_RESULTS = ['其他主管/近期已邀約', '104已邀約未回覆'];
-  trendData = trendData.filter(function(d){ return EXCLUDED_PROGRESS_RESULTS.indexOf(d.Result) < 0; });
-  var visibleResultCategories = resultCategories.filter(function(rc){ return EXCLUDED_PROGRESS_RESULTS.indexOf(rc.Result) < 0; });
+  // 「其他主管/近期已邀約」不算是真正走過招募流程，連邀約數都不計入；
+  // 「104已邀約未回覆」則邀約數要算進去（人選確實被邀約過），但不歸類到任何一個階段方框裡，
+  // 這兩種 Result 都完全不會出現在樹狀圖的階段分類上。
+  var EXCLUDED_FROM_INVITE = ['其他主管/近期已邀約'];
+  var EXCLUDED_FROM_STAGES = ['其他主管/近期已邀約', '104已邀約未回覆'];
+  trendData = trendData.filter(function(d){ return EXCLUDED_FROM_INVITE.indexOf(d.Result) < 0; });
+  var visibleResultCategories = resultCategories.filter(function(rc){ return EXCLUDED_FROM_STAGES.indexOf(rc.Result) < 0; });
 
   // 「有沒有填邀約日」＝所有曾經邀約過的人選（不管後來有沒有往下一階段推進）；這是候選人自己的欄位，
   // 不是「分類Result」工作表的內容，所以邀約這個根節點維持固定，其餘每一層才是動態讀工作表欄位
