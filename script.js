@@ -1978,6 +1978,11 @@ function renderHcAdminDashboard() {
     }
   });
 
+  // 「在職」目前還沒有資料來源，先用 null 代表未知；等有資料來源後只要把這裡改成實際數字，
+  // 「預估年底應有」＝ 在職＋缺額＋即將報到 就會自動算出來，不用再改下面的顯示邏輯
+  var activeHeadcount = null;
+  var estimatedYearEnd = activeHeadcount === null ? null : (activeHeadcount + openCount + upcomingCount);
+
   // 缺額卡片底下依「開缺理由」動態列出子分類（不寫死 AP核准／離職／異動／新增，欄位選項若增減都能對應）
   var reasonBoxesHtml = openByReasonOrder.length
     ? openByReasonOrder.sort(function(a,b){ return openByReason[b]-openByReason[a]; }).map(function(reason){
@@ -2000,13 +2005,13 @@ function renderHcAdminDashboard() {
           '<div style="font-size:24px;font-weight:700;text-align:center;margin-bottom:14px;">'+openCount+' 人</div>'+
           '<div style="display:flex;flex-direction:column;gap:10px;">'+reasonBoxesHtml+'</div>'+
         '</div>'+
-        '<div style="border:1.5px solid var(--border);border-radius:16px;padding:16px 22px;min-width:150px;text-align:center;background:#E5E7EB;">'+
-          '<div style="font-size:13px;font-weight:700;margin-bottom:8px;">預估年底應有</div>'+
-          '<div style="font-size:24px;font-weight:700;">— 人</div>'+
-        '</div>'+
         '<div style="border:1.5px solid var(--border);border-radius:16px;padding:16px 22px;min-width:130px;text-align:center;background:var(--surface);">'+
           '<div style="font-size:13px;font-weight:700;margin-bottom:8px;">即將報到</div>'+
           '<div style="font-size:24px;font-weight:700;">'+upcomingCount+' 人</div>'+
+        '</div>'+
+        '<div style="border:1.5px solid var(--border);border-radius:16px;padding:16px 22px;min-width:150px;text-align:center;background:#E5E7EB;">'+
+          '<div style="font-size:13px;font-weight:700;margin-bottom:8px;">預估年底應有</div>'+
+          '<div style="font-size:24px;font-weight:700;">'+(estimatedYearEnd===null?'—':estimatedYearEnd)+' 人</div>'+
         '</div>'+
       '</div>'+
     '</div>';
