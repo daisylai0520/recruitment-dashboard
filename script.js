@@ -2626,7 +2626,7 @@ function closeTrendDrilldownDetail() {
   document.querySelectorAll('.cand-mini-card').forEach(function(node){ node.classList.remove('mc-active'); });
 }
 
-// 樹狀圖裡淺到深的漸層色階，依實際欄位數量（含邀約階段那一欄）動態產生對應數量的漸層，
+// 樹狀圖裡淺到深的漸層色階，依實際欄位層數動態產生對應數量的漸層，
 // 欄位數量不管有幾層都能自動配色，不用寫死剛好 4 種顏色
 var PROGRESS_TREE_PALETTE = ['#EEF2FF','#C7D2FE','#A5B4FC','#818CF8','#6366F1','#4F46E5','#4338CA','#3730A3','#312E81'];
 function buildProgressTreeGradStops(n) {
@@ -2681,8 +2681,7 @@ function renderProgressTree(trendData) {
   var dynamicLevels = buildDynamicProgressLevels(visibleResultCategories, 0);
   var root = makeNode('邀約', invitedTest, undefined, dynamicLevels.map(toRenderNode));
 
-  // 最左邊「邀約階段」這一欄整個拿掉，樹狀圖直接從「分類Result」工作表的第一個階段欄位開始顯示；
-  // 欄位標籤就是 resultStageColumns 本身，不用再補一個固定的「邀約階段」
+  // 樹狀圖最上面的欄位標題直接從「分類Result」工作表的第一個階段欄位開始顯示
   var COL_LABELS = resultStageColumns;
   // 寬度改短（不是高度）；同時整體視覺重新設計：卡片加陰影、圓角，連接線改成弧線，
   // 轉換率箭頭統一深灰色，看起來更俐落好看
@@ -2777,66 +2776,6 @@ function renderProgressTree(trendData) {
   drawNode(root);
 
   wrap.innerHTML = '<div style="overflow-x:auto;"><svg width="'+canvasW+'" height="'+canvasH+'" viewBox="0 0 '+canvasW+' '+canvasH+'">'+svgParts.join('')+'</svg></div>';
-}
-
-// 階段轉換率的核心計算：優先依「分類Result」工作表的「階段轉換率」欄位分組計算——
-// 欄位裡填了什麼字、幾個階段、順序，都以工作表由上到下「第一次出現」的順序為準，完全不寫死；
-// 每個階段的人數＝「目前分類在這個階段、或更後面階段」的人選累計加總（越後面階段的人選一定也經過前面階段）。
-// 如果「階段轉換率」這欄還沒有填資料，就退回用舊的里程碑欄位判斷方式
-// （邀約＝invite_date有值；電訪＝Phone Interview Scheduled有值；面試＝Interview Scheduled有值；錄取＝Hired date有值），
-// 這樣欄位還沒填好之前也還是能顯示合理的數字。
-// 這個數據現在直接合併呈現在「人選進度統計」樹狀圖最上面的欄位標題裡（見 renderProgressTree），
-// 不再有獨立的階段轉換率漏斗圖區塊。
-// 回傳 rows：[{label, count}, ...]，第 0 筆固定是「邀約」；完全沒有邀約過的人選時回傳空陣列。
-function computeFunnelRows(trendData) {
-  var hasVal = function(v){ return !!(v && String(v).trim()); };
-
-  // 邀約人數固定用跟「人選進度統計」樹狀圖根節點（邀約階段）完全一樣的判斷方式（invite_date 有值），
-  // 這裡永遠當作第一階段，不管「階段轉換率」欄位裡有沒有另外填「邀約」這個字，都會自動補上，
-  // 兩邊的邀約數字才會對得起來。
-  var invitedCount = trendData.filter(function(d){ return hasVal(d.invite_date || d['invite date']); }).length;
-  if (!invitedCount) return [];
-
-  // 固定順序是 邀約／電訪／面試／錄取／Offer結果（招募流程本來的先後順序），所以「階段轉換率」欄位裡
-  // 只要出現這幾個字，一律照這個順序排；欄位裡如果出現這份清單以外的字（以後可能新增其他階段名稱），
-  // 才依工作表由上到下第一次出現的順序，接在後面。
-  // 「Offer結果」這類還沒在「階段轉換率」欄位分類的階段，renderProgressTree 會改用 columnReachedCount
-  // 這個通用備援算法（依「分類Result」工作表該欄位本身有沒有填值來判斷），不需要一定要在「階段轉換率」
-  // 欄位裡也重複設定一次；如果之後有填，這裡的分類結果會優先採用。
-  var FUNNEL_FIXED_ORDER = ['電訪','面試','錄取','Offer結果'];
-  var presentStages = [];
-  resultCategories.forEach(function(rc){
-    var v = String(rc.stageConversion || '').trim();
-    if (v && v !== '邀約' && presentStages.indexOf(v) < 0) presentStages.push(v);
-  });
-  var stageOrder = FUNNEL_FIXED_ORDER.filter(function(s){ return presentStages.indexOf(s) >= 0; })
-    .concat(presentStages.filter(function(s){ return FUNNEL_FIXED_ORDER.indexOf(s) < 0; }));
-
-  var steps;
-  if (stageOrder.length) {
-    var resultsByStage = stageOrder.map(function(stageName){
-      var set = [];
-      resultCategories.forEach(function(rc){
-        if (String(rc.stageConversion || '').trim() === stageName) set.push(rc.Result);
-      });
-      return set;
-    });
-    steps = stageOrder.map(function(stageName, i){
-      var cumulativeResults = [];
-      for (var j = i; j < stageOrder.length; j++) cumulativeResults = cumulativeResults.concat(resultsByStage[j]);
-      var count = trendData.filter(function(d){ return cumulativeResults.indexOf(d.Result) >= 0; }).length;
-      return { label: stageName, count: count };
-    });
-    steps.unshift({ label: '邀約', count: invitedCount });
-  } else {
-    steps = [
-      { label:'邀約', count: invitedCount },
-      { label:'電訪', count: trendData.filter(function(d){ return hasVal(d['Phone Interview Scheduled']); }).length },
-      { label:'面試', count: trendData.filter(function(d){ return hasVal(d['Interview Scheduled']); }).length },
-      { label:'錄取', count: trendData.filter(function(d){ return hasVal(d['Hired date']); }).length }
-    ];
-  }
-  return steps;
 }
 
 // 台灣國定假日（政府行政機關辦公日曆表公告的實際放假日，含連假、補假），逐年登錄，資料來源：行政院人事行政總處。
