@@ -2420,7 +2420,10 @@ function computeMonthlyHeadcountOnboard() {
   };
 }
 
-// Headcount＋Onboard 組合圖：Headcount 固定長條、Onboard 固定折線，同一張圖呈現
+// Headcount＋Onboard 組合圖：Headcount 固定長條、Onboard 固定折線，同一張圖呈現。
+// Onboard 通常會比較接近／貼近 Headcount 長條的高度，兩邊的數字標籤容易疊在一起看不清楚，
+// 所以：(1) 兩個顏色改成冷暖對比更明顯的組合，(2) 每個數字都加一層白色描邊當底，跟格線/長條本身區隔開，
+// (3) 如果 Onboard 折線的數字跟 Headcount 長條的數字算出來的位置太靠近，就把折線數字往外推開一點，避免整個疊在一起。
 function drawComboBarLineChart(containerId, labels, barSeries, lineSeries, maxVal) {
   var chartW = Math.max(460, labels.length*70), chartH = 200, padL=36, padR=16, padT=16, padB=30;
   var plotW = chartW-padL-padR, plotH = chartH-padT-padB;
@@ -2428,7 +2431,12 @@ function drawComboBarLineChart(containerId, labels, barSeries, lineSeries, maxVa
   var barW = Math.max(20, groupW*0.4);
   function xCenter(li){ return padL+li*groupW+groupW/2; }
   function yPos(v){ return padT+plotH-(v/maxVal)*plotH; }
-  var barColor = TREND_COLORS[0], lineColor = TREND_COLORS[1];
+  var barColor = '#6366F1', lineColor = '#F97316';
+  // 白色描邊+彩色字：先畫一份粗白邊當底（跟背景的格線／長條區隔開），再疊上彩色字本身
+  function haloText(x, y, val, color) {
+    return '<text x="'+x+'" y="'+y+'" font-size="9" text-anchor="middle" font-weight="600" style="fill:none;stroke:#fff;stroke-width:3;paint-order:stroke;">'+val+'</text>'+
+      '<text x="'+x+'" y="'+y+'" font-size="9" fill="'+color+'" text-anchor="middle" font-weight="600">'+val+'</text>';
+  }
 
   var svg = '<svg width="100%" height="'+chartH+'" viewBox="0 0 '+chartW+' '+chartH+'" preserveAspectRatio="xMinYMid meet">';
   for (var g=0; g<=4; g++) {
@@ -2436,20 +2444,30 @@ function drawComboBarLineChart(containerId, labels, barSeries, lineSeries, maxVa
     svg += '<line x1="'+padL+'" y1="'+gy+'" x2="'+(chartW-padR)+'" y2="'+gy+'" stroke="#E8EAED" stroke-width="1"/>';
     svg += '<text x="'+(padL-6)+'" y="'+(gy+3)+'" font-size="9" fill="#9CA3AF" text-anchor="end">'+Math.round(g/4*maxVal)+'</text>';
   }
+  var barLabelYs = [];
   labels.forEach(function(lbl, li){
     var v = barSeries.data[li]||0;
     var bh = (v/maxVal)*plotH;
     var bx = xCenter(li) - barW/2;
     var by = padT+plotH-bh;
+    var barLabelY = by-4;
+    barLabelYs[li] = v > 0 ? barLabelY : null;
     svg += '<rect x="'+bx+'" y="'+by+'" width="'+barW+'" height="'+bh+'" fill="'+barColor+'" rx="2"><title>'+barSeries.name+': '+v+'</title></rect>';
-    if (v > 0) svg += '<text x="'+xCenter(li)+'" y="'+(by-4)+'" font-size="9" fill="'+barColor+'" text-anchor="middle" font-weight="600">'+v+'</text>';
+    if (v > 0) svg += haloText(xCenter(li), barLabelY, v, barColor);
     svg += '<text x="'+xCenter(li)+'" y="'+(chartH-padB+16)+'" font-size="9" fill="#6B7280" text-anchor="middle">'+lbl+'</text>';
   });
   var pts = lineSeries.data.map(function(v,i){ return xCenter(i)+','+yPos(v); }).join(' ');
   svg += '<polyline points="'+pts+'" fill="none" stroke="'+lineColor+'" stroke-width="2"/>';
   lineSeries.data.forEach(function(v,i){
     svg += '<circle cx="'+xCenter(i)+'" cy="'+yPos(v)+'" r="3" fill="'+lineColor+'"><title>'+lineSeries.name+': '+v+'</title></circle>';
-    if (v > 0) svg += '<text x="'+xCenter(i)+'" y="'+(yPos(v)-6)+'" font-size="9" fill="'+lineColor+'" text-anchor="middle" font-weight="600">'+v+'</text>';
+    if (v > 0) {
+      var lineLabelY = yPos(v)-6;
+      // 折線的數字跟同一個月長條的數字位置太靠近（容易疊在一起）就往外推開，推的方向依線是在長條上面還是下面決定
+      if (barLabelYs[i] !== null && Math.abs(lineLabelY - barLabelYs[i]) < 12) {
+        lineLabelY = lineLabelY <= barLabelYs[i] ? barLabelYs[i] - 12 : barLabelYs[i] + 12;
+      }
+      svg += haloText(xCenter(i), lineLabelY, v, lineColor);
+    }
   });
   svg += '</svg>';
   var legend = '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:6px;">'+
