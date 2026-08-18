@@ -238,19 +238,21 @@
       <div id="trDateFilterSlot"></div>
     </div>
 
-    <div class="cal-outer" id="trendCard-monthly" style="margin-bottom:16px;">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
-        <div style="font-size:14px;font-weight:600;">每月 Headcount & Onboard</div>
-      </div>
-      <div id="trendMonthlyChart" style="overflow-x:auto;"></div>
-    </div>
-
     <div style="display:grid;grid-template-columns:1fr 1.6fr;gap:16px;margin-bottom:16px;align-items:start;">
-      <div class="cal-outer" id="trendCard-days">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
-          <div style="font-size:14px;font-weight:600;">各階段平均天數</div>
+      <div style="display:flex;flex-direction:column;gap:16px;">
+        <div class="cal-outer" id="trendCard-monthly">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+            <div style="font-size:14px;font-weight:600;">每月 Headcount & Onboard</div>
+          </div>
+          <div id="trendMonthlyChart" style="overflow-x:auto;"></div>
         </div>
-        <div id="stageConversionDays"></div>
+
+        <div class="cal-outer" id="trendCard-days">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+            <div style="font-size:14px;font-weight:600;">各階段平均天數</div>
+          </div>
+          <div id="stageConversionDays"></div>
+        </div>
       </div>
 
       <div class="cal-outer" id="trendCard-progress">

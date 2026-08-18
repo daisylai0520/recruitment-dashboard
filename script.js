@@ -1989,26 +1989,27 @@ function renderHcAdminDashboard() {
     : '<div style="font-size:12px;color:var(--text-tertiary);">目前無缺額</div>';
 
   var summaryHtml =
-    '<div style="display:flex;gap:16px;align-items:flex-start;margin-bottom:12px;flex-wrap:wrap;">'+
-      '<div style="border:1.5px solid var(--border);border-radius:16px;padding:16px 22px;min-width:130px;text-align:center;background:#F3E8FF;">'+
-        '<div style="font-size:13px;font-weight:700;margin-bottom:8px;">在職</div>'+
-        '<div style="font-size:24px;font-weight:700;">— 人</div>'+
+    '<div class="cal-outer" style="margin-bottom:20px;">'+
+      '<div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;">'+
+        '<div style="border:1.5px solid var(--border);border-radius:16px;padding:16px 22px;min-width:130px;text-align:center;background:#F3E8FF;">'+
+          '<div style="font-size:13px;font-weight:700;margin-bottom:8px;">在職</div>'+
+          '<div style="font-size:24px;font-weight:700;">— 人</div>'+
+        '</div>'+
+        '<div style="border:1.5px solid var(--border);border-radius:16px;padding:16px 22px;min-width:180px;background:var(--surface);">'+
+          '<div style="font-size:13px;font-weight:700;margin-bottom:8px;text-align:center;">缺額</div>'+
+          '<div style="font-size:24px;font-weight:700;text-align:center;margin-bottom:14px;">'+openCount+' 人</div>'+
+          '<div style="display:flex;flex-direction:column;gap:10px;">'+reasonBoxesHtml+'</div>'+
+        '</div>'+
+        '<div style="border:1.5px solid var(--border);border-radius:16px;padding:16px 22px;min-width:150px;text-align:center;background:#E5E7EB;">'+
+          '<div style="font-size:13px;font-weight:700;margin-bottom:8px;">預估年底應有</div>'+
+          '<div style="font-size:24px;font-weight:700;">— 人</div>'+
+        '</div>'+
+        '<div style="border:1.5px solid var(--border);border-radius:16px;padding:16px 22px;min-width:130px;text-align:center;background:var(--surface);">'+
+          '<div style="font-size:13px;font-weight:700;margin-bottom:8px;">即將報到</div>'+
+          '<div style="font-size:24px;font-weight:700;">'+upcomingCount+' 人</div>'+
+        '</div>'+
       '</div>'+
-      '<div style="border:1.5px solid var(--border);border-radius:16px;padding:16px 22px;min-width:180px;background:var(--surface);">'+
-        '<div style="font-size:13px;font-weight:700;margin-bottom:8px;text-align:center;">缺額</div>'+
-        '<div style="font-size:24px;font-weight:700;text-align:center;margin-bottom:14px;">'+openCount+' 人</div>'+
-        '<div style="display:flex;flex-direction:column;gap:10px;">'+reasonBoxesHtml+'</div>'+
-      '</div>'+
-      '<div style="border:1.5px solid var(--border);border-radius:16px;padding:16px 22px;min-width:150px;text-align:center;background:#E5E7EB;">'+
-        '<div style="font-size:13px;font-weight:700;margin-bottom:8px;">預估年底應有</div>'+
-        '<div style="font-size:24px;font-weight:700;">— 人</div>'+
-      '</div>'+
-      '<div style="border:1.5px solid var(--border);border-radius:16px;padding:16px 22px;min-width:130px;text-align:center;background:var(--surface);">'+
-        '<div style="font-size:13px;font-weight:700;margin-bottom:8px;">即將報到</div>'+
-        '<div style="font-size:24px;font-weight:700;">'+upcomingCount+' 人</div>'+
-      '</div>'+
-    '</div>'+
-    '<div style="font-size:11px;color:var(--text-tertiary);margin-bottom:20px;">「在職」目前還沒有資料來源，先留空；有資料後「預估年底應有」會自動算成「在職＋缺額」。「即將報到」＝ Onboard date 是還沒到的未來日期的筆數。缺額判斷：遞補人員、Onboard date 兩欄都空白才算未結案。</div>';
+    '</div>';
 
   var divArr = Object.keys(openByDiv).map(function(k){ return {label:k, count:openByDiv[k]}; }).sort(function(a,b){ return b.count-a.count; });
   var urgentHtml = !urgentRows.length ? '<div class="empty" style="padding:16px 0;text-align:center;">目前沒有急缺項目</div>' :
