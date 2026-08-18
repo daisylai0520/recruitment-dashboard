@@ -2516,8 +2516,9 @@ var lastTrendData = [];
 // 「分類Result」工作表：Result 欄位以外的其他欄位，都當作樹狀圖的階段欄位，依欄位順序（resultStageColumns）
 // 動態組成一層一層的分支；欄名、選項文字、欄位數量完全不寫死，工作表以後想怎麼調整（改欄名、加欄、減欄、換選項文字）
 // 前端都會自動跟著變，不用再改程式。
-// 分支規則：這個分組裡只要有任何一列在「下一欄」有填值，才會繼續往下長一層；否則這裡就是葉節點，
-// 不會多長一層沒有意義的空白節點（例如「已結案」通常後面幾欄都是空的，就會停在這裡）。
+// 分支規則：同一組裡，只有「下一欄有填值」的 Result 才會繼續往下長一層、長成真正的分類節點；
+// 下一欄是空白的 Result 不會再多長一層沒有意義的「尚未：X」節點——這些人數還是算在這個節點自己身上
+// （節點本身的 resultValues／count 本來就涵蓋這一組全部的 Result，只是不會再往下細分而已）。
 function buildDynamicProgressLevels(rows, colIdx) {
   if (colIdx >= resultStageColumns.length) return [];
   var col = resultStageColumns[colIdx];
@@ -2532,11 +2533,12 @@ function buildDynamicProgressLevels(rows, colIdx) {
     var g = groups[key];
     var hasNextCol = colIdx + 1 < resultStageColumns.length;
     var nextCol = hasNextCol ? resultStageColumns[colIdx+1] : null;
-    var anyNext = hasNextCol && g.rows.some(function(rc){ return String((rc.stages && rc.stages[nextCol]) || '').trim(); });
+    // 只挑「下一欄有填值」的 Result 繼續往下分類；下一欄空白的就留在這一層，不會多長一層沒有意義的「尚未：X」節點
+    var rowsWithNext = hasNextCol ? g.rows.filter(function(rc){ return String((rc.stages && rc.stages[nextCol]) || '').trim(); }) : [];
     return {
       label: g.label,
       resultValues: g.rows.map(function(rc){ return rc.Result; }),
-      children: anyNext ? buildDynamicProgressLevels(g.rows, colIdx+1) : []
+      children: rowsWithNext.length ? buildDynamicProgressLevels(rowsWithNext, colIdx+1) : []
     };
   });
 }
