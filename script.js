@@ -1939,17 +1939,19 @@ function renderHcAdminDashboard() {
   var reqKey = Object.keys(hcRawData[0]).find(function(k){return k.trim()==='Requisition Date' || k.trim()==='開缺日';}) || 'Requisition Date';
   var reasonKey = Object.keys(hcRawData[0]).find(function(k){return k.trim()==='開缺理由';}) || '開缺理由';
 
-  // 未結案＝還沒有遞補人員（比照 renderTrendHcChart 的定義）；已到職＝有遞補人員也有到職日
+  // 未結案／已到職的判斷跟「Headcount」分頁（過往 Headcount）保持一致：
+  // 遞補人員、Onboard date 只要其中一欄非空白，就算已到職；兩欄都空白才算未結案
   var openCount = 0, filledCount = 0, urgentRows = [];
   var openByDiv = {};
   hcRawData.forEach(function(r){
     var succ = String(r[succKey]||'').trim();
+    var onboardVal = String(r[onboardKey]||'').trim();
     var div = String(r[divKey]||'').trim();
-    if (!succ) {
+    if (!succ && !onboardVal) {
       openCount++;
       if (div) openByDiv[div] = (openByDiv[div]||0) + 1;
       if (isCheckboxTruthy(r['急缺'])) urgentRows.push(r);
-    } else if (String(r[onboardKey]||'').trim()) {
+    } else {
       filledCount++;
     }
   });
@@ -2649,13 +2651,11 @@ function renderProgressTree(trendData) {
     return;
   }
 
-  // 「其他主管/近期已邀約」不算是真正走過招募流程，連邀約數都不計入；
-  // 「104已邀約未回覆」則邀約數要算進去（人選確實被邀約過），但不歸類到任何一個階段方框裡，
-  // 這兩種 Result 都完全不會出現在樹狀圖的階段分類上。
+  // 「其他主管/近期已邀約」不算是真正走過招募流程，連邀約數都不計入、也不會出現在樹狀圖的階段分類上；
+  // 「104已邀約未回覆」現在跟一般 Result 一樣正常參與統計（邀約數、階段分類都會算進去）。
   var EXCLUDED_FROM_INVITE = ['其他主管/近期已邀約'];
-  var EXCLUDED_FROM_STAGES = ['其他主管/近期已邀約', '104已邀約未回覆'];
   trendData = trendData.filter(function(d){ return EXCLUDED_FROM_INVITE.indexOf(d.Result) < 0; });
-  var visibleResultCategories = resultCategories.filter(function(rc){ return EXCLUDED_FROM_STAGES.indexOf(rc.Result) < 0; });
+  var visibleResultCategories = resultCategories.filter(function(rc){ return EXCLUDED_FROM_INVITE.indexOf(rc.Result) < 0; });
 
   // 「有沒有填邀約日」＝所有曾經邀約過的人選（不管後來有沒有往下一階段推進）；這是候選人自己的欄位，
   // 不是「分類Result」工作表的內容，所以邀約這個根節點維持固定，其餘每一層才是動態讀工作表欄位
