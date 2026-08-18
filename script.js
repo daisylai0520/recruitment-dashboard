@@ -1933,7 +1933,7 @@ function renderHcAdminDashboard() {
   var wrap = document.getElementById('hcAdminBody');
   if (!wrap) return;
 
-  // 這個畫面是管理者專用，篩選只留「單位分類」（來源：Unit HR Mapping 的「分類」欄位）
+  // 這個畫面是管理者專用，篩選只留「單位分類」（來源：Unit HR Mapping 的「單位分類」欄位）
   renderMultiFilterBar('hcaCatBar', 'hca-cat', getUnitCategoryOptions());
 
   if (!hcRawData.length) {
@@ -2494,7 +2494,7 @@ function drawComboBarLineChart(containerId, labels, barSeries, lineSeries, maxVa
   var barW = Math.max(20, groupW*0.4);
   function xCenter(li){ return padL+li*groupW+groupW/2; }
   function yPos(v){ return padT+plotH-(v/maxVal)*plotH; }
-  var barColor = '#6366F1', lineColor = '#F97316';
+  var barColor = '#C7D2FE', barLabelColor = '#4F46E5', lineColor = '#F97316';
   // 白色描邊+彩色字：先畫一份粗白邊當底（跟背景的格線／長條區隔開），再疊上彩色字本身
   function haloText(x, y, val, color) {
     return '<text x="'+x+'" y="'+y+'" font-size="12.5" text-anchor="middle" font-weight="700" style="fill:none;stroke:#fff;stroke-width:3.5;paint-order:stroke;">'+val+'</text>'+
@@ -2516,7 +2516,7 @@ function drawComboBarLineChart(containerId, labels, barSeries, lineSeries, maxVa
     var barLabelY = by-6;
     barLabelYs[li] = v > 0 ? barLabelY : null;
     svg += '<rect x="'+bx+'" y="'+by+'" width="'+barW+'" height="'+bh+'" fill="'+barColor+'" rx="2"><title>'+barSeries.name+': '+v+'</title></rect>';
-    if (v > 0) svg += haloText(xCenter(li), barLabelY, v, barColor);
+    if (v > 0) svg += haloText(xCenter(li), barLabelY, v, barLabelColor);
     svg += '<text x="'+xCenter(li)+'" y="'+(chartH-padB+18)+'" font-size="11.5" fill="#6B7280" text-anchor="middle">'+lbl+'</text>';
   });
   var pts = lineSeries.data.map(function(v,i){ return xCenter(i)+','+yPos(v); }).join(' ');
@@ -3154,9 +3154,9 @@ function getUnitOptions() {
   return opts.sort();
 }
 
-// 單位分類選項（來源：Unit HR Mapping 工作表的「分類」欄位），只給管理者版的 Analysis／報表 篩選使用
+// 單位分類選項（來源：Unit HR Mapping 工作表的「單位分類」欄位），只給管理者版的 Analysis／報表 篩選使用
 function getUnitCategoryOptions() {
-  return [...new Set(unitHrMappingData.map(function(m){ return String(m['分類']||'').trim(); }))].filter(Boolean).sort();
+  return [...new Set(unitHrMappingData.map(function(m){ return String(m['單位分類']||'').trim(); }))].filter(Boolean).sort();
 }
 
 // 找出某個單位對應的分類（一個單位理論上只會對應一個分類，但保險起見回傳陣列）
@@ -3164,7 +3164,7 @@ function getCategoriesForUnit(u) {
   var cats = [];
   unitHrMappingData.forEach(function(rec){
     if (String(rec['單位']||'').trim() === u) {
-      var c = String(rec['分類']||'').trim();
+      var c = String(rec['單位分類']||'').trim();
       if (c && cats.indexOf(c) < 0) cats.push(c);
     }
   });
@@ -5436,11 +5436,11 @@ async function savePermCell(sheet, row, col, value) {
 }
 
 // ---- 單位 → 負責HR 對應表 ----
-// 「分類」是可自行新增的單選欄位：用 input+datalist 呈現，選項來自 Unit HR Mapping 工作表本身的「分類」欄位
+// 「單位分類」是可自行新增的單選欄位：用 input+datalist 呈現，選項來自 Unit HR Mapping 工作表本身的「單位分類」欄位
 // （即 getUnitCategoryOptions()），也可以直接手動輸入一個新的值，不用另外去哪裡維護選項清單
 function buildCreatablePermTextInput(fieldName, idx, currentVal, updateFnName) {
   var dlId = 'permdl_' + (_dlIdCounter++);
-  var existing = fieldName === '分類' ? getUnitCategoryOptions() : [...new Set(unitHrMappingData.map(function(r){ return String(r[fieldName]||'').trim(); }))].filter(Boolean).sort();
+  var existing = fieldName === '單位分類' ? getUnitCategoryOptions() : [...new Set(unitHrMappingData.map(function(r){ return String(r[fieldName]||'').trim(); }))].filter(Boolean).sort();
   var optHtml = existing.map(function(o){ return '<option value="'+String(o).replace(/"/g,'&quot;')+'">'; }).join('');
   var valSafe = String(currentVal||'').replace(/"/g,'&quot;');
   return '<input type="text" list="'+dlId+'" value="'+valSafe+'" onchange="'+updateFnName+'('+idx+',this.value)" style="width:100%;font-size:13px;padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;box-sizing:border-box;">'+
@@ -5479,7 +5479,7 @@ function renderUnitHrMappingTable() {
       return '<option value="'+oSafe+'" '+(o===buVal?'selected':'')+'>'+(o===buVal&&buInvalid?'⚠️ ':'')+oDisp+'</option>';
     }).join('');
     var buSelect = '<select onchange="updateUnitMappingBu('+idx+',this.value)" style="width:100%;font-size:13px;padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;'+(buInvalid?'color:#EF4444;border-color:#EF4444;':'')+'">'+buOptionsHtml+'</select>';
-    var catInput = buildCreatablePermTextInput('分類', idx, rec['分類'], 'updateUnitMappingCategory');
+    var catInput = buildCreatablePermTextInput('單位分類', idx, rec['單位分類'], 'updateUnitMappingCategory');
     var jobInput = buildPermSingleSelect('Job Function', idx, rec['Job Function'], 'updateUnitMappingJobFunction');
     return '<tr>'+
       '<td style="padding:8px;">'+catInput+'</td>'+
@@ -5547,10 +5547,10 @@ async function updateUnitMappingBu(idx, newVal) {
 async function updateUnitMappingCategory(idx, newVal) {
   var rec = unitHrMappingData[idx];
   if (!rec) return;
-  var col = unitHrMappingCols['分類'];
-  if (!col) { showToast('❌ 找不到「分類」欄位，請確認 Unit HR Mapping 工作表有這一欄'); return; }
+  var col = unitHrMappingCols['單位分類'];
+  if (!col) { showToast('❌ 找不到「單位分類」欄位，請確認 Unit HR Mapping 工作表有這一欄'); return; }
   var ok = await savePermCell('Unit HR Mapping', rec._row, col, newVal);
-  if (ok) { rec['分類'] = newVal; showToast('✓ 已儲存'); renderPermissions(); }
+  if (ok) { rec['單位分類'] = newVal; showToast('✓ 已儲存'); renderPermissions(); }
 }
 
 async function updateUnitMappingJobFunction(idx, newVal) {
@@ -5565,7 +5565,7 @@ async function updateUnitMappingJobFunction(idx, newVal) {
 async function addUnitMappingRow() {
   try {
     // 新增一列空白資料，欄位數依目前工作表實際欄位數決定（不寫死 2 欄），避免欄位順序調整後新增列對不齊
-    var maxCol = Math.max(1, unitHrMappingCols['分類']||0, unitHrMappingCols['單位']||0, unitHrMappingCols['Job Function']||0, unitHrMappingCols['負責HR']||0);
+    var maxCol = Math.max(1, unitHrMappingCols['單位分類']||0, unitHrMappingCols['單位']||0, unitHrMappingCols['Job Function']||0, unitHrMappingCols['負責HR']||0);
     var blankValues = new Array(maxCol).fill('');
     var url = APPS_SCRIPT_URL + '?action=addRow&sheet=' + encodeURIComponent('Unit HR Mapping') +
       '&values=' + encodeURIComponent(JSON.stringify(blankValues));

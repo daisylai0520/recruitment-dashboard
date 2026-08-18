@@ -10,8 +10,8 @@
 <body>
 
 <!-- ROLE SELECTION SCREEN -->
-<div id="roleScreen" style="position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;overflow-y:auto;">
-  <div style="text-align:center;padding:40px 20px;max-width:760px;">
+<div id="roleScreen" style="position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:flex-start;z-index:9999;overflow-y:auto;">
+  <div style="text-align:center;padding:64px 20px 40px;max-width:760px;">
 
     <!-- logo + 大標題置中 -->
     <div style="margin-bottom:32px;">
@@ -35,13 +35,13 @@
       <div style="display:flex;gap:48px;justify-content:center;flex-wrap:wrap;">
         <div>
           <button onclick="selectRole('bp')" title="我是BP（不指定姓名，可看到全部單位資料）" style="font-size:12px;font-weight:700;color:var(--text-tertiary);letter-spacing:.06em;margin-bottom:10px;background:none;border:none;padding:0;cursor:pointer;" onmouseover="this.style.color='#4F46E5'" onmouseout="this.style.color='var(--text-tertiary)'">BP</button>
-          <div id="hrIdentityButtonsBP" style="display:flex;flex-direction:column;gap:10px;min-width:150px;">
+          <div id="hrIdentityButtonsBP" style="display:flex;flex-direction:row;flex-wrap:wrap;gap:10px;min-width:150px;justify-content:center;">
             <div style="font-size:12px;color:var(--text-tertiary);">載入中...</div>
           </div>
         </div>
         <div>
           <button onclick="selectRole('recruiter')" title="我是Recruiter（不指定姓名，可看到全部單位資料）" style="font-size:12px;font-weight:700;color:var(--text-tertiary);letter-spacing:.06em;margin-bottom:10px;background:none;border:none;padding:0;cursor:pointer;" onmouseover="this.style.color='#4F46E5'" onmouseout="this.style.color='var(--text-tertiary)'">RECRUITER</button>
-          <div id="hrIdentityButtonsRecruiter" style="display:flex;flex-direction:column;gap:10px;min-width:150px;">
+          <div id="hrIdentityButtonsRecruiter" style="display:flex;flex-direction:row;flex-wrap:wrap;gap:10px;min-width:150px;justify-content:center;">
             <div style="font-size:12px;color:var(--text-tertiary);">載入中...</div>
           </div>
         </div>
