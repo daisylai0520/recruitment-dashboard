@@ -24,9 +24,9 @@
     <div style="display:flex;gap:14px;justify-content:center;flex-wrap:wrap;">
       <button onclick="enterQuickAccess('hcAdmin')" style="padding:16px 20px;border:1.5px solid var(--border);border-radius:12px;background:var(--surface);cursor:pointer;font-size:13px;font-weight:600;color:var(--text-primary);transition:all .15s;" onmouseover="this.style.borderColor='#4F46E5';this.style.boxShadow='0 4px 16px rgba(79,70,229,.12)'" onmouseout="this.style.borderColor='#E8EAED';this.style.boxShadow='none'">Headcount管理</button>
       <button onclick="showRecruitmentRolePicker()" style="padding:16px 20px;border:1.5px solid var(--border);border-radius:12px;background:var(--surface);cursor:pointer;font-size:13px;font-weight:600;color:var(--text-primary);transition:all .15s;" onmouseover="this.style.borderColor='#4F46E5';this.style.boxShadow='0 4px 16px rgba(79,70,229,.12)'" onmouseout="this.style.borderColor='#E8EAED';this.style.boxShadow='none'">招募管理</button>
-      <button onclick="enterQuickAccess('trends')" style="padding:16px 20px;border:1.5px solid var(--border);border-radius:12px;background:var(--surface);cursor:pointer;font-size:13px;font-weight:600;color:var(--text-primary);transition:all .15s;" onmouseover="this.style.borderColor='#4F46E5';this.style.boxShadow='0 4px 16px rgba(79,70,229,.12)'" onmouseout="this.style.borderColor='#E8EAED';this.style.boxShadow='none'">Analysis</button>
+      <button onclick="enterQuickAccess('trends')" style="padding:16px 20px;border:1.5px solid var(--border);border-radius:12px;background:var(--surface);cursor:pointer;font-size:13px;font-weight:600;color:var(--text-primary);transition:all .15s;" onmouseover="this.style.borderColor='#4F46E5';this.style.boxShadow='0 4px 16px rgba(79,70,229,.12)'" onmouseout="this.style.borderColor='#E8EAED';this.style.boxShadow='none'">分析</button>
       <button onclick="enterQuickAccess('report')" style="padding:16px 20px;border:1.5px solid var(--border);border-radius:12px;background:var(--surface);cursor:pointer;font-size:13px;font-weight:600;color:var(--text-primary);transition:all .15s;" onmouseover="this.style.borderColor='#4F46E5';this.style.boxShadow='0 4px 16px rgba(79,70,229,.12)'" onmouseout="this.style.borderColor='#E8EAED';this.style.boxShadow='none'">報表</button>
-      <button onclick="enterQuickAccess('salary')" style="padding:16px 20px;border:1.5px solid var(--border);border-radius:12px;background:var(--surface);cursor:pointer;font-size:13px;font-weight:600;color:var(--text-primary);transition:all .15s;" onmouseover="this.style.borderColor='#4F46E5';this.style.boxShadow='0 4px 16px rgba(79,70,229,.12)'" onmouseout="this.style.borderColor='#E8EAED';this.style.boxShadow='none'">Market Salary</button>
+      <button onclick="enterQuickAccess('salary')" style="padding:16px 20px;border:1.5px solid var(--border);border-radius:12px;background:var(--surface);cursor:pointer;font-size:13px;font-weight:600;color:var(--text-primary);transition:all .15s;" onmouseover="this.style.borderColor='#4F46E5';this.style.boxShadow='0 4px 16px rgba(79,70,229,.12)'" onmouseout="this.style.borderColor='#E8EAED';this.style.boxShadow='none'">市場薪資</button>
     </div>
 
     <!-- 招募管理：點了才顯示 BP／Recruiter 身分選擇 -->
@@ -77,11 +77,11 @@
     <div class="tab" data-tab-role="manager,recruiter,bp" onclick="switchTab('maintain',this)">Candidate</div>
     <div class="tab" data-tab-role="manager" onclick="switchTab('candidateSearch',this)">Candidate Search</div>
     <div class="tab" data-tab-role="manager,recruiter" onclick="switchTab('overview',this)">Recruitment Progress</div>
-    <div class="tab" data-tab-role="manager,recruiter,bp" onclick="switchTab('trends',this)">Analysis</div>
+    <div class="tab" data-tab-role="manager,recruiter,bp" onclick="switchTab('trends',this)">分析</div>
     <div class="tab" data-tab-role="manager" onclick="switchTab('hcAdmin',this)">Headcount管理</div>
     <div class="tab" data-tab-role="manager" onclick="switchTab('hc',this)">Headcount</div>
     <div class="tab" data-tab-role="manager" onclick="switchTab('schedule',this)">面試時間協調</div>
-    <div class="tab" data-tab-role="manager" onclick="switchTab('salary',this)">Market Salary</div>
+    <div class="tab" data-tab-role="manager" onclick="switchTab('salary',this)">市場薪資</div>
     <div class="tab" data-tab-role="manager" onclick="switchTab('report',this)">報表</div>
     <div class="tab" data-tab-role="manager" onclick="switchTab('permissions',this)">權限管理</div>
   </div>
@@ -213,7 +213,7 @@
 
   <!-- ===== TRENDS ===== -->
   <div id="view-trends" style="display:none">
-    <div class="page-title">Analysis</div>
+    <div class="page-title">分析</div>
 
     <div class="filter-bar" style="margin-bottom:16px;">
       <div class="filter-group" id="trBuGroup">
@@ -330,7 +330,7 @@
 
   <!-- ===== MARKET SALARY RECORDS（獨立畫面）===== -->
   <div id="view-salary" style="display:none">
-    <div class="page-title">Market Salary</div>
+    <div class="page-title">市場薪資</div>
     <div class="page-sub">市場薪資行情資料，可直接編輯或新增，會同步寫入試算表</div>
 
     <div id="newSalaryPanel" class="mini-card" style="padding:18px 20px;margin-bottom:20px;">
