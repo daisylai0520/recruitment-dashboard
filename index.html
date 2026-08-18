@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>WT Recruitment Overview</title>
+<title>WT Headcount管理</title>
 <link rel="icon" type="image/jpeg" href="logo.jpg">
 <link rel="stylesheet" href="style.css">
 </head>
@@ -11,27 +11,27 @@
 
 <!-- ROLE SELECTION SCREEN -->
 <div id="roleScreen" style="position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;overflow-y:auto;">
-  <div style="display:flex;gap:56px;align-items:flex-start;justify-content:center;flex-wrap:wrap;padding:40px 20px;">
+  <div style="text-align:center;padding:40px 20px;max-width:760px;">
 
-    <!-- 左：不用選身分，直接查看 -->
-    <div style="text-align:center;padding-top:70px;">
-      <div style="font-size:12px;font-weight:700;color:var(--text-tertiary);letter-spacing:.06em;margin-bottom:14px;">快速查看</div>
-      <div style="display:flex;flex-direction:column;gap:12px;">
-        <button onclick="enterQuickAccess('hc')" style="width:190px;padding:16px 18px;border:1.5px solid var(--border);border-radius:12px;background:var(--surface);cursor:pointer;font-size:13px;font-weight:600;color:var(--text-primary);transition:all .15s;" onmouseover="this.style.borderColor='#4F46E5';this.style.boxShadow='0 4px 16px rgba(79,70,229,.12)'" onmouseout="this.style.borderColor='#E8EAED';this.style.boxShadow='none'">Headcount</button>
-        <button onclick="enterQuickAccess('salary')" style="width:190px;padding:16px 18px;border:1.5px solid var(--border);border-radius:12px;background:var(--surface);cursor:pointer;font-size:13px;font-weight:600;color:var(--text-primary);transition:all .15s;" onmouseover="this.style.borderColor='#4F46E5';this.style.boxShadow='0 4px 16px rgba(79,70,229,.12)'" onmouseout="this.style.borderColor='#E8EAED';this.style.boxShadow='none'">Market Salary</button>
-        <button onclick="enterQuickAccess('trends')" style="width:190px;padding:16px 18px;border:1.5px solid var(--border);border-radius:12px;background:var(--surface);cursor:pointer;font-size:13px;font-weight:600;color:var(--text-primary);transition:all .15s;" onmouseover="this.style.borderColor='#4F46E5';this.style.boxShadow='0 4px 16px rgba(79,70,229,.12)'" onmouseout="this.style.borderColor='#E8EAED';this.style.boxShadow='none'">Analysis</button>
-      </div>
+    <!-- logo + 大標題置中 -->
+    <div style="margin-bottom:32px;">
+      <img id="roleLogoImg" style="width:64px;height:64px;object-fit:contain;margin-bottom:16px;" alt="WT">
+      <div style="font-size:26px;font-weight:700;color:var(--text-primary);">WT Headcount管理</div>
+      <div style="font-size:13px;color:var(--text-secondary);margin-top:6px;">請選擇要進入的畫面</div>
     </div>
 
-    <div style="width:1px;align-self:stretch;background:var(--border);"></div>
+    <!-- 大標題中間的 5 個捷徑按鈕 -->
+    <div style="display:flex;gap:14px;justify-content:center;flex-wrap:wrap;">
+      <button onclick="enterQuickAccess('hcAdmin')" style="padding:16px 20px;border:1.5px solid var(--border);border-radius:12px;background:var(--surface);cursor:pointer;font-size:13px;font-weight:600;color:var(--text-primary);transition:all .15s;" onmouseover="this.style.borderColor='#4F46E5';this.style.boxShadow='0 4px 16px rgba(79,70,229,.12)'" onmouseout="this.style.borderColor='#E8EAED';this.style.boxShadow='none'">Headcount管理</button>
+      <button onclick="showRecruitmentRolePicker()" style="padding:16px 20px;border:1.5px solid var(--border);border-radius:12px;background:var(--surface);cursor:pointer;font-size:13px;font-weight:600;color:var(--text-primary);transition:all .15s;" onmouseover="this.style.borderColor='#4F46E5';this.style.boxShadow='0 4px 16px rgba(79,70,229,.12)'" onmouseout="this.style.borderColor='#E8EAED';this.style.boxShadow='none'">招募管理</button>
+      <button onclick="enterQuickAccess('trends')" style="padding:16px 20px;border:1.5px solid var(--border);border-radius:12px;background:var(--surface);cursor:pointer;font-size:13px;font-weight:600;color:var(--text-primary);transition:all .15s;" onmouseover="this.style.borderColor='#4F46E5';this.style.boxShadow='0 4px 16px rgba(79,70,229,.12)'" onmouseout="this.style.borderColor='#E8EAED';this.style.boxShadow='none'">Analysis</button>
+      <button onclick="enterQuickAccess('report')" style="padding:16px 20px;border:1.5px solid var(--border);border-radius:12px;background:var(--surface);cursor:pointer;font-size:13px;font-weight:600;color:var(--text-primary);transition:all .15s;" onmouseover="this.style.borderColor='#4F46E5';this.style.boxShadow='0 4px 16px rgba(79,70,229,.12)'" onmouseout="this.style.borderColor='#E8EAED';this.style.boxShadow='none'">報表</button>
+      <button onclick="enterQuickAccess('salary')" style="padding:16px 20px;border:1.5px solid var(--border);border-radius:12px;background:var(--surface);cursor:pointer;font-size:13px;font-weight:600;color:var(--text-primary);transition:all .15s;" onmouseover="this.style.borderColor='#4F46E5';this.style.boxShadow='0 4px 16px rgba(79,70,229,.12)'" onmouseout="this.style.borderColor='#E8EAED';this.style.boxShadow='none'">Market Salary</button>
+    </div>
 
-    <!-- 右：選擇身分 -->
-    <div style="text-align:center;">
-      <div style="margin-bottom:28px;">
-        <img id="roleLogoImg" style="width:56px;height:56px;object-fit:contain;margin-bottom:14px;" alt="WT">
-        <div style="font-size:20px;font-weight:700;color:var(--text-primary);">WT Recruitment Overview</div>
-        <div style="font-size:13px;color:var(--text-secondary);margin-top:4px;">請選擇您的身分</div>
-      </div>
+    <!-- 招募管理：點了才顯示 BP／Recruiter 身分選擇 -->
+    <div id="recruitmentRolePicker" style="display:none;margin-top:28px;padding-top:24px;border-top:1px solid var(--border);">
+      <div style="font-size:13px;color:var(--text-secondary);margin-bottom:18px;">請選擇您的身分</div>
       <div style="display:flex;gap:48px;justify-content:center;flex-wrap:wrap;">
         <div>
           <button onclick="selectRole('bp')" title="我是BP（不指定姓名，可看到全部單位資料）" style="font-size:12px;font-weight:700;color:var(--text-tertiary);letter-spacing:.06em;margin-bottom:10px;background:none;border:none;padding:0;cursor:pointer;" onmouseover="this.style.color='#4F46E5'" onmouseout="this.style.color='var(--text-tertiary)'">BP</button>
@@ -56,7 +56,7 @@
 <div class="topbar">
   <div class="topbar-left">
 <img src="logo.jpg" style="width:34px;height:34px;object-fit:contain;" alt="WT">
-    <span class="topbar-title">WT Recruitment Overview</span>
+    <span class="topbar-title">WT Headcount管理</span>
     <span id="identityBadge" style="font-size:12px;color:var(--text-secondary);margin-left:14px;padding:3px 10px;border-radius:12px;background:var(--bg);"></span>
   </div>
   <div style="display:flex;align-items:center;">
@@ -78,9 +78,11 @@
     <div class="tab" data-tab-role="manager" onclick="switchTab('candidateSearch',this)">Candidate Search</div>
     <div class="tab" data-tab-role="manager,recruiter" onclick="switchTab('overview',this)">Recruitment Progress</div>
     <div class="tab" data-tab-role="manager,recruiter,bp" onclick="switchTab('trends',this)">Analysis</div>
+    <div class="tab" data-tab-role="manager" onclick="switchTab('hcAdmin',this)">Headcount管理</div>
     <div class="tab" data-tab-role="manager" onclick="switchTab('hc',this)">Headcount</div>
     <div class="tab" data-tab-role="manager" onclick="switchTab('schedule',this)">面試時間協調</div>
     <div class="tab" data-tab-role="manager" onclick="switchTab('salary',this)">Market Salary</div>
+    <div class="tab" data-tab-role="manager" onclick="switchTab('report',this)">報表</div>
     <div class="tab" data-tab-role="manager" onclick="switchTab('permissions',this)">權限管理</div>
   </div>
 
@@ -259,6 +261,13 @@
     </div>
   </div>
 
+  <!-- ===== HEADCOUNT 管理（總覽儀表板）===== -->
+  <div id="view-hcAdmin" style="display:none">
+    <div class="page-title">Headcount管理</div>
+    <div class="page-sub">全公司開缺與到職達成總覽</div>
+    <div id="hcAdminBody"><div class="empty" style="padding:30px 0;text-align:center;">資料載入中...</div></div>
+  </div>
+
   <!-- ===== HEADCOUNT OVERVIEW ===== -->
   <div id="view-hc" style="display:none">
     <div class="page-title">Headcount</div>
@@ -346,6 +355,13 @@
         <tbody id="salaryTableBody"></tbody>
       </table>
     </div>
+  </div>
+
+  <!-- ===== 報表（僅管理者可見，內容建置中）===== -->
+  <div id="view-report" style="display:none">
+    <div class="page-title">報表</div>
+    <div class="page-sub">報表功能建置中</div>
+    <div class="empty" style="padding:60px 0;text-align:center;">敬請期待，這個畫面之後會陸續加上報表內容</div>
   </div>
 
   <!-- ===== PERMISSION MANAGEMENT（僅管理者可見）===== -->

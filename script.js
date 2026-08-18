@@ -711,8 +711,8 @@ async function fetchData() {
 
 var TAB_RESOURCES = {
   kanban:['core'], candidateSearch:['core'], overview:['core'], trends:['core','headcount'],
-  hc:['headcount'], salary:['salary'], schedule:['core','scheduling'], maintain:['core'],
-  permissions:['permissions']
+  hcAdmin:['headcount'], hc:['headcount'], salary:['salary'], schedule:['core','scheduling'], maintain:['core'],
+  permissions:['permissions'], report:[]
 };
 
 function renderAll(){
@@ -728,11 +728,11 @@ function renderAll(){
   if (currentTab === 'schedule' && loadedResources.scheduling) renderSchedule();
   if (currentTab === 'salary' && loadedResources.salary) renderSalaryScreen();
   if (currentTab === 'permissions' && loadedResources.permissions) renderPermissions();
-  if (loadedResources.headcount) renderHeadcount();
+  if (loadedResources.headcount) { renderHeadcount(); renderHcAdminDashboard(); }
 }
 
 // ---- role selection ----
-var ALL_VIEW_TABS = ['kanban','candidateSearch','overview','hc','maintain','trends','schedule','salary','permissions'];
+var ALL_VIEW_TABS = ['kanban','candidateSearch','overview','hcAdmin','hc','maintain','trends','schedule','salary','report','permissions'];
 // 「快速查看」模式：從身分選擇畫面左側直接進入單一分頁（等同管理者權限，但畫面上只看得到這一個分頁、沒有其他分頁與分頁列）
 var restrictedSingleTab = null;
 
@@ -852,6 +852,12 @@ function enterQuickAccess(tab) {
   enterAs('manager', '管理者', null);
 }
 
+// 首頁「招募管理」按鈕：不直接進畫面，而是在原地展開 BP／Recruiter 身分選擇區塊
+function showRecruitmentRolePicker() {
+  var panel = document.getElementById('recruitmentRolePicker');
+  if (panel) panel.style.display = '';
+}
+
 function switchRole() {
   userRole = null;
   isAdmin = false;
@@ -865,6 +871,9 @@ function switchRole() {
   if (tabBar) tabBar.style.display = '';
   var badge = document.getElementById('identityBadge');
   if (badge) badge.textContent = '';
+  // 回到首頁時，「招募管理」展開的 BP／Recruiter 身分選擇區塊收合回去，畫面回到最初的 5 個捷徑按鈕
+  var recruitPicker = document.getElementById('recruitmentRolePicker');
+  if (recruitPicker) recruitPicker.style.display = 'none';
   // 新增人選表單裡的欄位（含「負責HR」預帶值）只會蓋一次，這裡清空讓下次進畫面時用新身分的名字重新蓋一次，
   // 不然切換身分後「負責HR」還會停留在上一個身分的名字
   var newCandFieldsEl = document.getElementById('newCandFields');
@@ -956,6 +965,7 @@ async function switchTab(tab,el) {
   if (tab === 'kanban') renderKanban();
   if (tab === 'candidateSearch') renderCandidateSearch();
   if (tab === 'overview') renderOverview();
+  if (tab === 'hcAdmin') renderHcAdminDashboard();
   if (tab === 'hc') renderHeadcount();
   if (tab === 'trends') renderTrends();
   if (tab === 'schedule') renderSchedule();
@@ -1908,6 +1918,75 @@ function loadHeadcountData(records) {
     ? '共 '+hcRawData.length+' 筆職缺異動記錄'
     : '尚無 Headcount 資料';
   renderHeadcount();
+}
+
+// ---- Headcount管理（總覽儀表板，管理者版新畫面）----
+// 跟「Headcount」分頁（逐筆維護表格）不同，這裡是純粹看數字的總覽：全公司缺額／到職／達成率，
+// 資料來源共用同一份 hcRawData（headcount 資源），欄名解析方式跟 renderHeadcount() 保持一致，
+// 這樣兩個畫面看到的「未結案」「已到職」定義才會一致，不會兜不起來。
+function renderHcAdminDashboard() {
+  var wrap = document.getElementById('hcAdminBody');
+  if (!wrap) return;
+  if (!hcRawData.length) {
+    wrap.innerHTML = '<div class="empty" style="padding:30px 0;text-align:center;">尚無 Headcount 資料</div>';
+    return;
+  }
+
+  var divKey = Object.keys(hcRawData[0]).find(function(k){return k.trim()==='Division';}) || 'Division';
+  var jobKey = Object.keys(hcRawData[0]).find(function(k){return k.trim()==='Job Function';}) || 'Job Function';
+  var succKey = Object.keys(hcRawData[0]).find(function(k){return k.includes('Successor')||k.trim()==='遞補人員';}) || 'Successor';
+  var onboardKey = Object.keys(hcRawData[0]).find(function(k){return k.trim()==='Onboard date';}) || 'Onboard date';
+  var reqKey = Object.keys(hcRawData[0]).find(function(k){return k.trim()==='Requisition Date' || k.trim()==='開缺日';}) || 'Requisition Date';
+  var reasonKey = Object.keys(hcRawData[0]).find(function(k){return k.trim()==='開缺理由';}) || '開缺理由';
+
+  // 未結案＝還沒有遞補人員（比照 renderTrendHcChart 的定義）；已到職＝有遞補人員也有到職日
+  var openCount = 0, filledCount = 0, urgentRows = [];
+  var openByDiv = {};
+  hcRawData.forEach(function(r){
+    var succ = String(r[succKey]||'').trim();
+    var div = String(r[divKey]||'').trim();
+    if (!succ) {
+      openCount++;
+      if (div) openByDiv[div] = (openByDiv[div]||0) + 1;
+      if (isCheckboxTruthy(r['急缺'])) urgentRows.push(r);
+    } else if (String(r[onboardKey]||'').trim()) {
+      filledCount++;
+    }
+  });
+  var totalReq = openCount + filledCount;
+  var fillRate = totalReq > 0 ? Math.round(filledCount/totalReq*1000)/10 : null;
+
+  var metricsHtml =
+    '<div class="metric"><div class="metric-top"><div class="metric-dot" style="background:#EF4444;"></div><span class="metric-label">總缺額（未結案）</span></div><div class="metric-val">'+openCount+'</div></div>'+
+    '<div class="metric"><div class="metric-top"><div class="metric-dot" style="background:#10B981;"></div><span class="metric-label">已到職</span></div><div class="metric-val">'+filledCount+'</div></div>'+
+    '<div class="metric"><div class="metric-top"><div class="metric-dot" style="background:#3B82F6;"></div><span class="metric-label">缺額達成率</span></div><div class="metric-val">'+(fillRate===null?'—':fillRate+'%')+'</div></div>'+
+    '<div class="metric"><div class="metric-top"><div class="metric-dot" style="background:#F59E0B;"></div><span class="metric-label">急缺待處理</span></div><div class="metric-val">'+urgentRows.length+'</div></div>';
+
+  var divArr = Object.keys(openByDiv).map(function(k){ return {label:k, count:openByDiv[k]}; }).sort(function(a,b){ return b.count-a.count; });
+  var urgentHtml = !urgentRows.length ? '<div class="empty" style="padding:16px 0;text-align:center;">目前沒有急缺項目</div>' :
+    '<table class="pi-table"><thead><tr><th>單位</th><th>Job Function</th><th>開缺理由</th><th>開缺日</th></tr></thead><tbody>'+
+    urgentRows.map(function(r){
+      return '<tr><td>'+(r[divKey]||'')+'</td><td>'+(r[jobKey]||'')+'</td><td>'+(r[reasonKey]||'')+'</td><td>'+(r[reqKey]||'')+'</td></tr>';
+    }).join('')+
+    '</tbody></table>';
+
+  wrap.innerHTML =
+    '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px;">'+metricsHtml+'</div>'+
+    '<div class="cal-outer" style="margin-bottom:16px;">'+
+      '<div style="font-size:14px;font-weight:600;margin-bottom:10px;">各單位缺額分布</div>'+
+      '<div id="hcAdminChart" style="overflow-x:auto;"></div>'+
+    '</div>'+
+    '<div class="cal-outer">'+
+      '<div style="font-size:14px;font-weight:600;margin-bottom:10px;">急缺待處理清單</div>'+
+      urgentHtml+
+    '</div>';
+
+  if (divArr.length) {
+    var maxVal = Math.ceil(Math.max.apply(null, divArr.map(function(a){return a.count;}))*1.2) || 1;
+    drawChart('hcAdminChart', 'bar', divArr.map(function(a){return a.label;}), [{name:'缺額', data:divArr.map(function(a){return a.count;})}], maxVal);
+  } else {
+    document.getElementById('hcAdminChart').innerHTML = '<div class="empty" style="padding:20px 0;text-align:center;">目前無缺額資料</div>';
+  }
 }
 
 function renderHeadcount() {
