@@ -216,16 +216,21 @@
     <div class="page-title">Analysis</div>
 
     <div class="filter-bar" style="margin-bottom:16px;">
-      <div class="filter-group">
+      <div class="filter-group" id="trBuGroup">
         <div class="filter-group-label">單位</div>
         <div class="filter-btns" id="trBuBar"></div>
       </div>
-      <div class="filter-divider"></div>
-      <div class="filter-group">
+      <div class="filter-divider" id="trBuDivider"></div>
+      <div class="filter-group" id="trJobGroup">
         <div class="filter-group-label">Job Function</div>
         <div class="filter-btns" id="trJobBar"></div>
       </div>
-      <div class="filter-divider"></div>
+      <div class="filter-divider" id="trJobDivider"></div>
+      <div class="filter-group" id="trCatGroup" style="display:none;">
+        <div class="filter-group-label">單位分類</div>
+        <div class="filter-btns" id="trCatBar"></div>
+      </div>
+      <div class="filter-divider" id="trCatDivider" style="display:none;"></div>
       <div class="filter-group">
         <div class="filter-group-label">目前狀態</div>
         <div class="filter-btns" id="trResultBar"></div>

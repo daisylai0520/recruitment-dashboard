@@ -2378,8 +2378,7 @@ function computeMonthlyHeadcountOnboard() {
   // 範圍的終點就自動延伸到那個最晚的月份，確保已經登記的未來資料也看得到
   var latestMonth = new Date(base);
   (hcRawData||[]).forEach(function(r){
-    if (!multiFilterPass('tr-bu', r[divKey])) return;
-    if (!multiFilterPassMulti('tr-job', r[jobKeyHc])) return;
+    if (!trendsBuJobPass(r[divKey], r[jobKeyHc])) return;
     [r[reqKey], r[onboardKeyHc]].forEach(function(v){
       var dt = parseDateTime(v);
       if (!dt) return;
@@ -2413,8 +2412,7 @@ function computeMonthlyHeadcountOnboard() {
   var onboardRecords = months.map(function(){ return []; });
 
   (hcRawData||[]).forEach(function(r){
-    if (!multiFilterPass('tr-bu', r[divKey])) return;
-    if (!multiFilterPassMulti('tr-job', r[jobKeyHc])) return;
+    if (!trendsBuJobPass(r[divKey], r[jobKeyHc])) return;
     var reqDate = parseDateTime(r[reqKey]);
     var onboardDate = parseDateTime(r[onboardKeyHc]);
     var succName = String(r[succKeyHc]||'').trim();
@@ -2909,16 +2907,31 @@ function renderTrendHcChart() {
   drawChart('trendHcChart', 'bar', arr.map(function(a){return a.label;}), [{name:'缺額', data:arr.map(function(a){return a.count;})}], maxVal);
 }
 
+// 管理者版 Analysis／報表 只用「單位分類」篩選，BP／Recruiter 版維持單位＋Job Function 篩選
+function trendsBuJobPass(unitVal, jobVal) {
+  if (isAdmin) return multiFilterPassCategory('tr-cat', unitVal);
+  return multiFilterPass('tr-bu', unitVal) && multiFilterPassMulti('tr-job', jobVal);
+}
+
 function renderTrends() {
-  var trBuOptions = getUnitOptions();
-  renderMultiFilterBar('trBuBar', 'tr-bu', trBuOptions);
-  var trJobOptions = jobFunctionOptionsForBuFilter('tr-bu', allData);
-  renderMultiFilterBar('trJobBar', 'tr-job', trJobOptions);
+  var trBuGroupEls = ['trBuGroup','trBuDivider','trJobGroup','trJobDivider'].map(function(id){ return document.getElementById(id); });
+  var trCatGroupEls = ['trCatGroup','trCatDivider'].map(function(id){ return document.getElementById(id); });
+  if (isAdmin) {
+    trBuGroupEls.forEach(function(el){ if (el) el.style.display = 'none'; });
+    trCatGroupEls.forEach(function(el){ if (el) el.style.display = ''; });
+    renderMultiFilterBar('trCatBar', 'tr-cat', getUnitCategoryOptions());
+  } else {
+    trBuGroupEls.forEach(function(el){ if (el) el.style.display = ''; });
+    trCatGroupEls.forEach(function(el){ if (el) el.style.display = 'none'; });
+    var trBuOptions = getUnitOptions();
+    renderMultiFilterBar('trBuBar', 'tr-bu', trBuOptions);
+    var trJobOptions = jobFunctionOptionsForBuFilter('tr-bu', allData);
+    renderMultiFilterBar('trJobBar', 'tr-job', trJobOptions);
+  }
   renderMultiFilterDropdown('trResultBar', 'tr-result', getResultOptions(), '目前狀態');
 
   var trendData = allData.filter(function(d){
-    return multiFilterPass('tr-bu', d['單位']) &&
-           multiFilterPassMulti('tr-job', d['Job Function']) &&
+    return trendsBuJobPass(d['單位'], d['Job Function']) &&
            multiFilterPass('tr-result', d.Result) &&
            dateFilterPass('trends', d);
   });
@@ -3099,6 +3112,38 @@ function getUnitOptions() {
     opts = opts.filter(function(u){ return currentHRUnits.indexOf(u) >= 0; });
   }
   return opts.sort();
+}
+
+// 單位分類選項（來源：Unit HR Mapping 工作表的「分類」欄位），只給管理者版的 Analysis／報表 篩選使用
+function getUnitCategoryOptions() {
+  return [...new Set(unitHrMappingData.map(function(m){ return String(m['分類']||'').trim(); }))].filter(Boolean).sort();
+}
+
+// 找出某個單位對應的分類（一個單位理論上只會對應一個分類，但保險起見回傳陣列）
+function getCategoriesForUnit(u) {
+  var cats = [];
+  unitHrMappingData.forEach(function(rec){
+    if (String(rec['單位']||'').trim() === u) {
+      var c = String(rec['分類']||'').trim();
+      if (c && cats.indexOf(c) < 0) cats.push(c);
+    }
+  });
+  return cats;
+}
+
+// 依「單位分類」篩選：先把資料列的單位值（可能用「、」分隔多個單位）轉成對應分類，
+// 只要有一個分類落在勾選範圍內就算通過
+function multiFilterPassCategory(filterId, rawUnitValue) {
+  var state = multiFilterState[filterId];
+  if (!state) return true;
+  if (state.selected.size >= state.known.size) return true;
+  if (state.selected.size === 0) return true;
+  var units = String(rawUnitValue||'').split('、').map(function(s){ return s.trim(); }).filter(Boolean);
+  var cats = [];
+  units.forEach(function(u){
+    getCategoriesForUnit(u).forEach(function(c){ if (cats.indexOf(c) < 0) cats.push(c); });
+  });
+  return cats.some(function(c){ return state.selected.has(c); });
 }
 
 // 資料維護畫面專用：編輯人選資料時的 Result 下拉選單。
@@ -5170,6 +5215,7 @@ registerMultiFilterRerender('ov-bu', renderOverview);
 registerMultiFilterRerender('ov-job', renderOverview);
 registerMultiFilterRerender('tr-bu', renderTrends);
 registerMultiFilterRerender('tr-job', renderTrends);
+registerMultiFilterRerender('tr-cat', renderTrends);
 registerMultiFilterRerender('tr-result', renderTrends);
 registerMultiFilterRerender('cand-bu', renderCandQuery);
 registerMultiFilterRerender('cand-job', renderCandQuery);
