@@ -1932,6 +1932,10 @@ function loadHeadcountData(records) {
 function renderHcAdminDashboard() {
   var wrap = document.getElementById('hcAdminBody');
   if (!wrap) return;
+
+  // 這個畫面是管理者專用，篩選只留「單位分類」（來源：Unit HR Mapping 的「分類」欄位）
+  renderMultiFilterBar('hcaCatBar', 'hca-cat', getUnitCategoryOptions());
+
   if (!hcRawData.length) {
     wrap.innerHTML = '<div class="empty" style="padding:30px 0;text-align:center;">尚無 Headcount 資料</div>';
     return;
@@ -1944,30 +1948,67 @@ function renderHcAdminDashboard() {
   var reqKey = Object.keys(hcRawData[0]).find(function(k){return k.trim()==='Requisition Date' || k.trim()==='開缺日';}) || 'Requisition Date';
   var reasonKey = Object.keys(hcRawData[0]).find(function(k){return k.trim()==='開缺理由';}) || '開缺理由';
 
+  var scopedRows = hcRawData.filter(function(r){ return multiFilterPassCategory('hca-cat', r[divKey]); });
+
   // 未結案／已到職的判斷跟「Headcount」分頁（過往 Headcount）保持一致：
   // 遞補人員、Onboard date 只要其中一欄非空白，就算已到職；兩欄都空白才算未結案
   var openCount = 0, filledCount = 0, urgentRows = [];
   var openByDiv = {};
-  hcRawData.forEach(function(r){
+  var openByReason = {}, openByReasonOrder = [];
+  var today = new Date(); today.setHours(0,0,0,0);
+  var upcomingCount = 0;
+  scopedRows.forEach(function(r){
     var succ = String(r[succKey]||'').trim();
     var onboardVal = String(r[onboardKey]||'').trim();
     var div = String(r[divKey]||'').trim();
+    var onboardDt = parseDateTime(onboardVal);
+    if (onboardDt) {
+      var od = new Date(onboardDt); od.setHours(0,0,0,0);
+      if (od > today) upcomingCount++; // 即將報到：Onboard date 是還沒到的未來日期
+    }
     if (!succ && !onboardVal) {
       openCount++;
       if (div) openByDiv[div] = (openByDiv[div]||0) + 1;
+      var reason = String(r[reasonKey]||'').trim() || '未填寫開缺理由';
+      if (!(reason in openByReason)) { openByReason[reason] = 0; openByReasonOrder.push(reason); }
+      openByReason[reason]++;
       if (isCheckboxTruthy(r['急缺'])) urgentRows.push(r);
     } else {
       filledCount++;
     }
   });
-  var totalReq = openCount + filledCount;
-  var fillRate = totalReq > 0 ? Math.round(filledCount/totalReq*1000)/10 : null;
 
-  var metricsHtml =
-    '<div class="metric"><div class="metric-top"><div class="metric-dot" style="background:#EF4444;"></div><span class="metric-label">總缺額（未結案）</span></div><div class="metric-val">'+openCount+'</div></div>'+
-    '<div class="metric"><div class="metric-top"><div class="metric-dot" style="background:#10B981;"></div><span class="metric-label">已到職</span></div><div class="metric-val">'+filledCount+'</div></div>'+
-    '<div class="metric"><div class="metric-top"><div class="metric-dot" style="background:#3B82F6;"></div><span class="metric-label">缺額達成率</span></div><div class="metric-val">'+(fillRate===null?'—':fillRate+'%')+'</div></div>'+
-    '<div class="metric"><div class="metric-top"><div class="metric-dot" style="background:#F59E0B;"></div><span class="metric-label">急缺待處理</span></div><div class="metric-val">'+urgentRows.length+'</div></div>';
+  // 缺額卡片底下依「開缺理由」動態列出子分類（不寫死 AP核准／離職／異動／新增，欄位選項若增減都能對應）
+  var reasonBoxesHtml = openByReasonOrder.length
+    ? openByReasonOrder.sort(function(a,b){ return openByReason[b]-openByReason[a]; }).map(function(reason){
+        return '<div style="border:1.5px solid var(--border);border-radius:12px;padding:9px 14px;background:var(--surface);">'+
+          '<div style="font-size:12px;font-weight:600;color:var(--text-secondary);">'+String(reason).replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</div>'+
+          '<div style="font-size:16px;font-weight:700;">'+openByReason[reason]+' 人</div>'+
+        '</div>';
+      }).join('')
+    : '<div style="font-size:12px;color:var(--text-tertiary);">目前無缺額</div>';
+
+  var summaryHtml =
+    '<div style="display:flex;gap:16px;align-items:flex-start;margin-bottom:12px;flex-wrap:wrap;">'+
+      '<div style="border:2px solid var(--text-primary);border-radius:16px;padding:16px 22px;min-width:130px;text-align:center;background:#F3E8FF;">'+
+        '<div style="font-size:13px;font-weight:700;margin-bottom:8px;">在職</div>'+
+        '<div style="font-size:24px;font-weight:700;">— 人</div>'+
+      '</div>'+
+      '<div style="border:2px solid var(--text-primary);border-radius:16px;padding:16px 22px;min-width:180px;background:var(--surface);">'+
+        '<div style="font-size:13px;font-weight:700;margin-bottom:8px;text-align:center;">缺額</div>'+
+        '<div style="font-size:24px;font-weight:700;text-align:center;margin-bottom:14px;">'+openCount+' 人</div>'+
+        '<div style="display:flex;flex-direction:column;gap:10px;">'+reasonBoxesHtml+'</div>'+
+      '</div>'+
+      '<div style="border:2px solid var(--text-primary);border-radius:16px;padding:16px 22px;min-width:150px;text-align:center;background:#E5E7EB;">'+
+        '<div style="font-size:13px;font-weight:700;margin-bottom:8px;">預估年底應有</div>'+
+        '<div style="font-size:24px;font-weight:700;">— 人</div>'+
+      '</div>'+
+      '<div style="border:2px solid var(--text-primary);border-radius:16px;padding:16px 22px;min-width:130px;text-align:center;background:var(--surface);">'+
+        '<div style="font-size:13px;font-weight:700;margin-bottom:8px;">即將報到</div>'+
+        '<div style="font-size:24px;font-weight:700;">'+upcomingCount+' 人</div>'+
+      '</div>'+
+    '</div>'+
+    '<div style="font-size:11px;color:var(--text-tertiary);margin-bottom:20px;">「在職」目前還沒有資料來源，先留空；有資料後「預估年底應有」會自動算成「在職＋缺額」。「即將報到」＝ Onboard date 是還沒到的未來日期的筆數。缺額判斷：遞補人員、Onboard date 兩欄都空白才算未結案。</div>';
 
   var divArr = Object.keys(openByDiv).map(function(k){ return {label:k, count:openByDiv[k]}; }).sort(function(a,b){ return b.count-a.count; });
   var urgentHtml = !urgentRows.length ? '<div class="empty" style="padding:16px 0;text-align:center;">目前沒有急缺項目</div>' :
@@ -1978,8 +2019,7 @@ function renderHcAdminDashboard() {
     '</tbody></table>';
 
   wrap.innerHTML =
-    '<div style="text-align:right;font-size:11px;color:var(--text-tertiary);margin-bottom:8px;">只要找到遞補人選、或人選已經到職，就算已到職；兩者都還沒發生，才算是未結案的缺額</div>'+
-    '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px;">'+metricsHtml+'</div>'+
+    summaryHtml +
     '<div class="cal-outer" style="margin-bottom:16px;">'+
       '<div style="font-size:14px;font-weight:600;margin-bottom:10px;">各單位缺額分布</div>'+
       '<div id="hcAdminChart" style="overflow-x:auto;"></div>'+
@@ -5217,6 +5257,7 @@ registerMultiFilterRerender('tr-bu', renderTrends);
 registerMultiFilterRerender('tr-job', renderTrends);
 registerMultiFilterRerender('tr-cat', renderTrends);
 registerMultiFilterRerender('tr-result', renderTrends);
+registerMultiFilterRerender('hca-cat', renderHcAdminDashboard);
 registerMultiFilterRerender('cand-bu', renderCandQuery);
 registerMultiFilterRerender('cand-job', renderCandQuery);
 registerMultiFilterRerender('cand-result', renderCandQuery);
