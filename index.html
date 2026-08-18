@@ -22,7 +22,7 @@
 
     <!-- 大標題中間的 5 個捷徑按鈕 -->
     <div style="display:flex;gap:14px;justify-content:center;flex-wrap:wrap;">
-      <button onclick="enterQuickAccess('hcAdmin')" style="padding:16px 20px;border:1.5px solid var(--border);border-radius:12px;background:var(--surface);cursor:pointer;font-size:13px;font-weight:600;color:var(--text-primary);transition:all .15s;" onmouseover="this.style.borderColor='#4F46E5';this.style.boxShadow='0 4px 16px rgba(79,70,229,.12)'" onmouseout="this.style.borderColor='#E8EAED';this.style.boxShadow='none'">Headcount管理</button>
+      <button onclick="enterQuickAccess('hcAdmin')" style="padding:16px 20px;border:1.5px solid var(--border);border-radius:12px;background:var(--surface);cursor:pointer;font-size:13px;font-weight:600;color:var(--text-primary);transition:all .15s;" onmouseover="this.style.borderColor='#4F46E5';this.style.boxShadow='0 4px 16px rgba(79,70,229,.12)'" onmouseout="this.style.borderColor='#E8EAED';this.style.boxShadow='none'">職缺管理</button>
       <button onclick="showRecruitmentRolePicker()" style="padding:16px 20px;border:1.5px solid var(--border);border-radius:12px;background:var(--surface);cursor:pointer;font-size:13px;font-weight:600;color:var(--text-primary);transition:all .15s;" onmouseover="this.style.borderColor='#4F46E5';this.style.boxShadow='0 4px 16px rgba(79,70,229,.12)'" onmouseout="this.style.borderColor='#E8EAED';this.style.boxShadow='none'">招募管理</button>
       <button onclick="enterQuickAccess('trends')" style="padding:16px 20px;border:1.5px solid var(--border);border-radius:12px;background:var(--surface);cursor:pointer;font-size:13px;font-weight:600;color:var(--text-primary);transition:all .15s;" onmouseover="this.style.borderColor='#4F46E5';this.style.boxShadow='0 4px 16px rgba(79,70,229,.12)'" onmouseout="this.style.borderColor='#E8EAED';this.style.boxShadow='none'">分析</button>
       <button onclick="enterQuickAccess('report')" style="padding:16px 20px;border:1.5px solid var(--border);border-radius:12px;background:var(--surface);cursor:pointer;font-size:13px;font-weight:600;color:var(--text-primary);transition:all .15s;" onmouseover="this.style.borderColor='#4F46E5';this.style.boxShadow='0 4px 16px rgba(79,70,229,.12)'" onmouseout="this.style.borderColor='#E8EAED';this.style.boxShadow='none'">報表</button>
@@ -77,7 +77,7 @@
     <div class="tab" data-tab-role="manager" onclick="switchTab('candidateSearch',this)">Candidate Search</div>
     <div class="tab" data-tab-role="manager,recruiter" onclick="switchTab('overview',this)">Recruitment Progress</div>
     <div class="tab" data-tab-role="manager,recruiter,bp" onclick="switchTab('trends',this)">Analysis</div>
-    <div class="tab" data-tab-role="manager" onclick="switchTab('hcAdmin',this)">Headcount管理</div>
+    <div class="tab" data-tab-role="manager" onclick="switchTab('hcAdmin',this)">職缺管理</div>
     <div class="tab" data-tab-role="manager" onclick="switchTab('hc',this)">Headcount</div>
     <div class="tab" data-tab-role="manager" onclick="switchTab('schedule',this)">面試時間協調</div>
     <div class="tab" data-tab-role="manager" onclick="switchTab('salary',this)">市場薪資</div>
@@ -265,7 +265,7 @@
 
   <!-- ===== HEADCOUNT 管理（總覽儀表板）===== -->
   <div id="view-hcAdmin" style="display:none">
-    <div class="page-title">Headcount管理</div>
+    <div class="page-title">職缺管理</div>
     <div class="page-sub">全公司開缺與到職達成總覽</div>
     <div class="filter-bar" style="margin-bottom:16px;">
       <div class="filter-group">
