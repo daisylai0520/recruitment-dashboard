@@ -2489,7 +2489,7 @@ function drawComboBarLineChart(containerId, labels, barSeries, lineSeries, maxVa
   var barW = Math.max(20, groupW*0.4);
   function xCenter(li){ return padL+li*groupW+groupW/2; }
   function yPos(v){ return padT+plotH-(v/maxVal)*plotH; }
-  var barColor = '#C7D2FE', barLabelColor = '#4F46E5', lineColor = '#F97316';
+  var barColor = '#F97316', barLabelColor = '#F97316', lineColor = '#C7D2FE';
   // 白色描邊+彩色字：先畫一份粗白邊當底（跟背景的格線／長條區隔開），再疊上彩色字本身
   function haloText(x, y, val, color) {
     return '<text x="'+x+'" y="'+y+'" font-size="12.5" text-anchor="middle" font-weight="700" style="fill:none;stroke:#fff;stroke-width:3.5;paint-order:stroke;">'+val+'</text>'+
