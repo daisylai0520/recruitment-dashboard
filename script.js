@@ -1199,11 +1199,10 @@ function openFullEditFromStageModal() {
 // 人選資料四個地方（Candidate 查詢人選、新增人選表單、Overview 人選卡片、Analysis 進度查看面板）統一套用這個欄位排版順序，
 // 欄位寬度依下拉選項／目前值文字長度自動抓一個看起來剛好的寬度，不用固定等寬格線。
 var CAND_FIELD_LAYOUT_ROWS = [
-  ['單位', 'Job Function', '104_Position', 'Name', '履歷代碼'],
-  ['Source', 'Inviter', '面試主管', '負責HR'],
+  ['單位', 'Job Function', '104_Position', 'Name', '履歷代碼', 'Source', 'Inviter', '面試主管', '負責HR'],
   ['性別', '年齡', '最高學歷', '學校', '科系', '最近工作'],
-  ['Phone Interview_date', 'Interview_date', 'Offer Date', 'Onboard date'],
-  ['Result', 'Result Update_date', '婉拒理由', 'Memo']
+  ['Phone Interview_date', 'Interview_date', 'Offer Date', 'Onboard date', 'Result', 'Result Update_date', '婉拒理由'],
+  ['Memo']
 ];
 
 // 把排版清單裡的欄位名稱對應到這批資料實際的欄位名稱（履歷代碼在不同工作表欄名可能有些微差異，用包含比對，
@@ -1236,16 +1235,23 @@ function estimateCandFieldWidth(sheetName, field, currentVal) {
   if (field === 'Memo') return 'full';
   var MIN_W = 90, MAX_W = 260, CHAR_PX = 11, PAD = 40;
   var dropdowns = MAINTAIN_DROPDOWNS[sheetName] || {};
+  var raw;
   if (dropdowns[field]) {
     var opts = [];
     try { opts = dropdowns[field]() || []; } catch(e) {}
     var maxLen = opts.reduce(function(m,o){ return Math.max(m, String(o).length); }, field.length);
     if (currentVal) maxLen = Math.max(maxLen, String(currentVal).length);
-    return Math.min(MAX_W, Math.max(MIN_W, Math.round(maxLen*CHAR_PX)+PAD));
+    raw = Math.round(maxLen*CHAR_PX)+PAD;
+  } else {
+    var base = CAND_FIELD_WIDTH_DEFAULTS[field] || Math.max(MIN_W, Math.round(field.length*CHAR_PX)+PAD);
+    if (currentVal) base = Math.max(base, Math.round(String(currentVal).length*CHAR_PX)+PAD);
+    raw = base;
   }
-  var base = CAND_FIELD_WIDTH_DEFAULTS[field] || Math.max(MIN_W, Math.round(field.length*CHAR_PX)+PAD);
-  if (currentVal) base = Math.max(base, Math.round(String(currentVal).length*CHAR_PX)+PAD);
-  return Math.min(MAX_W, Math.max(MIN_W, base));
+  var clamped = Math.min(MAX_W, Math.max(MIN_W, raw));
+  // 負責HR 欄寬縮短 60%（＝一般估算寬度的 40%）；履歷代碼欄寬加長一半（＝一般估算寬度的 1.5 倍，另外放寬上限）
+  if (field === '負責HR') return Math.max(50, Math.round(clamped * 0.4));
+  if (field.indexOf('履歷代碼') >= 0) return Math.min(320, Math.round(clamped * 1.5));
+  return clamped;
 }
 
 // 共用：把一批人選欄位依上面排版順序畫成一排一排（每排 flex 排列、欄位自動依內容寬度），
@@ -3326,6 +3332,11 @@ var MAINTAIN_DROPDOWNS = {
     // 就先列出全部人，避免選單被篩到空的、反而選不到人。
     'Inviter': function(unit){
       var units = splitMultiValue(unit);
+      // 非管理者、且這個 HR 身分有限定負責單位時，Inviter 名單一律只能在自己負責的單位範圍內
+      // （不管有沒有先選了「單位」），避免看到其他單位的主管
+      if (!isAdmin && currentHRUnits && currentHRUnits.length) {
+        units = units.length ? units.filter(function(u){ return currentHRUnits.indexOf(u) >= 0; }) : currentHRUnits.slice();
+      }
       var pool = managerInfoData;
       if (units.length) {
         var filtered = managerInfoData.filter(function(m){ return units.indexOf(String(m.BU||'').trim()) >= 0; });
