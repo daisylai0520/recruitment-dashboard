@@ -1206,7 +1206,8 @@ var CAND_FIELD_LAYOUT_LEFT_ROWS = [
   ['性別', '年齡', '最高學歷', '學校', '科系', '最近工作']
 ];
 var CAND_FIELD_LAYOUT_RIGHT_ROWS = [
-  ['invite_date', 'Phone Interview_date', 'Interview_date', 'Offer Date', 'Onboard date'],
+  ['invite_date', 'Phone Interview_date', 'Interview_date'],
+  ['Offer Date', 'Onboard date'],
   ['Result', 'Result Update_date', '婉拒理由']
 ];
 var CAND_FIELD_LAYOUT_BOTTOM_RIGHT_ROW = ['英文成績', '是否邀約'];
@@ -1249,7 +1250,7 @@ function buildCandLayoutHtml(layout, fieldHtmlFor, pairedFieldHtmlFor) {
   }
   // 左欄（人員/職位資料）欄位數比右欄多、又有固定寬的 104_Position／最近工作，需要的總寬度其實比右欄多，
   // 直線改往右移，讓左欄一整排能放得下、不會被擠到換行
-  var candColGridStyle = 'display:grid;grid-template-columns:1.3fr 1fr;gap:0 28px;align-items:start;';
+  var candColGridStyle = 'display:grid;grid-template-columns:1.4fr 1fr;gap:0 28px;align-items:start;';
   var leftColHtml = '<div style="display:flex;flex-direction:column;gap:14px;">'+layout.leftRows.map(rowHtml).join('')+'</div>';
   var rightColHtml = '<div style="display:flex;flex-direction:column;gap:14px;border-left:1px solid var(--border);padding-left:28px;">'+layout.rightRows.map(rowHtml).join('')+'</div>';
   var sections = ['<div style="'+candColGridStyle+'">'+leftColHtml+rightColHtml+'</div>'];
@@ -1288,18 +1289,20 @@ var CAND_FIELD_WIDTH_DEFAULTS = {
 // 使用者比照示意圖直接指定的固定欄寬（px），這些欄位不再依下拉選項或內容長度自動抓寬度，
 // 讓畫面排版跟示意圖的比例一致（欄位名稱以外的其餘欄位仍維持自動估算寬度）。
 var CAND_FIELD_WIDTH_OVERRIDE = {
-  '單位': 100, 'Job Function': 170, 'Name': 100, '104_Position': 220,
-  'Source': 100, 'Inviter': 100, '面試主管': 100, '負責HR': 100,
-  'invite_date': 100, 'Phone Interview_date': 145, 'Interview_date': 145,
-  'Offer Date': 100, 'Onboard date': 100, 'Result': 100, 'Result Update_date': 145,
+  // Job Function、Name 改為跟單位一樣寬；Inviter、面試主管 改為跟 104_Position 一樣寬
+  '單位': 100, 'Job Function': 100, 'Name': 100, '104_Position': 220,
+  'Source': 100, 'Inviter': 220, '面試主管': 220, '負責HR': 100,
+  // invite_date、Offer Date、Onboard date 改為跟 Interview_date 一樣寬；Result 再加長 50%
+  'invite_date': 145, 'Phone Interview_date': 145, 'Interview_date': 145,
+  'Offer Date': 145, 'Onboard date': 145, 'Result': 150, 'Result Update_date': 145,
   '婉拒理由': 115, '英文成績': 100, '是否邀約': 100
 };
 // 依欄位的下拉選項文字長度（沒有下拉選項就用目前值或欄位預設寬度）粗估一個看起來剛好的欄位寬度；
 // Memo 一律全寬顯示（回傳 'full'，由 renderQueryField 轉成 flex:1 1 100%）
 function estimateCandFieldWidth(sheetName, field, currentVal) {
   if (field === 'Memo') return 'full';
-  // 履歷代碼在不同工作表欄名可能有些微差異，用包含比對（邏輯跟 findResumeCodeKey 一致）
-  if (field.indexOf('履歷代碼') >= 0) return 100;
+  // 履歷代碼在不同工作表欄名可能有些微差異，用包含比對（邏輯跟 findResumeCodeKey 一致）；寬度再加長 40%（100→140）
+  if (field.indexOf('履歷代碼') >= 0) return 140;
   if (CAND_FIELD_WIDTH_OVERRIDE.hasOwnProperty(field)) return CAND_FIELD_WIDTH_OVERRIDE[field];
   var MIN_W = 90, MAX_W = 260, CHAR_PX = 11, PAD = 40;
   var dropdowns = MAINTAIN_DROPDOWNS[sheetName] || {};

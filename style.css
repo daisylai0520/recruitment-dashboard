@@ -49,7 +49,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
 .bu-btn.active,.pos-btn.active{background:var(--accent);border-color:var(--accent);color:#fff;}
 .filter-selectall-btn{font-size:12px;font-weight:600;color:var(--accent);background:none;border:none;cursor:pointer;padding:5px 8px;text-decoration:underline;white-space:nowrap;}
 .ms-dropdown{position:relative;display:inline-block;}
-.ms-dropdown-toggle{font-size:12px;padding:6px 12px;border:1.5px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text-primary);cursor:pointer;white-space:nowrap;}
+.ms-dropdown-toggle{font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text-primary);cursor:pointer;white-space:nowrap;box-sizing:border-box;}
 .ms-dropdown-caret{font-size:9px;color:var(--text-tertiary);}
 .ms-dropdown-panel{position:absolute;top:calc(100% + 4px);left:0;z-index:50;background:var(--surface);border:1.5px solid var(--border);border-radius:10px;padding:10px;box-shadow:0 8px 24px rgba(0,0,0,.12);min-width:220px;max-height:320px;overflow-y:auto;}
 .ms-dropdown-option{display:block;font-size:13px;padding:5px 4px;cursor:pointer;white-space:nowrap;}
