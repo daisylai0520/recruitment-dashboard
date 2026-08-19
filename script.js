@@ -1282,14 +1282,24 @@ function buildCandLayoutHtml(layout, fieldHtmlFor, pairedFieldHtmlFor) {
 
 // 沒有固定下拉選項的欄位，給一個常見內容長度的預設寬度（欄位名稱調整過），實際值更長時會再自動放寬
 var CAND_FIELD_WIDTH_DEFAULTS = {
-  'Name': 120, '年齡': 64, '學校': 170, '科系': 150, '最近工作': 200,
-  'Phone Interview_date': 150, 'Interview_date': 150, 'Offer Date': 130, 'Onboard date': 130,
-  'invite_date': 130, 'Result Update_date': 150
+  '年齡': 64, '學校': 170, '科系': 150, '最近工作': 200
+};
+// 使用者比照示意圖直接指定的固定欄寬（px），這些欄位不再依下拉選項或內容長度自動抓寬度，
+// 讓畫面排版跟示意圖的比例一致（欄位名稱以外的其餘欄位仍維持自動估算寬度）。
+var CAND_FIELD_WIDTH_OVERRIDE = {
+  '單位': 100, 'Job Function': 170, 'Name': 100, '104_Position': 220,
+  'Source': 100, 'Inviter': 100, '面試主管': 100, '負責HR': 100,
+  'invite_date': 100, 'Phone Interview_date': 145, 'Interview_date': 145,
+  'Offer Date': 100, 'Onboard date': 100, 'Result': 100, 'Result Update_date': 145,
+  '婉拒理由': 115, '英文成績': 100, '是否邀約': 100
 };
 // 依欄位的下拉選項文字長度（沒有下拉選項就用目前值或欄位預設寬度）粗估一個看起來剛好的欄位寬度；
 // Memo 一律全寬顯示（回傳 'full'，由 renderQueryField 轉成 flex:1 1 100%）
 function estimateCandFieldWidth(sheetName, field, currentVal) {
   if (field === 'Memo') return 'full';
+  // 履歷代碼在不同工作表欄名可能有些微差異，用包含比對（邏輯跟 findResumeCodeKey 一致）
+  if (field.indexOf('履歷代碼') >= 0) return 100;
+  if (CAND_FIELD_WIDTH_OVERRIDE.hasOwnProperty(field)) return CAND_FIELD_WIDTH_OVERRIDE[field];
   var MIN_W = 90, MAX_W = 260, CHAR_PX = 11, PAD = 40;
   var dropdowns = MAINTAIN_DROPDOWNS[sheetName] || {};
   var raw;
@@ -1305,16 +1315,8 @@ function estimateCandFieldWidth(sheetName, field, currentVal) {
     raw = base;
   }
   var clamped = Math.min(MAX_W, Math.max(MIN_W, raw));
-  // 履歷代碼：先加長一半、再縮短一半 → 等於一般估算寬度的 0.75 倍（放寬上限、保留一個看得清楚的下限）
-  if (field.indexOf('履歷代碼') >= 0) return Math.max(60, Math.min(320, Math.round(clamped * 1.5 * 0.5)));
-  // 其餘個別欄位的寬度比例（相對於一般估算寬度），數字是使用者多次追加調整疊加後的結果：
-  // 負責HR：縮短60%、再加長30% → 0.4 * 1.3；Name：縮短20%、再縮短40% → 0.8 * 0.6；
-  // Source：縮短20%；Job Function／性別／年齡：縮短一半
+  // 剩下沒有指定固定欄寬的欄位（例如性別、年齡）：縮短一半，維持原本的比例
   var FIELD_WIDTH_MULTIPLIER = {
-    '負責HR': 0.4 * 1.3,
-    'Name': 0.8 * 0.6,
-    'Source': 0.8,
-    'Job Function': 0.5,
     '性別': 0.5,
     '年齡': 0.5
   };
