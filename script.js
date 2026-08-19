@@ -1196,33 +1196,103 @@ function openFullEditFromStageModal() {
   openEditCandidateModal(row);
 }
 
+// 人選資料四個地方（Candidate 查詢人選、新增人選表單、Overview 人選卡片、Analysis 進度查看面板）統一套用這個欄位排版順序，
+// 欄位寬度依下拉選項／目前值文字長度自動抓一個看起來剛好的寬度，不用固定等寬格線。
+var CAND_FIELD_LAYOUT_ROWS = [
+  ['單位', 'Job Function', '104_Position', 'Name', '履歷代碼'],
+  ['Source', 'Inviter', '面試主管', '負責HR'],
+  ['性別', '年齡', '最高學歷', '學校', '科系', '最近工作'],
+  ['Phone Interview_date', 'Interview_date', 'Offer Date', 'Onboard date'],
+  ['Result', 'Result Update_date', '婉拒理由', 'Memo']
+];
+
+// 把排版清單裡的欄位名稱對應到這批資料實際的欄位名稱（履歷代碼在不同工作表欄名可能有些微差異，用包含比對，
+// 邏輯跟 findResumeCodeKey 一致）；沒有列在排版清單裡的欄位（例如電訪紀錄(HR)/(主管)、invite_date）歸到 leftover，
+// 排在最後一排，避免漏掉任何欄位。
+function resolveCandFieldLayout(headers) {
+  var used = {};
+  function matchHeader(label) {
+    if (headers.indexOf(label) >= 0) return label;
+    if (label === '履歷代碼') return headers.find(function(h){ return h.indexOf('履歷代碼') >= 0; }) || null;
+    return null;
+  }
+  var rows = CAND_FIELD_LAYOUT_ROWS.map(function(rowSpec){
+    return rowSpec.map(matchHeader).filter(Boolean);
+  }).filter(function(row){ return row.length; });
+  rows.forEach(function(row){ row.forEach(function(h){ used[h] = true; }); });
+  var leftover = headers.filter(function(h){ return !used[h]; });
+  return { rows: rows, leftover: leftover };
+}
+
+// 沒有固定下拉選項的欄位，給一個常見內容長度的預設寬度（欄位名稱調整過），實際值更長時會再自動放寬
+var CAND_FIELD_WIDTH_DEFAULTS = {
+  'Name': 120, '年齡': 64, '學校': 170, '科系': 150, '最近工作': 200,
+  'Phone Interview_date': 150, 'Interview_date': 150, 'Offer Date': 130, 'Onboard date': 130,
+  'Result Update_date': 150
+};
+// 依欄位的下拉選項文字長度（沒有下拉選項就用目前值或欄位預設寬度）粗估一個看起來剛好的欄位寬度；
+// Memo 一律全寬顯示（回傳 'full'，由 renderQueryField 轉成 flex:1 1 100%）
+function estimateCandFieldWidth(sheetName, field, currentVal) {
+  if (field === 'Memo') return 'full';
+  var MIN_W = 90, MAX_W = 260, CHAR_PX = 11, PAD = 40;
+  var dropdowns = MAINTAIN_DROPDOWNS[sheetName] || {};
+  if (dropdowns[field]) {
+    var opts = [];
+    try { opts = dropdowns[field]() || []; } catch(e) {}
+    var maxLen = opts.reduce(function(m,o){ return Math.max(m, String(o).length); }, field.length);
+    if (currentVal) maxLen = Math.max(maxLen, String(currentVal).length);
+    return Math.min(MAX_W, Math.max(MIN_W, Math.round(maxLen*CHAR_PX)+PAD));
+  }
+  var base = CAND_FIELD_WIDTH_DEFAULTS[field] || Math.max(MIN_W, Math.round(field.length*CHAR_PX)+PAD);
+  if (currentVal) base = Math.max(base, Math.round(String(currentVal).length*CHAR_PX)+PAD);
+  return Math.min(MAX_W, Math.max(MIN_W, base));
+}
+
+// 共用：把一批人選欄位依上面排版順序畫成一排一排（每排 flex 排列、欄位自動依內容寬度），
+// 「查詢人選」卡片、Overview 人選編輯視窗、Analysis 進度查看面板都呼叫這個函式，確保排版一致。
+function buildCandFieldsHtmlOrdered(cand, idx) {
+  var candHeaders = filterCandHeadersForMaintenance(maintainHeaders['Candidate Records'] || Object.keys(cand).filter(function(k){return k!=='_row';}));
+  var layout = resolveCandFieldLayout(candHeaders);
+
+  function fieldHtmlFor(h) {
+    var width = estimateCandFieldWidth('Candidate Records', h, cand[h]);
+    return renderQueryField('Candidate Records', cand, h, idx, width, true);
+  }
+
+  var rowsHtml = layout.rows.map(function(row){
+    return '<div style="display:flex;flex-wrap:wrap;gap:14px;align-items:flex-start;">'+row.map(fieldHtmlFor).join('')+'</div>';
+  });
+
+  if (layout.leftover.length) {
+    var isPhoneRecordHeader = function(h){ return /phone\s*interview\s*record/i.test(h); };
+    var phoneRecordFields = layout.leftover.filter(isPhoneRecordHeader).sort(function(a,b){
+      return (/hr/i.test(a)?0:1) - (/hr/i.test(b)?0:1); // HR 固定在左，主管固定在右
+    });
+    var pairedDone = false;
+    var leftoverHtml = layout.leftover.map(function(h){
+      if (isPhoneRecordHeader(h)) {
+        if (pairedDone) return '';
+        pairedDone = true;
+        if (phoneRecordFields.length >= 2) {
+          var pairHtml = phoneRecordFields.map(function(pf){
+            return renderQueryField('Candidate Records', cand, pf, idx, null, true);
+          }).join('');
+          return '<div style="flex:1 1 100%;display:grid;grid-template-columns:1fr 1fr;gap:14px;">'+pairHtml+'</div>';
+        }
+        return fieldHtmlFor(h);
+      }
+      return fieldHtmlFor(h);
+    }).join('');
+    rowsHtml.push('<div style="display:flex;flex-wrap:wrap;gap:14px;align-items:flex-start;">'+leftoverHtml+'</div>');
+  }
+
+  return '<div style="display:flex;flex-direction:column;gap:14px;">'+rowsHtml.join('')+'</div>';
+}
+
 // 抽出成獨立函式，讓「Overview 卡片編輯 modal」跟「Analysis 樹狀圖鑽取旁邊的人選資料面板」可以共用同一套欄位排版與存檔邏輯
-// 排版比照 Candidate 畫面查詢人選資料卡：Phone Interview Record (HR)/(主管) 並排、Memo 全寬、104_Position 加寬
 function buildCandidateFieldsHtml(cand) {
   var idx = allData.indexOf(cand);
-  var candHeaders = filterCandHeadersForMaintenance(maintainHeaders['Candidate Records'] || Object.keys(cand).filter(function(k){return k!=='_row';}));
-
-  var isPhoneRecordHeader = function(h){ return /phone\s*interview\s*record/i.test(h); };
-  var phoneRecordFields = candHeaders.filter(isPhoneRecordHeader).sort(function(a,b){
-    return (/hr/i.test(a)?0:1) - (/hr/i.test(b)?0:1); // HR 固定在左，主管固定在右
-  });
-  var pairedPhoneRecordDone = false;
-  return candHeaders.map(function(h){
-    if (isPhoneRecordHeader(h)) {
-      if (pairedPhoneRecordDone) return '';
-      pairedPhoneRecordDone = true;
-      if (phoneRecordFields.length >= 2) {
-        var pairHtml = phoneRecordFields.map(function(pf){
-          return renderQueryField('Candidate Records', cand, pf, idx, false, true);
-        }).join('');
-        return '<div style="grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:14px;">'+pairHtml+'</div>';
-      }
-      return renderQueryField('Candidate Records', cand, h, idx, true, true);
-    }
-    var isFullWidth = h === 'Memo';
-    var isWide = h === '104_Position';
-    return renderQueryField('Candidate Records', cand, h, idx, isFullWidth ? true : (isWide ? 'span2' : false), true);
-  }).join('');
+  return buildCandFieldsHtmlOrdered(cand, idx);
 }
 
 function openEditCandidateModal(row) {
@@ -2680,7 +2750,7 @@ function showCandidateDetailBeside(row, el) {
       '<div class="modal-title" style="margin-bottom:0;font-size:15px;">'+(cand.Name||'人選資料')+'</div>'+
       '<span style="cursor:pointer;font-size:16px;color:var(--text-tertiary);" onclick="closeTrendDrilldownDetail()">✕</span>'+
     '</div>'+
-    '<div class="maintain-candidate-grid">'+buildCandidateFieldsHtml(cand)+'</div>';
+    buildCandidateFieldsHtml(cand);
   panel.style.display = 'block';
   panel.querySelectorAll('textarea:not(.ta-scrollable)').forEach(autoGrowTextarea);
 }
@@ -3503,34 +3573,8 @@ function buildCrossUnitCandCardsHtml(matched) {
 function buildCandCardsHtmlInternal(matched, opts) {
   return matched.map(function(cand){
     var idx = opts.idxOf(cand);
-    var candHeaders = filterCandHeadersForMaintenance(maintainHeaders['Candidate Records'] || Object.keys(cand).filter(function(k){return k!=='_row';}));
     var isSelected = selectedCandForCopy && selectedCandForCopy._row === cand._row;
-
-    var isPhoneRecordHeader = function(h){ return /phone\s*interview\s*record/i.test(h); };
-    var phoneRecordFields = candHeaders.filter(isPhoneRecordHeader).sort(function(a,b){
-      return (/hr/i.test(a)?0:1) - (/hr/i.test(b)?0:1); // HR 固定在左，主管固定在右
-    });
-    var pairedPhoneRecordDone = false;
-    var fieldsHtml = candHeaders.map(function(h){
-      if (isPhoneRecordHeader(h)) {
-        if (pairedPhoneRecordDone) return ''; // 第二個欄位（不論是 HR 或主管，看誰先出現）已經跟第一個一起畫在同一排了
-        pairedPhoneRecordDone = true;
-        if (phoneRecordFields.length >= 2) {
-          // 兩個欄位並排在同一整排：外層佔滿整排，裡面用兩欄各放一個
-          var pairHtml = phoneRecordFields.map(function(pf){
-            return renderQueryField('Candidate Records', cand, pf, idx, false, true);
-          }).join('');
-          return '<div style="grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:14px;">'+pairHtml+'</div>';
-        }
-        return renderQueryField('Candidate Records', cand, h, idx, true, true);
-      }
-      // 採緊湊欄寬，僅職缺名稱保留稍大空間；Memo 欄位改成跟下面「新增人選資料」一樣的全寬
-      // （Memo Update_date 是獨立的日期欄位，維持一般欄寬即可，不用跟著 Memo 全寬）
-      var isFullWidth = h === 'Memo';
-      var isWide = h === '104_Position';
-      // 時間欄位一律統一顯示成 YYYY/MM/DD HH:MM
-      return renderQueryField('Candidate Records', cand, h, idx, isFullWidth ? true : (isWide ? 'span2' : false), true);
-    }).join('');
+    var fieldsHtml = buildCandFieldsHtmlOrdered(cand, idx);
 
     return '<div class="mini-card" style="padding:20px 22px;margin-bottom:16px;'+(isSelected?'border-color:var(--accent);box-shadow:0 0 0 2px var(--accent);':'')+'">'+
       '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px;">'+
@@ -3542,13 +3586,15 @@ function buildCandCardsHtmlInternal(matched, opts) {
           (opts.showDelete ? '<button class="refresh-btn" style="margin-left:0;color:#EF4444;border-color:#EF4444;" onclick="deleteMaintainRow('+cand._row+')">🗑️ 刪除人選資料</button>' : '')+
         '</div>'+
       '</div>'+
-      '<div class="maintain-candidate-grid">'+fieldsHtml+'</div>'+
+      fieldsHtml+
     '</div>';
   }).join('');
 }
 
 // Candidate Overview 畫面的「搜尋人選資料」：比照資料維護的搜尋，輸入姓名或履歷代碼即顯示完整可編輯資料卡
-function renderQueryField(sheetName, rec, field, idx, fullWidth, strictDateFormat) {
+// widthSpec：'full' = 該排全寬（例如 Memo）；數字 = 依內容自動估算的固定寬度(px)；
+// null/undefined = 不特別限制寬度，沿用父層排版（例如電訪紀錄(HR)/(主管) 並排欄位，寬度由外層 2 欄格線決定）
+function renderQueryField(sheetName, rec, field, idx, widthSpec, strictDateFormat) {
   var rawVal = rec[field] !== undefined ? rec[field] : '';
   var col = (maintainHeaders[sheetName] || Object.keys(rec)).indexOf(field) + 1;
   var dropdowns = MAINTAIN_DROPDOWNS[sheetName] || {};
@@ -3556,7 +3602,8 @@ function renderQueryField(sheetName, rec, field, idx, fullWidth, strictDateForma
   var isDateOnlyField = MAINTAIN_DATEONLY_FIELDS.indexOf(field) >= 0;
   var displayVal = isDateOnlyField ? fmtDateOnly(rawVal) : isDateField ? (strictDateFormat ? fmtDateTimeStrict(rawVal) : fmtDate(rawVal)) : rawVal;
   var rawSafe = String(rawVal||'').replace(/"/g,'&quot;');
-  var wrapStyle = fullWidth === 'span2' ? 'grid-column:span 2;' : fullWidth ? 'grid-column:1/-1;' : '';
+  var wrapStyle = widthSpec === 'full' ? 'flex:1 1 100%;min-width:0;' :
+    (typeof widthSpec === 'number') ? ('flex:0 0 auto;width:'+widthSpec+'px;max-width:100%;') : '';
   var isPhoneRecordField = /phone\s*interview\s*record/i.test(field);
   var isMemoField = field === 'Memo';
   var isLongTextField = isPhoneRecordField;
@@ -4322,12 +4369,6 @@ function renderNewCandidateFields() {
   var requiredFields = ['Name','Result','invite_date','單位'];
   var todayStr = getTodayDateStr();
 
-  // 電訪紀錄(HR)／(主管) 欄位並排顯示邏輯，跟 buildCandQueryCardsHtml 完全比照
-  var phoneRecordFields = headers.filter(isPhoneRecordFieldName).sort(function(a,b){
-    return (/hr/i.test(a)?0:1) - (/hr/i.test(b)?0:1); // HR 固定在左，主管固定在右
-  });
-  var pairedPhoneRecordDone = false;
-
   function buildOneField(h, isPaired) {
     var isRequired = requiredFields.indexOf(h) >= 0;
     var label = h + (isRequired ? ' <span style="color:#EF4444;">*</span>' : '');
@@ -4339,13 +4380,14 @@ function renderNewCandidateFields() {
     var isDateField = MAINTAIN_DATE_FIELDS.indexOf(h) >= 0;
     var isPosition = h === '104_Position';
     var isNameOrResume = (h === 'Name' || h.indexOf('履歷代碼') >= 0);
-    // 並排的電訪紀錄欄位不要再各自佔滿整排（外層已經是整排的兩欄容器了）
-    var spanStyle = isPaired ? '' : ((isMultilineField || isHRComment) ? 'grid-column:1/-1;' : (isPosition ? 'grid-column:span 2;' : ''));
     var dupAttr = isNameOrResume ? ' oninput="checkNewCandDuplicate()"' : '';
     // 負責HR：如果目前是用某位 HR 的身分登入（不是管理者總覽），直接帶入這個身分自己的名字；
     // 管理者身分沒有對應到單一個人，才退回舊的「這台瀏覽器最近一次填寫過的名字」機制。
     // 邀約日：一律用 fmtDateOnly 正規化成 YYYY/MM/DD（避免不小心存到／貼到瀏覽器原生 Date 字串格式，例如 "Thu Jun 25 2026 00:00:00 GMT+0800"）
     var prefillVal = isInviteDate ? fmtDateOnly(todayStr) : (h === '負責HR' ? (!isAdmin && currentHRName ? currentHRName : getLastUsedHR()) : '');
+    // 並排的電訪紀錄欄位不要再各自佔滿整排（外層已經是整排的兩欄容器了）；其餘欄位依內容自動抓寬度
+    var widthSpec = isPaired ? null : ((isMultilineField || isHRComment) ? 'full' : estimateCandFieldWidth('Candidate Records', h, prefillVal));
+    var spanStyle = widthSpec === 'full' ? 'flex:1 1 100%;min-width:0;' : (typeof widthSpec === 'number') ? ('flex:0 0 auto;width:'+widthSpec+'px;max-width:100%;') : '';
 
     // Inviter 有填寫時，依 Manager Information 工作表的姓名比對自動帶入 單位
     var inviterAttr = (h === 'Inviter') ? ' oninput="handleInviterInputChange(this)" onchange="handleInviterInputChange(this)"' : '';
@@ -4380,22 +4422,36 @@ function renderNewCandidateFields() {
       fieldHtml = '<div style="'+spanStyle+'"><div class="modal-label" style="margin-bottom:4px;">'+label+'</div><input type="text" class="new-cand-input" data-field="'+h+'" value="'+prefillVal+'"'+dupAttr+extraAttr+' style="width:100%;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;box-sizing:border-box;"></div>';
     }
     // Memo 欄位下方加一條分隔線，把表單分成前後兩區
-    if (isMemo) fieldHtml += '<div style="grid-column:1/-1;border-top:1px solid var(--border);margin:6px 0 2px;"></div>';
+    if (isMemo) fieldHtml += '<div style="flex:1 1 100%;border-top:1px solid var(--border);margin:6px 0 2px;"></div>';
     return fieldHtml;
   }
 
-  document.getElementById('newCandFields').innerHTML = headers.map(function(h){
-    if (isPhoneRecordFieldName(h)) {
-      if (pairedPhoneRecordDone) return ''; // 另一個欄位已經跟第一個並排畫在同一排了
-      pairedPhoneRecordDone = true;
-      if (phoneRecordFields.length >= 2) {
-        var pairHtml = phoneRecordFields.map(function(pf){ return buildOneField(pf, true); }).join('');
-        return '<div style="grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:14px;">'+pairHtml+'</div>';
+  // 依共用排版順序（CAND_FIELD_LAYOUT_ROWS）分排；沒有列在排版清單裡的欄位（例如 invite_date、電訪紀錄、是否邀約）
+  // 歸到最後一排，電訪紀錄(HR)／(主管) 仍維持並排顯示
+  var layout = resolveCandFieldLayout(headers);
+  var rowsHtml = layout.rows.map(function(row){
+    return '<div style="display:flex;flex-wrap:wrap;gap:14px;align-items:flex-start;">'+row.map(function(h){ return buildOneField(h, false); }).join('')+'</div>';
+  });
+  if (layout.leftover.length) {
+    var leftoverPhoneFields = layout.leftover.filter(isPhoneRecordFieldName).sort(function(a,b){
+      return (/hr/i.test(a)?0:1) - (/hr/i.test(b)?0:1); // HR 固定在左，主管固定在右
+    });
+    var leftoverPairedDone = false;
+    var leftoverHtml = layout.leftover.map(function(h){
+      if (isPhoneRecordFieldName(h)) {
+        if (leftoverPairedDone) return ''; // 另一個欄位已經跟第一個並排畫在同一排了
+        leftoverPairedDone = true;
+        if (leftoverPhoneFields.length >= 2) {
+          var pairHtml = leftoverPhoneFields.map(function(pf){ return buildOneField(pf, true); }).join('');
+          return '<div style="flex:1 1 100%;display:grid;grid-template-columns:1fr 1fr;gap:14px;">'+pairHtml+'</div>';
+        }
+        return buildOneField(h, false);
       }
       return buildOneField(h, false);
-    }
-    return buildOneField(h, false);
-  }).join('');
+    }).join('');
+    rowsHtml.push('<div style="display:flex;flex-wrap:wrap;gap:14px;align-items:flex-start;">'+leftoverHtml+'</div>');
+  }
+  document.getElementById('newCandFields').innerHTML = '<div style="display:flex;flex-direction:column;gap:14px;">'+rowsHtml.join('')+'</div>';
 
   document.getElementById('newCandFields').querySelectorAll('textarea.new-cand-input:not(.ta-scrollable)').forEach(autoGrowTextarea);
   document.getElementById('newCandDupWarning').style.display = 'none';
