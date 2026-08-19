@@ -2489,7 +2489,8 @@ function drawComboBarLineChart(containerId, labels, barSeries, lineSeries, maxVa
   var barW = Math.max(20, groupW*0.4);
   function xCenter(li){ return padL+li*groupW+groupW/2; }
   function yPos(v){ return padT+plotH-(v/maxVal)*plotH; }
-  var barColor = '#F97316', barLabelColor = '#F97316', lineColor = '#C7D2FE';
+  // Headcount：淺橘色長條（配一個較深的橘色描邊／文字，維持辨識度）；Onboard：深藍色折線
+  var barColor = '#FED7AA', barBorderColor = '#F97316', barLabelColor = '#EA580C', lineColor = '#1E3A8A';
   // 白色描邊+彩色字：先畫一份粗白邊當底（跟背景的格線／長條區隔開），再疊上彩色字本身
   function haloText(x, y, val, color) {
     return '<text x="'+x+'" y="'+y+'" font-size="12.5" text-anchor="middle" font-weight="700" style="fill:none;stroke:#fff;stroke-width:3.5;paint-order:stroke;">'+val+'</text>'+
@@ -2499,7 +2500,7 @@ function drawComboBarLineChart(containerId, labels, barSeries, lineSeries, maxVa
   var svg = '<svg width="100%" height="'+chartH+'" viewBox="0 0 '+chartW+' '+chartH+'" preserveAspectRatio="xMinYMid meet">';
   for (var g=0; g<=4; g++) {
     var gy = padT + plotH - (g/4)*plotH;
-    svg += '<line x1="'+padL+'" y1="'+gy+'" x2="'+(chartW-padR)+'" y2="'+gy+'" stroke="#E8EAED" stroke-width="1"/>';
+    svg += '<line x1="'+padL+'" y1="'+gy+'" x2="'+(chartW-padR)+'" y2="'+gy+'" stroke="#EEF0F2" stroke-width="1"/>';
     svg += '<text x="'+(padL-6)+'" y="'+(gy+4)+'" font-size="11.5" fill="#9CA3AF" text-anchor="end">'+Math.round(g/4*maxVal)+'</text>';
   }
   var barLabelYs = [];
@@ -2510,14 +2511,14 @@ function drawComboBarLineChart(containerId, labels, barSeries, lineSeries, maxVa
     var by = padT+plotH-bh;
     var barLabelY = by-6;
     barLabelYs[li] = v > 0 ? barLabelY : null;
-    svg += '<rect x="'+bx+'" y="'+by+'" width="'+barW+'" height="'+bh+'" fill="'+barColor+'" rx="2"><title>'+barSeries.name+': '+v+'</title></rect>';
+    svg += '<rect x="'+bx+'" y="'+by+'" width="'+barW+'" height="'+bh+'" fill="'+barColor+'" stroke="'+barBorderColor+'" stroke-width="1.3" rx="4"><title>'+barSeries.name+': '+v+'</title></rect>';
     if (v > 0) svg += haloText(xCenter(li), barLabelY, v, barLabelColor);
     svg += '<text x="'+xCenter(li)+'" y="'+(chartH-padB+18)+'" font-size="11.5" fill="#6B7280" text-anchor="middle">'+lbl+'</text>';
   });
   var pts = lineSeries.data.map(function(v,i){ return xCenter(i)+','+yPos(v); }).join(' ');
-  svg += '<polyline points="'+pts+'" fill="none" stroke="'+lineColor+'" stroke-width="2"/>';
+  svg += '<polyline points="'+pts+'" fill="none" stroke="'+lineColor+'" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>';
   lineSeries.data.forEach(function(v,i){
-    svg += '<circle cx="'+xCenter(i)+'" cy="'+yPos(v)+'" r="3" fill="'+lineColor+'"><title>'+lineSeries.name+': '+v+'</title></circle>';
+    svg += '<circle cx="'+xCenter(i)+'" cy="'+yPos(v)+'" r="4" fill="'+lineColor+'" stroke="#fff" stroke-width="1.5"><title>'+lineSeries.name+': '+v+'</title></circle>';
     if (v > 0) {
       var lineLabelY = yPos(v)-8;
       // 折線的數字跟同一個月長條的數字位置太靠近（容易疊在一起）就往外推開，推的方向依線是在長條上面還是下面決定
@@ -2528,9 +2529,9 @@ function drawComboBarLineChart(containerId, labels, barSeries, lineSeries, maxVa
     }
   });
   svg += '</svg>';
-  var legend = '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:6px;">'+
-    '<div style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text-secondary);"><div style="width:8px;height:8px;border-radius:2px;background:'+barColor+'"></div>'+barSeries.name+'</div>'+
-    '<div style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text-secondary);"><div style="width:8px;height:8px;border-radius:2px;background:'+lineColor+'"></div>'+lineSeries.name+'</div>'+
+  var legend = '<div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:8px;">'+
+    '<div style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--text-secondary);"><div style="width:11px;height:11px;border-radius:3px;background:'+barColor+';border:1.3px solid '+barBorderColor+';box-sizing:border-box;"></div>'+barSeries.name+'</div>'+
+    '<div style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--text-secondary);"><div style="width:11px;height:11px;border-radius:50%;background:'+lineColor+';"></div>'+lineSeries.name+'</div>'+
   '</div>';
   document.getElementById(containerId).innerHTML = svg + legend;
 }
