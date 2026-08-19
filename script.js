@@ -2258,18 +2258,26 @@ function renderHeadcount() {
       // 日期欄位也縮窄（內容固定是 YYYY/MM/DD，不需要太寬）；開缺理由選項文字通常比較長，改成加寬；
       // Duties／Memo 則依目前顯示資料的實際內容長度自動加長（像 Excel 欄位一樣），其他欄位可以寬一點。
       var colWidths = displayHeaders.map(function(h){
-        if (h === 'Duties' || h === 'Memo') {
+        if (h === 'Duties') {
           var maxLen = 6;
           displayRows.forEach(function(rr){
             String(rr.raw[h]||'').split('\n').forEach(function(line){ if (line.length > maxLen) maxLen = line.length; });
           });
           return Math.max(160, Math.min(480, maxLen*8+28));
         }
+        if (h === 'Memo') {
+          // Memo 內容通常比 Duties 短，下限縮小，讓內容短的時候欄位也能跟著變窄
+          var memoMaxLen = 6;
+          displayRows.forEach(function(rr){
+            String(rr.raw[h]||'').split('\n').forEach(function(line){ if (line.length > memoMaxLen) memoMaxLen = line.length; });
+          });
+          return Math.max(100, Math.min(480, memoMaxLen*8+28));
+        }
         if (h==='Department' || h==='Section' || h==='Location' || h.includes('Reason')) return 85;
         if (h.includes('職等')) return 55;
         if (h==='急缺') return 50;
         if (h==='Requisition Date' || h==='開缺日' || h==='Onboard date') return 110;
-        if (h==='開缺理由') return 110;
+        if (h==='開缺理由') return 143; // 再寬 30%（110 → 143）
         return 190;
       });
       colWidths.push(40); // 最後一欄放刪除按鈕
@@ -2278,7 +2286,7 @@ function renderHeadcount() {
         var r = rr.raw;
         var idx = hcRawData.indexOf(r);
         var cells = displayHeaders.map(function(h){
-          return '<td style="padding:2px;">'+renderTableCellInput('Headcount Records', r, h, idx, '100%')+'</td>';
+          return '<td style="padding:2px;'+(h==='急缺'?'text-align:center;':'')+'">'+renderTableCellInput('Headcount Records', r, h, idx, '100%')+'</td>';
         }).join('');
         var deleteCell = '<td style="padding:2px;text-align:center;"><button title="刪除這筆 Headcount 資料" onclick="deleteHeadcountRow('+r._row+')" style="border:none;background:none;cursor:pointer;font-size:14px;color:#EF4444;">🗑️</button></td>';
         return '<tr>'+cells+deleteCell+'</tr>';
@@ -2293,7 +2301,7 @@ function renderHeadcount() {
           '<table style="table-layout:fixed;border-collapse:collapse;">'+
             '<colgroup>'+colWidths.map(function(w){ return '<col style="width:'+w+'px;">'; }).join('')+'</colgroup>'+
             '<thead><tr style="background:var(--bg);">'+
-              displayHeaders.map(function(h){ return '<th style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-align:left;padding:5px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+h+'</th>'; }).join('')+
+              displayHeaders.map(function(h){ return '<th style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-align:'+(h==='急缺'?'center':'left')+';padding:5px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+h+'</th>'; }).join('')+
               '<th></th>'+
             '</tr></thead>'+
             '<tbody>'+rowsHtml+'</tbody>'+
