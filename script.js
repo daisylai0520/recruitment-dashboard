@@ -2490,7 +2490,7 @@ function drawComboBarLineChart(containerId, labels, barSeries, lineSeries, maxVa
   function xCenter(li){ return padL+li*groupW+groupW/2; }
   function yPos(v){ return padT+plotH-(v/maxVal)*plotH; }
   // Headcount：淺橘色長條（配一個較深的橘色描邊／文字，維持辨識度）；Onboard：深藍色折線
-  var barColor = '#FED7AA', barBorderColor = '#F97316', barLabelColor = '#EA580C', lineColor = '#1E3A8A';
+  var barColor = '#FED7AA', barLabelColor = '#EA580C', lineColor = '#1E3A8A';
   // 白色描邊+彩色字：先畫一份粗白邊當底（跟背景的格線／長條區隔開），再疊上彩色字本身
   function haloText(x, y, val, color) {
     return '<text x="'+x+'" y="'+y+'" font-size="12.5" text-anchor="middle" font-weight="700" style="fill:none;stroke:#fff;stroke-width:3.5;paint-order:stroke;">'+val+'</text>'+
@@ -2511,7 +2511,7 @@ function drawComboBarLineChart(containerId, labels, barSeries, lineSeries, maxVa
     var by = padT+plotH-bh;
     var barLabelY = by-6;
     barLabelYs[li] = v > 0 ? barLabelY : null;
-    svg += '<rect x="'+bx+'" y="'+by+'" width="'+barW+'" height="'+bh+'" fill="'+barColor+'" stroke="'+barBorderColor+'" stroke-width="1.3" rx="4"><title>'+barSeries.name+': '+v+'</title></rect>';
+    svg += '<rect x="'+bx+'" y="'+by+'" width="'+barW+'" height="'+bh+'" fill="'+barColor+'" rx="4"><title>'+barSeries.name+': '+v+'</title></rect>';
     if (v > 0) svg += haloText(xCenter(li), barLabelY, v, barLabelColor);
     svg += '<text x="'+xCenter(li)+'" y="'+(chartH-padB+18)+'" font-size="11.5" fill="#6B7280" text-anchor="middle">'+lbl+'</text>';
   });
@@ -2530,7 +2530,7 @@ function drawComboBarLineChart(containerId, labels, barSeries, lineSeries, maxVa
   });
   svg += '</svg>';
   var legend = '<div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:8px;">'+
-    '<div style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--text-secondary);"><div style="width:11px;height:11px;border-radius:3px;background:'+barColor+';border:1.3px solid '+barBorderColor+';box-sizing:border-box;"></div>'+barSeries.name+'</div>'+
+    '<div style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--text-secondary);"><div style="width:11px;height:11px;border-radius:3px;background:'+barColor+';"></div>'+barSeries.name+'</div>'+
     '<div style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--text-secondary);"><div style="width:11px;height:11px;border-radius:50%;background:'+lineColor+';"></div>'+lineSeries.name+'</div>'+
   '</div>';
   document.getElementById(containerId).innerHTML = svg + legend;
