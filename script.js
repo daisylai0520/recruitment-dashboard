@@ -2489,8 +2489,9 @@ function drawComboBarLineChart(containerId, labels, barSeries, lineSeries, maxVa
   var barW = Math.max(20, groupW*0.4);
   function xCenter(li){ return padL+li*groupW+groupW/2; }
   function yPos(v){ return padT+plotH-(v/maxVal)*plotH; }
-  // Headcount：淺橘色長條（配一個較深的橘色描邊／文字，維持辨識度）；Onboard：深藍色折線
-  var barColor = '#FED7AA', barLabelColor = '#EA580C', lineColor = '#1E3A8A';
+  // 改用同一個藍紫色系、深淺區分兩條資料：Headcount 淺藍紫長條（配中等深淺的藍紫色數字），
+  // Onboard 深藍紫折線，同色系但深淺對比夠大，比橘色＋深藍兩個不同色系更好辨識
+  var barColor = '#C7D2FE', barLabelColor = '#4F46E5', lineColor = '#312E81';
   // 白色描邊+彩色字：先畫一份粗白邊當底（跟背景的格線／長條區隔開），再疊上彩色字本身（長條數字用這個）
   function haloText(x, y, val, color) {
     return '<text x="'+x+'" y="'+y+'" font-size="12.5" text-anchor="middle" font-weight="700" style="fill:none;stroke:#fff;stroke-width:3.5;paint-order:stroke;">'+val+'</text>'+
