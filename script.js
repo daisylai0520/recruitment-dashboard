@@ -2491,10 +2491,14 @@ function drawComboBarLineChart(containerId, labels, barSeries, lineSeries, maxVa
   function yPos(v){ return padT+plotH-(v/maxVal)*plotH; }
   // Headcount：淺橘色長條（配一個較深的橘色描邊／文字，維持辨識度）；Onboard：深藍色折線
   var barColor = '#FED7AA', barLabelColor = '#EA580C', lineColor = '#1E3A8A';
-  // 白色描邊+彩色字：先畫一份粗白邊當底（跟背景的格線／長條區隔開），再疊上彩色字本身
+  // 白色描邊+彩色字：先畫一份粗白邊當底（跟背景的格線／長條區隔開），再疊上彩色字本身（長條數字用這個）
   function haloText(x, y, val, color) {
     return '<text x="'+x+'" y="'+y+'" font-size="12.5" text-anchor="middle" font-weight="700" style="fill:none;stroke:#fff;stroke-width:3.5;paint-order:stroke;">'+val+'</text>'+
       '<text x="'+x+'" y="'+y+'" font-size="12.5" fill="'+color+'" text-anchor="middle" font-weight="700">'+val+'</text>';
+  }
+  // Onboard 的數字不用白色描邊，單純顯示彩色字
+  function plainText(x, y, val, color) {
+    return '<text x="'+x+'" y="'+y+'" font-size="12.5" fill="'+color+'" text-anchor="middle" font-weight="700">'+val+'</text>';
   }
 
   var svg = '<svg width="100%" height="'+chartH+'" viewBox="0 0 '+chartW+' '+chartH+'" preserveAspectRatio="xMinYMid meet">';
@@ -2525,7 +2529,7 @@ function drawComboBarLineChart(containerId, labels, barSeries, lineSeries, maxVa
       if (barLabelYs[i] !== null && Math.abs(lineLabelY - barLabelYs[i]) < 16) {
         lineLabelY = lineLabelY <= barLabelYs[i] ? barLabelYs[i] - 16 : barLabelYs[i] + 16;
       }
-      svg += haloText(xCenter(i), lineLabelY, v, lineColor);
+      svg += plainText(xCenter(i), lineLabelY, v, lineColor);
     }
   });
   svg += '</svg>';
