@@ -1201,9 +1201,9 @@ function openFullEditFromStageModal() {
 // 下方再一排是 Memo（左）搭配 英文成績／是否邀約（右），最後電訪紀錄(HR)/(主管) 並排整排顯示。
 // 欄位寬度依下拉選項／目前值文字長度自動抓一個看起來剛好的寬度，不用固定等寬格線。
 var CAND_FIELD_LAYOUT_LEFT_ROWS = [
-  ['單位', 'Job Function'],
-  ['Name', '履歷代碼', '104_Position'],
-  ['Source', 'Inviter', '面試主管', '負責HR']
+  ['單位', 'Job Function', 'Name', '履歷代碼', '104_Position'],
+  ['Source', 'Inviter', '面試主管', '負責HR'],
+  ['性別', '年齡', '最高學歷', '學校', '科系', '最近工作']
 ];
 var CAND_FIELD_LAYOUT_RIGHT_ROWS = [
   ['invite_date', 'Phone Interview_date', 'Interview_date', 'Offer Date', 'Onboard date'],
@@ -1213,8 +1213,8 @@ var CAND_FIELD_LAYOUT_BOTTOM_RIGHT_ROW = ['英文成績', '是否邀約'];
 var CAND_FIELD_LAYOUT_MEMO = 'Memo';
 
 // 把排版清單裡的欄位名稱對應到這批資料實際的欄位名稱（履歷代碼在不同工作表欄名可能有些微差異，用包含比對，
-// 邏輯跟 findResumeCodeKey 一致）；沒有列在排版清單裡的欄位（例如電訪紀錄(HR)/(主管)、性別、年齡、最高學歷、學校、科系、最近工作）
-// 歸到 leftover，排在最後（電訪紀錄會自動並排），避免漏掉任何欄位。
+// 邏輯跟 findResumeCodeKey 一致）；沒有列在排版清單裡的欄位（例如電訪紀錄(HR)/(主管)）歸到 leftover，
+// 排在最後（電訪紀錄會自動並排），避免漏掉任何欄位。
 function resolveCandFieldLayout(headers) {
   var used = {};
   function matchHeader(label) {
@@ -1247,9 +1247,11 @@ function buildCandLayoutHtml(layout, fieldHtmlFor, pairedFieldHtmlFor) {
   function rowHtml(row) {
     return '<div style="display:flex;flex-wrap:wrap;gap:14px;align-items:flex-start;">'+row.map(fieldHtmlFor).join('')+'</div>';
   }
+  // 左欄（人員/職位資料）比右欄（日期資料）需要的寬度少，直線比正中間往左移一點，讓右欄日期排能排得比較開
+  var candColGridStyle = 'display:grid;grid-template-columns:0.85fr 1.15fr;gap:0 28px;align-items:start;';
   var leftColHtml = '<div style="display:flex;flex-direction:column;gap:14px;">'+layout.leftRows.map(rowHtml).join('')+'</div>';
   var rightColHtml = '<div style="display:flex;flex-direction:column;gap:14px;border-left:1px solid var(--border);padding-left:28px;">'+layout.rightRows.map(rowHtml).join('')+'</div>';
-  var sections = ['<div style="display:grid;grid-template-columns:1fr 1fr;gap:0 28px;align-items:start;">'+leftColHtml+rightColHtml+'</div>'];
+  var sections = ['<div style="'+candColGridStyle+'">'+leftColHtml+rightColHtml+'</div>'];
 
   var hasMemo = !!layout.memoField;
   var hasBottomRight = layout.bottomRightRow.length > 0;
@@ -1257,7 +1259,7 @@ function buildCandLayoutHtml(layout, fieldHtmlFor, pairedFieldHtmlFor) {
     sections.push('<div style="border-top:1px solid var(--border);margin:2px 0;"></div>');
     var memoColHtml = '<div style="display:flex;flex-direction:column;gap:14px;">'+(hasMemo ? rowHtml([layout.memoField]) : '')+'</div>';
     var bottomRightColHtml = '<div style="display:flex;flex-direction:column;gap:14px;border-left:1px solid var(--border);padding-left:28px;">'+(hasBottomRight ? rowHtml(layout.bottomRightRow) : '')+'</div>';
-    sections.push('<div style="display:grid;grid-template-columns:1fr 1fr;gap:0 28px;align-items:start;">'+memoColHtml+bottomRightColHtml+'</div>');
+    sections.push('<div style="'+candColGridStyle+'">'+memoColHtml+bottomRightColHtml+'</div>');
   }
 
   var isPhoneRecordHeader = function(h){ return /phone\s*interview\s*record/i.test(h); };
@@ -1282,7 +1284,7 @@ function buildCandLayoutHtml(layout, fieldHtmlFor, pairedFieldHtmlFor) {
 var CAND_FIELD_WIDTH_DEFAULTS = {
   'Name': 120, '年齡': 64, '學校': 170, '科系': 150, '最近工作': 200,
   'Phone Interview_date': 150, 'Interview_date': 150, 'Offer Date': 130, 'Onboard date': 130,
-  'Result Update_date': 150
+  'invite_date': 130, 'Result Update_date': 150
 };
 // 依欄位的下拉選項文字長度（沒有下拉選項就用目前值或欄位預設寬度）粗估一個看起來剛好的欄位寬度；
 // Memo 一律全寬顯示（回傳 'full'，由 renderQueryField 轉成 flex:1 1 100%）
