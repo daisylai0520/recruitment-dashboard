@@ -2075,6 +2075,7 @@ function renderHcAdminDashboard() {
   var onboardKey = Object.keys(hcRawData[0]).find(function(k){return k.trim()==='Onboard date';}) || 'Onboard date';
   var reqKey = Object.keys(hcRawData[0]).find(function(k){return k.trim()==='Requisition Date' || k.trim()==='開缺日';}) || 'Requisition Date';
   var reasonKey = Object.keys(hcRawData[0]).find(function(k){return k.trim()==='開缺理由';}) || '開缺理由';
+  var dutiesKey = Object.keys(hcRawData[0]).find(function(k){return k.trim()==='Duties';}) || 'Duties';
 
   var scopedRows = hcRawData.filter(function(r){ return multiFilterPassCategory('hca-cat', r[divKey]); });
 
@@ -2090,9 +2091,10 @@ function renderHcAdminDashboard() {
     var onboardVal = String(r[onboardKey]||'').trim();
     var div = String(r[divKey]||'').trim();
     var onboardDt = parseDateTime(onboardVal);
+    var onboardPending = false; // Onboard date 已填但還沒到，代表已經找到人、正等對方來報到
     if (onboardDt) {
       var od = new Date(onboardDt); od.setHours(0,0,0,0);
-      if (od > today) upcomingCount++; // 即將報到：Onboard date 是還沒到的未來日期
+      if (od > today) { upcomingCount++; onboardPending = true; } // 即將報到：Onboard date 是還沒到的未來日期
     }
     if (!succ && !onboardVal) {
       openCount++;
@@ -2100,9 +2102,14 @@ function renderHcAdminDashboard() {
       var reason = String(r[reasonKey]||'').trim() || '未填寫開缺理由';
       if (!(reason in openByReason)) { openByReason[reason] = 0; openByReasonOrder.push(reason); }
       openByReason[reason]++;
-      if (isCheckboxTruthy(r['急缺'])) urgentRows.push(r);
     } else {
       filledCount++;
+    }
+    // 急缺待處理清單：只要勾了「急缺」就列進來（不限於完全未結案），已經安排 Onboard date 但對方還沒到職的
+    // 一樣要繼續追蹤，用下面的「是否有人待報到」欄位標示狀態，而不是直接從清單消失
+    if (isCheckboxTruthy(r['急缺'])) {
+      r._onboardPending = onboardPending;
+      urgentRows.push(r);
     }
   });
 
@@ -2146,9 +2153,12 @@ function renderHcAdminDashboard() {
 
   var divArr = Object.keys(openByDiv).map(function(k){ return {label:k, count:openByDiv[k]}; }).sort(function(a,b){ return b.count-a.count; });
   var urgentHtml = !urgentRows.length ? '<div class="empty" style="padding:16px 0;text-align:center;">目前沒有急缺項目</div>' :
-    '<table class="pi-table"><thead><tr><th>單位</th><th>Job Function</th><th>開缺理由</th><th>開缺日</th></tr></thead><tbody>'+
+    '<table class="pi-table"><thead><tr><th>單位</th><th>Job Function</th><th>開缺理由</th><th>開缺日</th><th>Duties</th><th>Onboard date</th><th>是否有人待報到</th></tr></thead><tbody>'+
     urgentRows.map(function(r){
-      return '<tr><td>'+(r[divKey]||'')+'</td><td>'+(r[jobKey]||'')+'</td><td>'+(r[reasonKey]||'')+'</td><td>'+(r[reqKey]||'')+'</td></tr>';
+      var pendingHtml = r._onboardPending
+        ? '<span style="color:#D97706;font-weight:600;">是</span>'
+        : '<span style="color:var(--text-tertiary);">否</span>';
+      return '<tr><td>'+(r[divKey]||'')+'</td><td>'+(r[jobKey]||'')+'</td><td>'+(r[reasonKey]||'')+'</td><td>'+fmtDateOnly(r[reqKey])+'</td><td>'+(r[dutiesKey]||'')+'</td><td>'+fmtDateOnly(r[onboardKey])+'</td><td>'+pendingHtml+'</td></tr>';
     }).join('')+
     '</tbody></table>';
 
