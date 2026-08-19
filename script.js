@@ -1247,8 +1247,9 @@ function buildCandLayoutHtml(layout, fieldHtmlFor, pairedFieldHtmlFor) {
   function rowHtml(row) {
     return '<div style="display:flex;flex-wrap:wrap;gap:14px;align-items:flex-start;">'+row.map(fieldHtmlFor).join('')+'</div>';
   }
-  // 左欄（人員/職位資料）比右欄（日期資料）需要的寬度少，直線比正中間往左移一點，讓右欄日期排能排得比較開
-  var candColGridStyle = 'display:grid;grid-template-columns:0.85fr 1.15fr;gap:0 28px;align-items:start;';
+  // 左欄（人員/職位資料）欄位數比右欄多、又有固定寬的 104_Position／最近工作，需要的總寬度其實比右欄多，
+  // 直線改往右移，讓左欄一整排能放得下、不會被擠到換行
+  var candColGridStyle = 'display:grid;grid-template-columns:1.3fr 1fr;gap:0 28px;align-items:start;';
   var leftColHtml = '<div style="display:flex;flex-direction:column;gap:14px;">'+layout.leftRows.map(rowHtml).join('')+'</div>';
   var rightColHtml = '<div style="display:flex;flex-direction:column;gap:14px;border-left:1px solid var(--border);padding-left:28px;">'+layout.rightRows.map(rowHtml).join('')+'</div>';
   var sections = ['<div style="'+candColGridStyle+'">'+leftColHtml+rightColHtml+'</div>'];
