@@ -3386,7 +3386,14 @@ var MAINTAIN_DROPDOWNS = {
         var filtered = managerInfoData.filter(function(m){ return units.indexOf(String(m.BU||'').trim()) >= 0; });
         if (filtered.length) pool = filtered;
       }
-      return [...new Set(pool.map(function(m){return String(m.Name||'').trim();}))].filter(Boolean).sort();
+      var names = pool.map(function(m){return String(m.Name||'').trim();});
+      // 各單位負責的 HR 自己也可能是邀約人（Inviter），比照 Unit HR Mapping 工作表的「負責HR」欄位一併加入選項
+      var mappingRows = units.length
+        ? unitHrMappingData.filter(function(rec){ return units.indexOf(String(rec['單位']||'').trim()) >= 0; })
+        : unitHrMappingData;
+      var hrNames = mappingRows.reduce(function(acc, rec){ return acc.concat(splitMultiValue(rec['負責HR'])); }, []);
+      names = names.concat(hrNames);
+      return [...new Set(names)].filter(Boolean).sort();
     },
     // 面試主管：跟 Inviter 一樣可能不只一位，但選項直接抓 Manager Information 工作表的 Name 欄位（而非只抓已經用過的值）
     '面試主管': function(){ return [...new Set(managerInfoData.map(function(m){return String(m.Name||'').trim();}))].filter(Boolean).sort(); },
