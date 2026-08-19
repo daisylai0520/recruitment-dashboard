@@ -1248,9 +1248,14 @@ function estimateCandFieldWidth(sheetName, field, currentVal) {
     raw = base;
   }
   var clamped = Math.min(MAX_W, Math.max(MIN_W, raw));
-  // 負責HR 欄寬縮短 60%（＝一般估算寬度的 40%）；履歷代碼欄寬加長一半（＝一般估算寬度的 1.5 倍，另外放寬上限）
+  // 負責HR 欄寬縮短 60%（＝一般估算寬度的 40%）
   if (field === '負責HR') return Math.max(50, Math.round(clamped * 0.4));
-  if (field.indexOf('履歷代碼') >= 0) return Math.min(320, Math.round(clamped * 1.5));
+  // 履歷代碼欄寬先加長一半、又再縮短一半 → 等於一般估算寬度的 0.75 倍（放寬上限、但保留一個看得清楚的下限）
+  if (field.indexOf('履歷代碼') >= 0) return Math.max(60, Math.min(320, Math.round(clamped * 1.5 * 0.5)));
+  // Job Function 欄寬縮短一半
+  if (field === 'Job Function') return Math.max(60, Math.round(clamped * 0.5));
+  // Name、Source 欄寬再縮短 20%
+  if (field === 'Name' || field === 'Source') return Math.max(60, Math.round(clamped * 0.8));
   return clamped;
 }
 
