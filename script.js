@@ -387,12 +387,40 @@ function dateFilterPass(pageKey, rec) {
 // Headcount 專用的時間篩選判斷：跟 dateFilterPass 邏輯一樣，差別是欄位選單給的是語意名稱
 // （Requisition Date／Onboard date），但試算表實際欄名可能是「開缺日」，這裡用呼叫端先解析好的
 // reqKeyHc／onboardKeyHc 找到真正的欄位再比對，避免欄名對不起來篩不到任何資料。
-function hcDateFilterPass(rec, reqKeyHc, onboardKeyHc) {
-  var state = dateFilterState['hc'];
+// pageKey 預設是 'hc'（Headcount 報表分頁），職缺管理（hcAdmin）也共用這個函式，帶自己的 pageKey 進來即可。
+function hcDateFilterPass(rec, reqKeyHc, onboardKeyHc, pageKey) {
+  var state = dateFilterState[pageKey || 'hc'];
   if (!state || !state.field || (!state.start && !state.end)) return true;
   var actualKey = state.field === 'Onboard date' ? onboardKeyHc : reqKeyHc;
   var raw = rec[actualKey] || '';
   var d = parseDateTime(raw);
+  if (!d) return false;
+  if (state.start && d < state.start) return false;
+  if (state.end && d > state.end) return false;
+  return true;
+}
+
+// 「各單位招募現況」報表同時彙總 Headcount Records（職缺）跟 Candidate Records（邀約～待報到各階段）兩種資料，
+// 篩選欄位選單裡有些選項只跟其中一種資料有關（例如 invite_date 跟職缺無關、Requisition Date 跟候選人各階段無關），
+// 選到跟這批資料無關的欄位時直接視為「不篩選這批」，不要誤用其他欄位頂替，避免篩出錯誤結果。
+var UNITSTATUS_HC_DATE_FIELDS = ['Requisition Date', 'Onboard date'];
+var UNITSTATUS_CAND_DATE_FIELDS = ['invite_date', 'Phone Interview_date', 'Interview_date', 'Offer Date', 'Onboard date'];
+function unitStatusHcDatePass(rec, reqKeyUS, onboardKeyUS) {
+  var state = dateFilterState.unitStatus;
+  if (!state || !state.field || (!state.start && !state.end)) return true;
+  if (UNITSTATUS_HC_DATE_FIELDS.indexOf(state.field) < 0) return true;
+  var actualKey = state.field === 'Onboard date' ? onboardKeyUS : reqKeyUS;
+  var d = parseDateTime(rec[actualKey] || '');
+  if (!d) return false;
+  if (state.start && d < state.start) return false;
+  if (state.end && d > state.end) return false;
+  return true;
+}
+function unitStatusCandDatePass(rec) {
+  var state = dateFilterState.unitStatus;
+  if (!state || !state.field || (!state.start && !state.end)) return true;
+  if (UNITSTATUS_CAND_DATE_FIELDS.indexOf(state.field) < 0) return true;
+  var d = parseDateTime(rec[state.field] || '');
   if (!d) return false;
   if (state.start && d < state.start) return false;
   if (state.end && d > state.end) return false;
@@ -404,6 +432,8 @@ function triggerPageRerender(pageKey) {
     kanban: renderKanban,
     overview: renderOverview,
     hc: renderHeadcount,
+    hcAdmin: renderHcAdminDashboard,
+    unitStatus: renderUnitStatusReport,
     candidateSearch: renderCandidateSearch,
     candidateMaintenance: renderCandQuery,
     trends: renderTrends,
@@ -436,6 +466,17 @@ function initDateFilterSlots() {
     // 不設 defaultQuickRange——每次進入畫面預設不篩選、直接顯示所有 Headcount 資料，
     // 跟 Candidate 畫面（candidateMaintenance）一樣，只有使用者自己選過範圍之後才會套用、並記住那次選擇。
     'hcDateFilterSlot': {key:'hc', fields:[{value:'Requisition Date',label:'Requisition Date（開缺日）'},{value:'Onboard date',label:'Onboard date（到職日）'}], quickRanges:maintainQuickRanges},
+    // 職缺管理：跟 Headcount 報表分頁一樣，可切換用「開缺日」或「到職日」篩選；預設不篩選，顯示全部資料
+    'hcaDateFilterSlot': {key:'hcAdmin', fields:[{value:'Requisition Date',label:'Requisition Date（開缺日）'},{value:'Onboard date',label:'Onboard date（到職日）'}], quickRanges:maintainQuickRanges},
+    // 各單位招募現況：同時涵蓋職缺（開缺日／到職日）跟人選各階段日期，選到跟某批資料無關的欄位時，那批資料不會被篩選（見 unitStatusHcDatePass／unitStatusCandDatePass）
+    'usDateFilterSlot': {key:'unitStatus', fields:[
+      {value:'Requisition Date',label:'Requisition Date（開缺日）'},
+      {value:'Onboard date',label:'Onboard date（到職日）'},
+      {value:'invite_date',label:'invite_date（邀約日）'},
+      {value:'Phone Interview_date',label:'Phone Interview_date（電訪日）'},
+      {value:'Interview_date',label:'Interview_date（面試日）'},
+      {value:'Offer Date',label:'Offer Date（錄取日）'}
+    ], quickRanges:maintainQuickRanges},
     // Market Salary：依「Update date」篩選（任何欄位被改動都會自動蓋上當天日期，是這張表唯一穩定維護的日期欄位）
     'saDateFilterSlot': {key:'salary', fields:[{value:'Update date',label:'Update date'}], quickRanges:maintainQuickRanges, defaultQuickRange:'thisWeek'}
   };
@@ -2088,7 +2129,8 @@ function renderHcAdminDashboard() {
   if (scopeIsJob) renderMultiFilterBar('hcaJobBar', 'hca-job', buildMultiValueOptions(hcRawData, function(r){return r[jobKey];}));
 
   var scopedRows = hcRawData.filter(function(r){
-    return scopeIsJob ? multiFilterPassMulti('hca-job', r[jobKey]) : multiFilterPass('hca-bu', r[divKey]);
+    return (scopeIsJob ? multiFilterPassMulti('hca-job', r[jobKey]) : multiFilterPass('hca-bu', r[divKey])) &&
+      hcDateFilterPass(r, reqKey, onboardKey, 'hcAdmin');
   });
 
   // 依「單位分類」歸類的小工具：一個單位理論上只對應一個分類，查不到分類就歸到「未分類」，避免漏算
@@ -2258,20 +2300,22 @@ function renderUnitStatusReport() {
     renderMultiFilterBar('usJobBar', 'us-job', usJobOptions);
   }
 
-  // 職缺：跟職缺管理同一套「未結案」判斷（遞補人員、Onboard date 兩欄都空白才算未結案），並套用依職務篩選（若有）
+  // 職缺：跟職缺管理同一套「未結案」判斷（遞補人員、Onboard date 兩欄都空白才算未結案），並套用依職務篩選、時間篩選（若有）
   var hcSuccKeyUS = hcRawData.length ? (Object.keys(hcRawData[0]).find(function(k){return k.includes('Successor')||k.trim()==='遞補人員';}) || 'Successor') : 'Successor';
   var hcOnboardKeyUS = hcRawData.length ? (Object.keys(hcRawData[0]).find(function(k){return k.trim()==='Onboard date';}) || 'Onboard date') : 'Onboard date';
+  var hcReqKeyUS = hcRawData.length ? (Object.keys(hcRawData[0]).find(function(k){return k.trim()==='Requisition Date' || k.trim()==='開缺日';}) || 'Requisition Date') : 'Requisition Date';
   var vacancyByUnit = {};
   (hcRawData||[]).forEach(function(r){
     var div = String(r[hcDivKeyUS]||'').trim();
     if (!div) return;
     if (scopeIsJob && !multiFilterPassMulti('us-job', r[hcJobKeyUS])) return;
+    if (!unitStatusHcDatePass(r, hcReqKeyUS, hcOnboardKeyUS)) return;
     var succ = String(r[hcSuccKeyUS]||'').trim();
     var onboardVal = String(r[hcOnboardKeyUS]||'').trim();
     if (!succ && !onboardVal) vacancyByUnit[div] = (vacancyByUnit[div]||0) + 1;
   });
 
-  // 招募階段人數：依「單位」欄位（可能複選）逐一累加到每個單位，並套用依單位／依職務篩選（若有）
+  // 招募階段人數：依「單位」欄位（可能複選）逐一累加到每個單位，並套用依單位／依職務篩選、時間篩選（若有）
   var today = new Date(); today.setHours(0,0,0,0);
   var stats = {};
   units.forEach(function(u){ stats[u] = {invited:0, phone:0, interview:0, offer:0, onboard:0, pending:0}; });
@@ -2279,6 +2323,7 @@ function renderUnitStatusReport() {
     var us = splitMultiValue(d['單位']);
     if (!us.length) return;
     if (scopeIsJob && !multiFilterPassMulti('us-job', d['Job Function'])) return;
+    if (!unitStatusCandDatePass(d)) return;
     var invited = !!(d.invite_date || d['invite date']);
     var phone = !!String(d['Phone Interview_date']||'').trim();
     var interview = !!String(d['Interview_date']||'').trim();
