@@ -716,7 +716,7 @@ async function fetchData() {
 
 var TAB_RESOURCES = {
   kanban:['core'], candidateSearch:['core'], overview:['core'], trends:['core','headcount'],
-  hcAdmin:['headcount'], hc:['headcount'], salary:['salary'], schedule:['core','scheduling'], maintain:['core'],
+  hcAdmin:['headcount'], hc:['headcount'], unitStatus:['core','headcount'], salary:['salary'], schedule:['core','scheduling'], maintain:['core'],
   permissions:['permissions'], report:[]
 };
 
@@ -734,10 +734,11 @@ function renderAll(){
   if (currentTab === 'salary' && loadedResources.salary) renderSalaryScreen();
   if (currentTab === 'permissions' && loadedResources.permissions) renderPermissions();
   if (loadedResources.headcount) { renderHeadcount(); renderHcAdminDashboard(); }
+  if (loadedResources.headcount && loadedResources.core) renderUnitStatusReport();
 }
 
 // ---- role selection ----
-var ALL_VIEW_TABS = ['kanban','candidateSearch','overview','hcAdmin','hc','maintain','trends','schedule','salary','report','permissions'];
+var ALL_VIEW_TABS = ['kanban','candidateSearch','overview','hcAdmin','hc','unitStatus','maintain','trends','schedule','salary','report','permissions'];
 // 「快速查看」模式：從身分選擇畫面左側直接進入單一分頁（等同管理者權限，但畫面上只看得到這一個分頁、沒有其他分頁與分頁列）
 var restrictedSingleTab = null;
 
@@ -972,6 +973,7 @@ async function switchTab(tab,el) {
   if (tab === 'overview') renderOverview();
   if (tab === 'hcAdmin') renderHcAdminDashboard();
   if (tab === 'hc') renderHeadcount();
+  if (tab === 'unitStatus') renderUnitStatusReport();
   if (tab === 'trends') renderTrends();
   if (tab === 'schedule') renderSchedule();
   if (tab === 'salary') { ensureNewSalaryFieldsRendered(); renderSalaryScreen(); }
@@ -2181,6 +2183,104 @@ function renderHcAdminDashboard() {
   } else {
     document.getElementById('hcAdminChart').innerHTML = '<div class="empty" style="padding:20px 0;text-align:center;">目前無缺額資料</div>';
   }
+}
+
+// 報表：各單位招募現況——依單位彙總「現有／職缺／邀約／電訪／面試／錄取／報到／待報到」各多少人，用表格呈現。
+// 「現有」（在職人數）目前還沒有資料來源，先顯示「—」（跟職缺管理的「在職」卡片一致，等有資料來源後再補上）；
+// 職缺沿用跟職缺管理同一套「未結案」判斷；邀約／電訪／面試／錄取／報到／待報到都是依 Candidate Records 對應欄位
+// 是否已填來累計（同一位人選符合多個階段就會同時列入多欄，屬於累計人次、不是互斥分類）。
+function renderUnitStatusReport() {
+  var wrap = document.getElementById('unitStatusBody');
+  if (!wrap) return;
+
+  // 單位清單：以 Unit HR Mapping 的單位為主，另外把資料裡實際出現過、但沒登記在對應表裡的單位也一併補進來，避免漏算
+  var units = getUnitOptions().slice();
+  function addUnit(u) {
+    u = String(u||'').trim();
+    if (u && units.indexOf(u) < 0) units.push(u);
+  }
+  (allData||[]).forEach(function(d){ splitMultiValue(d['單位']).forEach(addUnit); });
+  var hcDivKeyUS = hcRawData.length ? (Object.keys(hcRawData[0]).find(function(k){return k.trim()==='Division';}) || 'Division') : 'Division';
+  (hcRawData||[]).forEach(function(r){ addUnit(r[hcDivKeyUS]); });
+
+  if (!units.length) {
+    wrap.innerHTML = '<div class="empty" style="padding:30px 0;text-align:center;">尚無單位資料</div>';
+    return;
+  }
+
+  // 職缺：跟職缺管理同一套「未結案」判斷（遞補人員、Onboard date 兩欄都空白才算未結案）
+  var hcSuccKeyUS = hcRawData.length ? (Object.keys(hcRawData[0]).find(function(k){return k.includes('Successor')||k.trim()==='遞補人員';}) || 'Successor') : 'Successor';
+  var hcOnboardKeyUS = hcRawData.length ? (Object.keys(hcRawData[0]).find(function(k){return k.trim()==='Onboard date';}) || 'Onboard date') : 'Onboard date';
+  var vacancyByUnit = {};
+  (hcRawData||[]).forEach(function(r){
+    var div = String(r[hcDivKeyUS]||'').trim();
+    if (!div) return;
+    var succ = String(r[hcSuccKeyUS]||'').trim();
+    var onboardVal = String(r[hcOnboardKeyUS]||'').trim();
+    if (!succ && !onboardVal) vacancyByUnit[div] = (vacancyByUnit[div]||0) + 1;
+  });
+
+  // 招募階段人數：依「單位」欄位（可能複選）逐一累加到每個單位
+  var today = new Date(); today.setHours(0,0,0,0);
+  var stats = {};
+  units.forEach(function(u){ stats[u] = {invited:0, phone:0, interview:0, offer:0, onboard:0, pending:0}; });
+  (allData||[]).forEach(function(d){
+    var us = splitMultiValue(d['單位']);
+    if (!us.length) return;
+    var invited = !!(d.invite_date || d['invite date']);
+    var phone = !!String(d['Phone Interview_date']||'').trim();
+    var interview = !!String(d['Interview_date']||'').trim();
+    var offer = !!String(d['Offer Date']||'').trim();
+    var onboardVal = String(d['Onboard date']||'').trim();
+    var onboardDt = onboardVal ? parseDateTime(onboardVal) : null;
+    var isOnboarded = false, isPending = false;
+    if (onboardDt) {
+      var od = new Date(onboardDt); od.setHours(0,0,0,0);
+      if (od > today) isPending = true; else isOnboarded = true;
+    }
+    us.forEach(function(u){
+      if (!stats[u]) stats[u] = {invited:0, phone:0, interview:0, offer:0, onboard:0, pending:0};
+      if (invited) stats[u].invited++;
+      if (phone) stats[u].phone++;
+      if (interview) stats[u].interview++;
+      if (offer) stats[u].offer++;
+      if (isOnboarded) stats[u].onboard++;
+      if (isPending) stats[u].pending++;
+    });
+  });
+
+  units.sort(function(a,b){ return a.localeCompare(b, 'zh-Hant'); });
+
+  var totals = {vac:0, invited:0, phone:0, interview:0, offer:0, onboard:0, pending:0};
+  var rowsHtml = units.map(function(u){
+    var s = stats[u] || {invited:0, phone:0, interview:0, offer:0, onboard:0, pending:0};
+    var vac = vacancyByUnit[u] || 0;
+    totals.vac += vac; totals.invited += s.invited; totals.phone += s.phone;
+    totals.interview += s.interview; totals.offer += s.offer; totals.onboard += s.onboard; totals.pending += s.pending;
+    return '<tr><td>'+u+'</td><td style="text-align:center;">—</td><td style="text-align:center;">'+vac+'</td>'+
+      '<td style="text-align:center;">'+s.invited+'</td><td style="text-align:center;">'+s.phone+'</td>'+
+      '<td style="text-align:center;">'+s.interview+'</td><td style="text-align:center;">'+s.offer+'</td>'+
+      '<td style="text-align:center;">'+s.onboard+'</td><td style="text-align:center;">'+s.pending+'</td></tr>';
+  }).join('');
+
+  var totalRowHtml = '<tr style="font-weight:700;background:var(--bg);"><td>合計</td><td style="text-align:center;">—</td>'+
+    '<td style="text-align:center;">'+totals.vac+'</td><td style="text-align:center;">'+totals.invited+'</td>'+
+    '<td style="text-align:center;">'+totals.phone+'</td><td style="text-align:center;">'+totals.interview+'</td>'+
+    '<td style="text-align:center;">'+totals.offer+'</td><td style="text-align:center;">'+totals.onboard+'</td>'+
+    '<td style="text-align:center;">'+totals.pending+'</td></tr>';
+
+  wrap.innerHTML =
+    '<div class="table-wrap" style="margin-bottom:10px;">'+
+      '<table class="pi-table">'+
+        '<thead><tr><th>單位</th><th style="text-align:center;">現有</th><th style="text-align:center;">職缺</th>'+
+        '<th style="text-align:center;">邀約</th><th style="text-align:center;">電訪</th><th style="text-align:center;">面試</th>'+
+        '<th style="text-align:center;">錄取</th><th style="text-align:center;">報到</th><th style="text-align:center;">待報到</th></tr></thead>'+
+        '<tbody>'+rowsHtml+totalRowHtml+'</tbody>'+
+      '</table>'+
+    '</div>'+
+    '<div style="font-size:11px;color:var(--text-tertiary);">「現有」目前還沒有資料來源，先顯示「—」；職缺＝Headcount Records 裡遞補人員與 Onboard date 都還空白的未結案缺額；'+
+    '邀約／電訪／面試／錄取分別以候選人是否已填邀約日／Phone Interview_date／Interview_date／Offer Date 來計算；報到／待報到則依 Onboard date 是否已過來分；'+
+    '同一位人選符合多個階段會同時算進多欄，是累計人次、不是互斥分類。</div>';
 }
 
 function renderHeadcount() {

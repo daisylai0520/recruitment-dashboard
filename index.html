@@ -372,10 +372,17 @@
     <div class="page-sub">選擇下方項目查看報表內容</div>
     <div style="display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap;">
       <button onclick="switchTab('hc', findTabNavEl('hc'))" style="padding:8px 16px;border:1.5px solid var(--border);border-radius:8px;background:var(--surface);cursor:pointer;font-size:13px;font-weight:600;color:var(--text-primary);" onmouseover="this.style.borderColor='#4F46E5'" onmouseout="this.style.borderColor='var(--border)'">Headcount</button>
-      <button disabled title="敬請期待" style="padding:8px 16px;border:1.5px solid var(--border);border-radius:8px;background:var(--bg);cursor:not-allowed;font-size:13px;font-weight:600;color:var(--text-tertiary);">報表項目 2（敬請期待）</button>
+      <button onclick="switchTab('unitStatus', findTabNavEl('unitStatus'))" style="padding:8px 16px;border:1.5px solid var(--border);border-radius:8px;background:var(--surface);cursor:pointer;font-size:13px;font-weight:600;color:var(--text-primary);" onmouseover="this.style.borderColor='#4F46E5'" onmouseout="this.style.borderColor='var(--border)'">各單位招募現況</button>
       <button disabled title="敬請期待" style="padding:8px 16px;border:1.5px solid var(--border);border-radius:8px;background:var(--bg);cursor:not-allowed;font-size:13px;font-weight:600;color:var(--text-tertiary);">報表項目 3（敬請期待）</button>
     </div>
-    <div class="empty" style="padding:40px 0;text-align:center;">點選上方「Headcount」查看報表內容；其他報表項目之後再陸續加上</div>
+    <div class="empty" style="padding:40px 0;text-align:center;">點選上方項目查看報表內容；其他報表項目之後再陸續加上</div>
+  </div>
+
+  <!-- ===== 報表：各單位招募現況 ===== -->
+  <div id="view-unitStatus" style="display:none">
+    <div class="page-title">各單位招募現況</div>
+    <div class="page-sub">依單位彙總目前的現有人力、職缺、以及招募各階段人數（同一位人選可能同時列入多個階段，非互斥累計）</div>
+    <div id="unitStatusBody"><div class="empty" style="padding:30px 0;text-align:center;">資料載入中...</div></div>
   </div>
 
   <!-- ===== PERMISSION MANAGEMENT（僅管理者可見）===== -->
