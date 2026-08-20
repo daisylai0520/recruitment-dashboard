@@ -432,7 +432,6 @@ function triggerPageRerender(pageKey) {
     kanban: renderKanban,
     overview: renderOverview,
     hc: renderHeadcount,
-    hcAdmin: renderHcAdminDashboard,
     unitStatus: renderUnitStatusReport,
     candidateSearch: renderCandidateSearch,
     candidateMaintenance: renderCandQuery,
@@ -466,8 +465,7 @@ function initDateFilterSlots() {
     // 不設 defaultQuickRange——每次進入畫面預設不篩選、直接顯示所有 Headcount 資料，
     // 跟 Candidate 畫面（candidateMaintenance）一樣，只有使用者自己選過範圍之後才會套用、並記住那次選擇。
     'hcDateFilterSlot': {key:'hc', fields:[{value:'Requisition Date',label:'Requisition Date（開缺日）'},{value:'Onboard date',label:'Onboard date（到職日）'}], quickRanges:maintainQuickRanges},
-    // 職缺管理：跟 Headcount 報表分頁一樣，可切換用「開缺日」或「到職日」篩選；預設不篩選，顯示全部資料
-    'hcaDateFilterSlot': {key:'hcAdmin', fields:[{value:'Requisition Date',label:'Requisition Date（開缺日）'},{value:'Onboard date',label:'Onboard date（到職日）'}], quickRanges:maintainQuickRanges},
+    // 職缺管理畫面不提供時間篩選
     // 各單位招募現況：同時涵蓋職缺（開缺日／到職日）跟人選各階段日期，選到跟某批資料無關的欄位時，那批資料不會被篩選（見 unitStatusHcDatePass／unitStatusCandDatePass）
     'usDateFilterSlot': {key:'unitStatus', fields:[
       {value:'Requisition Date',label:'Requisition Date（開缺日）'},
@@ -845,6 +843,7 @@ function enterAs(roleToken, hrName, units) {
   tabHistoryStack = [currentTab];
   tabHistoryIndex = 0;
   initTabHistoryNav();
+  initReportPageNav();
 
   // 「快速查看」進去的畫面（目前只有 Headcount／Market Salary Records／Analysis）其實用不到 Candidate Records 這份
   // 核心資料，不需要的話（例如 hc／salary）就跳過，直接抓該分頁自己需要的資源，避免被不相關的資料拖累。
@@ -987,11 +986,50 @@ function goTabHistoryForward() {
   goToHistoryTab();
 }
 
+// 報表底下的子畫面（目前是 Headcount、各單位招募現況，之後新增報表項目時把 tab key 加進這裡就好）：
+// 這幾個畫面改用專屬的「上一頁／下一頁」，在報表的幾個子畫面之間切換，跟全站的「上一步／下一步」
+// （沿著使用者實際點過的分頁瀏覽歷史走）是不同的東西，所以這幾個畫面改用下面這組專屬導覽、不再顯示上一步／下一步。
+var REPORT_VIEW_IDS = ['view-report', 'view-hc', 'view-unitStatus'];
+var REPORT_PAGE_ORDER = ['hc', 'unitStatus'];
+function updateReportPageNavButtons() {
+  var idx = REPORT_PAGE_ORDER.indexOf(currentTab);
+  document.querySelectorAll('.report-page-nav-back').forEach(function(b){ b.disabled = idx <= 0; });
+  document.querySelectorAll('.report-page-nav-forward').forEach(function(b){ b.disabled = idx < 0 || idx >= REPORT_PAGE_ORDER.length - 1; });
+}
+function goReportPage(delta) {
+  var idx = REPORT_PAGE_ORDER.indexOf(currentTab);
+  if (idx < 0) return;
+  var nextIdx = idx + delta;
+  if (nextIdx < 0 || nextIdx >= REPORT_PAGE_ORDER.length) return;
+  var nextTab = REPORT_PAGE_ORDER[nextIdx];
+  switchTab(nextTab, findTabNavEl(nextTab));
+}
+// 在報表的子畫面（Headcount、各單位招募現況）大標題下方插入「上一頁／下一頁」導覽按鈕（只插入一次，避免重複）
+function initReportPageNav() {
+  ['view-hc', 'view-unitStatus'].forEach(function(viewId){
+    var viewEl = document.getElementById(viewId);
+    if (!viewEl) return;
+    var titleEl = viewEl.querySelector('.page-title');
+    if (!titleEl) return;
+    var next = titleEl.nextElementSibling;
+    if (next && next.classList && next.classList.contains('report-page-nav')) return;
+    var nav = document.createElement('div');
+    nav.className = 'report-page-nav';
+    nav.style.cssText = 'display:flex;gap:8px;margin:8px 0 4px;';
+    nav.innerHTML =
+      '<button class="btn-cancel report-page-nav-back" style="padding:4px 12px;font-size:12px;" onclick="goReportPage(-1)">← 上一頁</button>'+
+      '<button class="btn-cancel report-page-nav-forward" style="padding:4px 12px;font-size:12px;" onclick="goReportPage(1)">下一頁 →</button>';
+    titleEl.insertAdjacentElement('afterend', nav);
+  });
+  updateReportPageNavButtons();
+}
+
 // 在每個畫面的大標題下方插入「上一步／下一步」導覽按鈕（只插入一次，避免重複）
 function initTabHistoryNav() {
   document.querySelectorAll('[id^="view-"] .page-title').forEach(function(titleEl){
     var viewEl = titleEl.closest('[id^="view-"]');
     if (viewEl && viewEl.id === 'view-trends') return; // Recruitment Status 畫面不顯示上一步／下一步
+    if (viewEl && REPORT_VIEW_IDS.indexOf(viewEl.id) >= 0) return; // 報表相關畫面改用專屬的「上一頁／下一頁」（見 initReportPageNav）
     var next = titleEl.nextElementSibling;
     if (next && next.classList && next.classList.contains('tab-history-nav')) return;
     var nav = document.createElement('div');
@@ -1016,6 +1054,7 @@ async function switchTab(tab,el) {
   }
 
   currentTab=tab;
+  updateReportPageNavButtons();
   window.scrollTo(0, 0);
   document.querySelectorAll('.tab-bar:first-of-type > .tab').forEach(function(t){t.classList.remove('active');});
   if (el) el.classList.add('active');
@@ -2130,8 +2169,7 @@ function renderHcAdminDashboard() {
   if (scopeIsJob) renderMultiFilterDropdown('hcaJobBar', 'hca-job', buildMultiValueOptions(hcRawData, function(r){return r[jobKey];}), 'Job Function');
 
   var scopedRows = hcRawData.filter(function(r){
-    return (scopeIsJob ? multiFilterPassMulti('hca-job', r[jobKey]) : multiFilterPass('hca-bu', r[divKey])) &&
-      hcDateFilterPass(r, reqKey, onboardKey, 'hcAdmin');
+    return scopeIsJob ? multiFilterPassMulti('hca-job', r[jobKey]) : multiFilterPass('hca-bu', r[divKey]);
   });
 
   // 依「單位分類」歸類的小工具：一個單位理論上只對應一個分類，查不到分類就歸到「未分類」，避免漏算
