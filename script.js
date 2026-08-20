@@ -2016,9 +2016,10 @@ function renderTableCellInput(sheetName, rec, field, idx, customWidth) {
     return buildDropdownDatalistInput(sheetName, rec, field, col, idx, options, ddStyle);
   }
 
-  if (isDateOnlyField && sheetName === 'Headcount Records') {
-    // Headcount Records 的日期欄位（目前是 Requisition Date）改用原生日期選擇器，點一下就能從月曆挑日期，
-    // 不用再手動打字；value 需要 yyyy-mm-dd 格式，儲存回試算表時再轉回 yyyy/mm/dd（跟其他日期欄位一致）。
+  if (isDateOnlyField && (sheetName === 'Headcount Records' || sheetName === 'Market Salary Records')) {
+    // Headcount Records 的日期欄位（目前是 Requisition Date）、Market Salary Records 的 Update date
+    // 都改用原生日期選擇器，點一下就能從月曆挑日期，不用再手動打字；
+    // value 需要 yyyy-mm-dd 格式，儲存回試算表時再轉回 yyyy/mm/dd（跟其他日期欄位一致）。
     return '<input type="date" data-sheet="'+sheetName+'" data-row="'+rec._row+'" data-col="'+col+'" data-field="'+field+'" data-idx="'+idx+'" data-raw="'+rawSafe+'" '+
       'value="'+dateOnlyToISO(rawVal)+'" onchange="commitMaintainDateCell(this)" '+
       'style="font-size:12px;padding:5px 7px;border:1px solid var(--border);border-radius:6px;cursor:pointer;'+widthStyle+'">';
@@ -2111,7 +2112,7 @@ function renderHcAdminDashboard() {
   var hcaJobGroupEl = document.getElementById('hcaJobGroup');
   if (hcaBuGroupEl) hcaBuGroupEl.style.display = scopeIsJob ? 'none' : '';
   if (hcaJobGroupEl) hcaJobGroupEl.style.display = scopeIsJob ? '' : 'none';
-  if (!scopeIsJob) renderMultiFilterBar('hcaBuBar', 'hca-bu', getUnitOptions());
+  if (!scopeIsJob) renderMultiFilterDropdown('hcaBuBar', 'hca-bu', getUnitOptions(), '單位');
 
   if (!hcRawData.length) {
     wrap.innerHTML = '<div class="empty" style="padding:30px 0;text-align:center;">尚無 Headcount 資料</div>';
@@ -2126,7 +2127,7 @@ function renderHcAdminDashboard() {
   var reasonKey = Object.keys(hcRawData[0]).find(function(k){return k.trim()==='開缺理由';}) || '開缺理由';
   var dutiesKey = Object.keys(hcRawData[0]).find(function(k){return k.trim()==='Duties';}) || 'Duties';
 
-  if (scopeIsJob) renderMultiFilterBar('hcaJobBar', 'hca-job', buildMultiValueOptions(hcRawData, function(r){return r[jobKey];}));
+  if (scopeIsJob) renderMultiFilterDropdown('hcaJobBar', 'hca-job', buildMultiValueOptions(hcRawData, function(r){return r[jobKey];}), 'Job Function');
 
   var scopedRows = hcRawData.filter(function(r){
     return (scopeIsJob ? multiFilterPassMulti('hca-job', r[jobKey]) : multiFilterPass('hca-bu', r[divKey])) &&
@@ -2144,7 +2145,7 @@ function renderHcAdminDashboard() {
   // 遞補人員、Onboard date 只要其中一欄非空白，就算已到職；兩欄都空白才算未結案
   var openCount = 0, filledCount = 0, urgentRows = [];
   var openByCategory = {};
-  var urgentByCategory = {};
+  var urgentByGroup = {}; // 「各單位急缺」依目前的「依單位查看／依職務查看」分組：單位用 Division，職務用 Job Function
   var openByReason = {}, openByReasonOrder = [];
   var today = new Date(); today.setHours(0,0,0,0);
   var upcomingCount = 0;
@@ -2152,6 +2153,7 @@ function renderHcAdminDashboard() {
     var succ = String(r[succKey]||'').trim();
     var onboardVal = String(r[onboardKey]||'').trim();
     var div = String(r[divKey]||'').trim();
+    var jobVal = String(r[jobKey]||'').trim();
     var onboardDt = parseDateTime(onboardVal);
     var onboardPending = false; // Onboard date 已填但還沒到，代表已經找到人、正等對方來報到
     if (onboardDt) {
@@ -2172,7 +2174,8 @@ function renderHcAdminDashboard() {
     if (isCheckboxTruthy(r['急缺'])) {
       r._onboardPending = onboardPending;
       urgentRows.push(r);
-      if (div) addToCategoryCount(urgentByCategory, div);
+      var urgentGroupKey = scopeIsJob ? jobVal : div;
+      if (urgentGroupKey) urgentByGroup[urgentGroupKey] = (urgentByGroup[urgentGroupKey]||0) + 1;
     }
   });
 
@@ -2214,9 +2217,11 @@ function renderHcAdminDashboard() {
       '</div>'+
     '</div>';
 
-  // 各單位缺額分布、各單位急缺 都依「單位分類」（Unit HR Mapping 的「單位分類」欄位）分組呈現
+  // 各單位缺額分布：依「單位分類」（Unit HR Mapping 的「單位分類」欄位）分組呈現；
+  // 各單位急缺：依首頁選的「依單位查看／依職務查看」分組，依單位查看時用 Division，依職務查看時用 Job Function
   var catArr = Object.keys(openByCategory).map(function(k){ return {label:k, count:openByCategory[k]}; }).sort(function(a,b){ return b.count-a.count; });
-  var urgentCatArr = Object.keys(urgentByCategory).map(function(k){ return {label:k, count:urgentByCategory[k]}; }).sort(function(a,b){ return b.count-a.count; });
+  var urgentGroupArr = Object.keys(urgentByGroup).map(function(k){ return {label:k, count:urgentByGroup[k]}; }).sort(function(a,b){ return b.count-a.count; });
+  var urgentChartTitle = scopeIsJob ? '各職務急缺' : '各單位急缺';
   var urgentHtml = !urgentRows.length ? '<div class="empty" style="padding:16px 0;text-align:center;">目前沒有急缺項目</div>' :
     '<table class="pi-table"><thead><tr><th>單位</th><th>Job Function</th><th>開缺理由</th><th>開缺日</th><th>Duties</th><th>Onboard date</th><th>是否有人待報到</th></tr></thead><tbody>'+
     urgentRows.map(function(r){
@@ -2237,7 +2242,7 @@ function renderHcAdminDashboard() {
     '</div>'+
     '<div style="display:grid;grid-template-columns:1fr 1.6fr;gap:16px;align-items:start;">'+
       '<div class="cal-outer">'+
-        '<div style="font-size:14px;font-weight:600;margin-bottom:10px;">各單位急缺</div>'+
+        '<div style="font-size:14px;font-weight:600;margin-bottom:10px;">'+urgentChartTitle+'</div>'+
         '<div id="hcAdminUrgentChart" style="overflow-x:auto;"></div>'+
       '</div>'+
       '<div class="cal-outer">'+
@@ -2253,9 +2258,9 @@ function renderHcAdminDashboard() {
     document.getElementById('hcAdminChart').innerHTML = '<div class="empty" style="padding:20px 0;text-align:center;">目前無缺額資料</div>';
   }
 
-  if (urgentCatArr.length) {
-    var urgentMaxVal = Math.ceil(Math.max.apply(null, urgentCatArr.map(function(a){return a.count;}))*1.2) || 1;
-    drawChart('hcAdminUrgentChart', 'bar', urgentCatArr.map(function(a){return a.label;}), [{name:'急缺', data:urgentCatArr.map(function(a){return a.count;})}], urgentMaxVal);
+  if (urgentGroupArr.length) {
+    var urgentMaxVal = Math.ceil(Math.max.apply(null, urgentGroupArr.map(function(a){return a.count;}))*1.2) || 1;
+    drawChart('hcAdminUrgentChart', 'bar', urgentGroupArr.map(function(a){return a.label;}), [{name:'急缺', data:urgentGroupArr.map(function(a){return a.count;})}], urgentMaxVal);
   } else {
     document.getElementById('hcAdminUrgentChart').innerHTML = '<div class="empty" style="padding:20px 0;text-align:center;">目前無急缺項目</div>';
   }
@@ -2275,7 +2280,7 @@ function renderUnitStatusReport() {
   var usJobGroupEl = document.getElementById('usJobGroup');
   if (usBuGroupEl) usBuGroupEl.style.display = scopeIsJob ? 'none' : '';
   if (usJobGroupEl) usJobGroupEl.style.display = scopeIsJob ? '' : 'none';
-  if (!scopeIsJob) renderMultiFilterBar('usBuBar', 'us-bu', getUnitOptions());
+  if (!scopeIsJob) renderMultiFilterDropdown('usBuBar', 'us-bu', getUnitOptions(), '單位');
 
   // 單位清單：以 Unit HR Mapping 的單位為主，另外把資料裡實際出現過、但沒登記在對應表裡的單位也一併補進來，避免漏算
   var units = getUnitOptions().slice();
@@ -2297,7 +2302,7 @@ function renderUnitStatusReport() {
 
   if (scopeIsJob) {
     var usJobOptions = buildMultiValueOptions((allData||[]).concat(hcRawData||[]), function(d){ return d['Job Function'] !== undefined ? d['Job Function'] : d[hcJobKeyUS]; });
-    renderMultiFilterBar('usJobBar', 'us-job', usJobOptions);
+    renderMultiFilterDropdown('usJobBar', 'us-job', usJobOptions, 'Job Function');
   }
 
   // 職缺：跟職缺管理同一套「未結案」判斷（遞補人員、Onboard date 兩欄都空白才算未結案），並套用依職務篩選、時間篩選（若有）
@@ -2402,9 +2407,9 @@ function renderHeadcount() {
   });
 
   var hcBuOptions = [...new Set(hcRawData.map(function(r){return String(r[divKey]||'').trim();}))].filter(Boolean).sort();
-  renderMultiFilterBar('hcBuBar', 'hc-bu', hcBuOptions);
+  renderMultiFilterDropdown('hcBuBar', 'hc-bu', hcBuOptions, '單位');
   var hcJobOptions = buildMultiValueOptions(hcRawData, function(r){return r[jobKey];});
-  renderMultiFilterBar('hcJobBar', 'hc-job', hcJobOptions);
+  renderMultiFilterDropdown('hcJobBar', 'hc-job', hcJobOptions, 'Job Function');
 
   // 各單位 Headcount（缺額）長條圖：畫面最上面，跟著上面這兩個篩選走
   renderTrendHcChart();
@@ -3308,17 +3313,17 @@ function renderTrends() {
     trBuGroupEls.forEach(function(el){ if (el) el.style.display = trScopeIsJob ? 'none' : ''; });
     trJobGroupEls.forEach(function(el){ if (el) el.style.display = trScopeIsJob ? '' : 'none'; });
     if (trScopeIsJob) {
-      renderMultiFilterBar('trJobBar', 'tr-job', buildMultiValueOptions(allData, function(d){return d['Job Function'];}));
+      renderMultiFilterDropdown('trJobBar', 'tr-job', buildMultiValueOptions(allData, function(d){return d['Job Function'];}), 'Job Function');
     } else {
-      renderMultiFilterBar('trBuBar', 'tr-bu', getUnitOptions());
+      renderMultiFilterDropdown('trBuBar', 'tr-bu', getUnitOptions(), '單位');
     }
   } else {
     trBuGroupEls.forEach(function(el){ if (el) el.style.display = ''; });
     trJobGroupEls.forEach(function(el){ if (el) el.style.display = ''; });
     var trBuOptions = getUnitOptions();
-    renderMultiFilterBar('trBuBar', 'tr-bu', trBuOptions);
+    renderMultiFilterDropdown('trBuBar', 'tr-bu', trBuOptions, '單位');
     var trJobOptions = jobFunctionOptionsForBuFilter('tr-bu', allData);
-    renderMultiFilterBar('trJobBar', 'tr-job', trJobOptions);
+    renderMultiFilterDropdown('trJobBar', 'tr-job', trJobOptions, 'Job Function');
   }
   renderMultiFilterDropdown('trResultBar', 'tr-result', getResultOptions(), '目前狀態');
 
