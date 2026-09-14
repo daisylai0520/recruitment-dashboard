@@ -2439,6 +2439,13 @@ function renderHeadcount() {
   var displayHeaders = allHeaders.filter(function(h){
     return h && h !== divKey && !h.includes('PS');
   });
+  // Job Function 移到「急缺」跟下一欄（開缺日／Requisition Date）中間，跟「新增一筆 Headcount」欄位順序一致
+  var jobColName = displayHeaders.find(function(h){ return h.trim()==='Job Function'; });
+  if (jobColName) {
+    displayHeaders = displayHeaders.filter(function(h){ return h !== jobColName; });
+    var urgentColIdx = displayHeaders.findIndex(function(h){ return h.trim()==='急缺'; });
+    displayHeaders.splice(urgentColIdx >= 0 ? urgentColIdx + 1 : displayHeaders.length, 0, jobColName);
+  }
 
   var hcBuOptions = [...new Set(hcRawData.map(function(r){return String(r[divKey]||'').trim();}))].filter(Boolean).sort();
   renderMultiFilterDropdown('hcBuBar', 'hc-bu', hcBuOptions, '單位');
