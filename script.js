@@ -1820,7 +1820,7 @@ function syncNewInviterToManagerInfo(name, bu) {
 var MULTI_SELECT_FIELDS = ['Inviter', '面試主管', '單位', 'Job Function', '104_Position', '負責HR', 'Source'];
 // Headcount Records 裡改用「打勾＋可新增選項」下拉選單樣式的欄位（跟上面 Candidate Records 的 MULTI_SELECT_FIELDS 共用同一套元件）
 // 開缺理由改成嚴格單選（見 STRICT_SELECT_FIELDS_BY_SHEET），不再放在這裡（不能自己新增選項）
-var HC_CHECKBOX_DROPDOWN_FIELDS = ['Location'];
+var HC_CHECKBOX_DROPDOWN_FIELDS = ['Location', 'Job Function'];
 // 嚴格單選欄位（比照 Candidate Records 的 STRICT_SELECT_FIELDS）：選項固定來自「特定欄位選項」工作表，
 // 用普通 <select> 呈現、不能自己新增選項，也不能像 datalist 一樣手動打字帶入清單外的值。
 var STRICT_SELECT_FIELDS_BY_SHEET = {
@@ -2434,8 +2434,10 @@ function renderHeadcount() {
   // 表格顯示欄位：跟「Headcount Records」工作表保持一致，不再寫死清單，工作表增減/改名欄位這裡會自動跟著變。
   // Division／Job Function 已經是卡片分組依據（上面的單位標題／職稱區塊），這裡不重複顯示；PS 開頭的內部欄位也不顯示。
   var allHeaders = maintainHeaders['Headcount Records'] || Object.keys(hcRawData[0]).filter(function(k){return k!=='_row';});
+  // Division 已經是卡片分組依據（上面的單位標題），不重複顯示；Job Function 雖然也是分組依據（職稱區塊標題），
+  // 但這裡仍然要顯示成一欄且可編輯（例如原本分類錯誤時可以直接在表格裡改），所以不排除 jobKey。
   var displayHeaders = allHeaders.filter(function(h){
-    return h && h !== divKey && h !== jobKey && !h.includes('PS');
+    return h && h !== divKey && !h.includes('PS');
   });
 
   var hcBuOptions = [...new Set(hcRawData.map(function(r){return String(r[divKey]||'').trim();}))].filter(Boolean).sort();
@@ -2541,7 +2543,7 @@ function renderHeadcount() {
           '<span style="font-size:12px;font-weight:600;">'+j.job+'</span>'+
           '<span style="font-size:11px;font-weight:700;color:'+jc+';background:'+jc+'18;padding:1px 8px;border-radius:10px;">'+countInJob+(isPastMode?' 已補實':' 缺額')+'</span>'+
         '</div>'+
-        '<div style="border:1px solid var(--border);border-radius:8px;overflow-x:auto;">'+
+        '<div class="hc-scroll-wrap" style="border:1px solid var(--border);border-radius:8px;overflow-x:auto;">'+
           '<table style="table-layout:fixed;border-collapse:collapse;">'+
             '<colgroup>'+colWidths.map(function(w){ return '<col style="width:'+w+'px;">'; }).join('')+'</colgroup>'+
             '<thead><tr style="background:var(--bg);">'+
@@ -3460,6 +3462,25 @@ function toggleMsDropdownPanel(containerId) {
   msDropdownOpenState[containerId] = !msDropdownOpenState[containerId];
   var panel = document.getElementById(containerId+'-panel');
   if (panel) panel.style.display = msDropdownOpenState[containerId] ? 'block' : 'none';
+  setHcScrollWrapExpanded(containerId, msDropdownOpenState[containerId]);
+}
+
+// Headcount 表格／新增列的欄位（例如 Location、Job Function）用「打勾＋可新增選項」下拉選單時，
+// 選單本身是絕對定位的浮動面板，但外層表格為了讓寬表格可以左右捲動而設定了 overflow-x:auto，
+// 這會連帶讓瀏覽器把還沒設定的 overflow-y 當成 auto，導致下面沒捲到的選項被裁切、看不到、點不到。
+// 所以下拉選單打開時，暫時把最近的 .hc-scroll-wrap 祖先容器改成 overflow:visible，讓選單完整顯示；
+// 收起時再改回 overflow-x:auto，不影響表格原本可以左右捲動的功能。
+function setHcScrollWrapExpanded(containerId, expand) {
+  var el = document.getElementById(containerId);
+  if (!el) return;
+  var wrap = el.closest('.hc-scroll-wrap');
+  if (!wrap) return;
+  if (expand) {
+    wrap.style.overflow = 'visible';
+  } else {
+    wrap.style.overflow = '';
+    wrap.style.overflowX = 'auto';
+  }
 }
 
 function renderMultiFilterDropdown(containerId, filterId, options, labelPrefix) {
@@ -3500,6 +3521,7 @@ document.addEventListener('click', function(e){
         msDropdownOpenState[id] = false;
         var panel = document.getElementById(id+'-panel');
         if (panel) panel.style.display = 'none';
+        setHcScrollWrapExpanded(id, false);
       }
     });
   }
@@ -5042,8 +5064,18 @@ function buildHcInlineAddRowHtml(divisionName) {
   // Division 已經固定是這張卡片本身，不用再填一次；PS 開頭的內部欄位維持隱藏，其餘欄位（含 Job Function）都可以直接填。
   var fields = headers.filter(function(h){ return h && h !== divisionKey && !h.includes('PS'); });
 
+  // Job Function 移到「急缺」跟下一欄（開缺日／Requisition Date）中間，並設為必填欄位
+  var jobFieldName = fields.find(function(h){ return h.trim()==='Job Function'; });
+  if (jobFieldName) {
+    fields = fields.filter(function(h){ return h !== jobFieldName; });
+    var urgentIdx = fields.findIndex(function(h){ return h.trim()==='急缺'; });
+    fields.splice(urgentIdx >= 0 ? urgentIdx + 1 : fields.length, 0, jobFieldName);
+  }
+  var inlineRequiredFields = ['Job Function'];
+
   var headHtml = fields.map(function(h){
-    return '<th style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-align:left;padding:3px 7px;white-space:nowrap;">'+h+'</th>';
+    var isReq = inlineRequiredFields.indexOf(h.trim()) >= 0;
+    return '<th style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-align:left;padding:3px 7px;white-space:nowrap;">'+h+(isReq?' <span style="color:#EF4444;">*</span>':'')+'</th>';
   }).join('');
 
   var cellsHtml = fields.map(function(h){
@@ -5069,7 +5101,7 @@ function buildHcInlineAddRowHtml(divisionName) {
 
   return '<div style="border:1.5px dashed var(--accent);border-radius:8px;margin-bottom:12px;padding:10px;">'+
     '<div style="font-size:11px;font-weight:600;color:var(--accent);margin-bottom:6px;">✏️ 新增一筆 Headcount（'+String(divisionName).replace(/</g,'&lt;').replace(/>/g,'&gt;')+'）</div>'+
-    '<div style="overflow-x:auto;">'+
+    '<div class="hc-scroll-wrap" style="overflow-x:auto;">'+
       '<table style="border-collapse:collapse;">'+
         '<thead><tr>'+headHtml+'</tr></thead>'+
         '<tbody><tr id="hcInlineAddRow">'+cellsHtml+'</tr></tbody>'+
@@ -5103,6 +5135,9 @@ async function submitHcInlineNewRow() {
     }
     values[field] = val;
   });
+
+  var jobFieldKey = headers.find(function(h){ return h.trim()==='Job Function'; }) || 'Job Function';
+  if (!String(values[jobFieldKey]||'').trim()) { showToast('請填寫必填欄位：Job Function'); return; }
 
   var orderedValues = headers.map(function(h){ return values[h] || ''; });
   hcInlineAddDivision = null;
