@@ -4965,7 +4965,11 @@ async function submitNewCandidateForm() {
     var url = APPS_SCRIPT_URL + '?action=addRow&sheet=' + encodeURIComponent('Candidate Records') +
       '&values=' + encodeURIComponent(JSON.stringify(orderedValues));
     await fetch(noCacheUrl(url), {mode:'no-cors', cache:'no-store'});
-    await fetchData();
+    // 新增人選只會動到 Candidate Records，只要重新抓 core 資料就好，
+    // 不需要像 fetchData() 一樣把「這個瀏覽器之前已經載入過」的其他資源（Headcount／市場薪資／排程／權限）
+    // 全部一起重抓一次——那些跟新增人選完全無關，只會讓「新增中...」多等好幾秒，是這裡最慢的主因。
+    await fetchCoreData();
+    renderAll();
     selectedCandForCopy = null;
     renderNewCandSelectedHint();
     renderNewCandidateFields();
