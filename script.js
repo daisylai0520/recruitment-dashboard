@@ -2599,44 +2599,6 @@ function renderHeadcount() {
 
 }
 
-// ===== HEADCOUNT MEMO =====
-var selectedMemoRow = null;
-
-function openMemoModal(el) {
-  selectedMemoRow = parseInt(el.getAttribute('data-row'));
-  var currentMemo = el.getAttribute('data-memo') || '';
-  document.getElementById('memoTextarea').value = currentMemo;
-  document.getElementById('memoModal').style.display = 'flex';
-  setTimeout(function(){document.getElementById('memoTextarea').focus();}, 50);
-}
-
-function closeMemoModal() {
-  document.getElementById('memoModal').style.display = 'none';
-  selectedMemoRow = null;
-}
-
-async function saveMemo() {
-  if (!selectedMemoRow) return;
-  var memo = document.getElementById('memoTextarea').value;
-  var row = selectedMemoRow;
-  closeMemoModal();
-  showToast('儲存中...');
-  try {
-    var url = APPS_SCRIPT_URL + '?action=updateMemo&row=' + encodeURIComponent(row) + '&memo=' + encodeURIComponent(memo);
-    await fetch(noCacheUrl(url), {mode:'no-cors', cache:'no-store'});
-    showToast('✓ 備註已儲存');
-    // 本地更新
-    var rec = hcRawData.find(function(r){return r._row===row;});
-    if (rec) {
-      var memoKey2 = Object.keys(rec).find(function(k){return k.trim()==='Memo';}) || 'Memo';
-      rec[memoKey2] = memo;
-    }
-    renderHeadcount();
-  } catch(e) {
-    showToast('❌ 儲存失敗：'+e.message);
-  }
-}
-
 // ===== TRENDS =====
 var TREND_COLORS = ['#F59E0B','#10B981','#3B82F6','#8B5CF6','#EC4899','#14B8A6','#F97316','#6366F1','#84CC16','#06B6D4','#EF4444','#A855F7','#22C55E','#0EA5E9'];
 var trendChartType = { monthly:'bar' };

@@ -596,19 +596,6 @@
   </div>
 </div>
 
-<!-- MEMO MODAL -->
-<div id="memoModal" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeMemoModal()">
-  <div class="modal">
-    <div class="modal-title">編輯備註</div>
-    <div class="modal-sub">內容會同步寫入 Headcount Records 試算表的 Memo 欄位</div>
-    <textarea id="memoTextarea" style="width:100%;min-height:100px;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px;resize:vertical;outline:none;" placeholder="輸入備註..."></textarea>
-    <div class="modal-actions" style="margin-top:14px;">
-      <button class="btn-cancel" onclick="closeMemoModal()">取消</button>
-      <button class="lock-btn" style="width:auto;margin-top:0;padding:8px 18px;" onclick="saveMemo()">儲存</button>
-    </div>
-  </div>
-</div>
-
 <!-- TREND DRILLDOWN MODAL -->
 <div id="trendDrilldownModal" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeTrendDrilldown()">
   <div class="modal" style="max-width:1040px;width:94vw;">
