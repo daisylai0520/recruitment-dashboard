@@ -4971,18 +4971,31 @@ async function submitNewCandidateForm() {
     var url = APPS_SCRIPT_URL + '?action=addRow&sheet=' + encodeURIComponent('Candidate Records') +
       '&values=' + encodeURIComponent(JSON.stringify(orderedValues));
     await fetch(noCacheUrl(url), {mode:'no-cors', cache:'no-store'});
+  } catch(e) {
+    // no-cors 模式下讀不到伺服器實際的成功/失敗狀態，這裡會失敗通常代表連線層級的問題（例如完全連不上網路），
+    // 這種情況才保留表單內容，讓使用者確認後可以重新送出一次。
+    showToast('❌ 新增失敗，請確認網路連線後再試一次：'+e.message);
+    return;
+  }
+
+  // 寫入的請求已經送出去了，不管接下來「重新整理畫面」有沒有成功，「新增人選」表單都要先清空、
+  // 恢復成可以繼續新增下一位的狀態——不要讓剛剛填過的資料一直卡在畫面上（這是本次要修的問題）。
+  showToast('✓ 已新增人選資料');
+  selectedCandForCopy = null;
+  renderNewCandSelectedHint();
+  renderNewCandidateFields();
+  renderCandQuery();
+
+  try {
     // 新增人選只會動到 Candidate Records，只要重新抓 core 資料就好，
     // 不需要像 fetchData() 一樣把「這個瀏覽器之前已經載入過」的其他資源（Headcount／市場薪資／排程／權限）
-    // 全部一起重抓一次——那些跟新增人選完全無關，只會讓「新增中...」多等好幾秒，是這裡最慢的主因。
+    // 全部一起重抓一次——那些跟新增人選完全無關，只會多等好幾秒。
     await fetchCoreData();
     renderAll();
-    selectedCandForCopy = null;
-    renderNewCandSelectedHint();
-    renderNewCandidateFields();
-    renderCandQuery();
-    showToast('✓ 已新增人選資料');
   } catch(e) {
-    showToast('❌ 新增失敗：'+e.message);
+    // 這裡失敗只代表「畫面重新整理」沒成功，不代表剛剛新增失敗——人選已經送出存檔了，
+    // 之後背景自動同步（或手動重新整理）就會補上最新資料，不需要因此讓使用者重填一次表單。
+    showToast('⚠️ 已新增，但畫面重新整理失敗，稍後會自動再同步一次');
   }
 }
 
