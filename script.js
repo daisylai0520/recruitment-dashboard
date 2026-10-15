@@ -3673,7 +3673,13 @@ var MAINTAIN_DROPDOWNS = {
     '面試主管': function(){ return [...new Set(managerInfoData.map(function(m){return String(m.Name||'').trim();}))].filter(Boolean).sort(); },
     'Result': function(){ return getActualResultOptions(); },
     '性別': function(){ return [...new Set(allData.map(function(d){return String(d['性別']||'').trim();}))].filter(Boolean).sort(); },
-    '最高學歷': function(){ return [...new Set(allData.map(function(d){return String(d['最高學歷']||'').trim();}))].filter(Boolean).sort(); },
+    // 最高學歷：選項抓 Candidate Records 工作表「最高學歷」欄位目前有出現過的值；
+    // 用 allDataFull（完整、未依單位過濾的名單）而不是 allData，這樣不管是哪個 HR 身分，
+    // 選到的都是整張工作表該欄位的完整選項，不會因為單位權限而少選項。
+    '最高學歷': function(){
+      var pool = (allDataFull && allDataFull.length) ? allDataFull : allData;
+      return [...new Set(pool.map(function(d){return String(d['最高學歷']||'').trim();}))].filter(Boolean).sort();
+    },
     // 負責HR：選項對照「HR Directory」工作表（權限管理裡設定的 HR 名冊），而不是抓歷史上打過的值，
     // 避免打字不一致或人員異動後名單對不起來；舊資料裡已經填過、但目前不在名冊裡的名字，畫面上仍會顯示並保留勾選。
     '負責HR': function(){ return hrDirectoryData.map(function(h){return String(h['HR姓名']||'').trim();}).filter(Boolean).sort(); },
