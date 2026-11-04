@@ -28,14 +28,6 @@
       <button onclick="enterQuickAccess('salary')" style="padding:16px 20px;border:1.5px solid var(--border);border-radius:12px;background:var(--surface);cursor:pointer;font-size:13px;font-weight:600;color:var(--text-primary);transition:all .15s;" onmouseover="this.style.borderColor='#4F46E5';this.style.boxShadow='0 4px 16px rgba(79,70,229,.12)'" onmouseout="this.style.borderColor='#E8EAED';this.style.boxShadow='none'">市場薪資</button>
     </div>
 
-    <!-- 職缺管理／分析／報表：點了先選「依單位查看」或「依職務查看」，決定進去之後篩選要看單位還是Job Function -->
-    <div id="scopePicker" style="display:none;margin-top:28px;padding-top:24px;border-top:1px solid var(--border);">
-      <div style="font-size:12px;color:var(--text-tertiary);margin-bottom:12px;">請選擇要依什麼維度查看</div>
-      <div style="display:flex;gap:14px;justify-content:center;flex-wrap:wrap;">
-        <button onclick="enterScopedQuickAccess('unit')" style="padding:14px 22px;border:1.5px solid var(--border);border-radius:12px;background:var(--surface);cursor:pointer;font-size:13px;font-weight:600;color:var(--text-primary);" onmouseover="this.style.borderColor='#4F46E5'" onmouseout="this.style.borderColor='var(--border)'">依單位查看</button>
-        <button onclick="enterScopedQuickAccess('job')" style="padding:14px 22px;border:1.5px solid var(--border);border-radius:12px;background:var(--surface);cursor:pointer;font-size:13px;font-weight:600;color:var(--text-primary);" onmouseover="this.style.borderColor='#4F46E5'" onmouseout="this.style.borderColor='var(--border)'">依職務查看</button>
-      </div>
-    </div>
 
     <!-- 招募管理：點了才顯示 BP／Recruiter 身分選擇 -->
     <div id="recruitmentRolePicker" style="display:none;margin-top:28px;padding-top:24px;border-top:1px solid var(--border);">
@@ -67,6 +59,10 @@
     <span id="identityBadge" style="font-size:12px;color:var(--text-secondary);margin-left:14px;padding:3px 10px;border-radius:12px;background:var(--bg);"></span>
   </div>
   <div style="display:flex;align-items:center;">
+    <div id="reportPageNavTop" style="display:none;gap:6px;margin-right:10px;">
+      <button class="btn-cancel tab-history-back" style="padding:4px 12px;font-size:12px;" onclick="goTabHistoryBack()">← 上一頁</button>
+      <button class="btn-cancel tab-history-forward" style="padding:4px 12px;font-size:12px;" onclick="goTabHistoryForward()">下一頁 →</button>
+    </div>
     <div class="sync-badge">
       <div class="sync-dot loading" id="syncDot"></div>
       <span id="syncText">資料載入中...</span>
@@ -79,6 +75,12 @@
 <div id="toast" class="toast"></div>
 
 <div class="container">
+  <!-- 用 nav 而不是 div：程式裡有 .tab-bar:first-of-type 選擇器，不能讓這個元素變成容器裡第一個 div -->
+  <nav id="scopeToggleBar" style="display:none;align-items:center;gap:10px;margin-bottom:14px;">
+    <span style="font-size:12px;color:var(--text-tertiary);">查看方式</span>
+    <button class="tab-toggle-btn active" id="scopeBtnUnit" onclick="setReportScope('unit')">依單位查看</button>
+    <button class="tab-toggle-btn" id="scopeBtnJob" onclick="setReportScope('job')">依職務查看</button>
+  </nav>
   <div class="tab-bar">
     <div class="tab active" data-tab-role="manager,recruiter,bp" onclick="switchTab('kanban',this)">Overview</div>
     <div class="tab" data-tab-role="manager,recruiter,bp" onclick="switchTab('maintain',this)">Candidate</div>

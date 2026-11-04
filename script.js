@@ -903,16 +903,27 @@ function enterQuickAccess(tab) {
 // （取代原本的「單位分類」篩選）；選好之後才真正進入目標畫面。
 var reportScopeMode = null; // 'unit' | 'job' | null（null 時預設當作依單位查看）
 var _pendingScopeTab = null;
+// 首頁點職缺管理／分析／報表：直接進去（預設依單位查看），「依單位查看／依職務查看」改成進去後在畫面最上方切換（見 setReportScope）
 function showScopePicker(tab) {
-  _pendingScopeTab = tab;
-  var recruitPanel = document.getElementById('recruitmentRolePicker');
-  if (recruitPanel) recruitPanel.style.display = 'none';
-  var panel = document.getElementById('scopePicker');
-  if (panel) panel.style.display = '';
+  reportScopeMode = 'unit';
+  enterQuickAccess(tab);
 }
-function enterScopedQuickAccess(scope) {
+var SCOPE_TOGGLE_TABS = ['hcAdmin', 'trends', 'report', 'hc', 'unitStatus'];
+function updateScopeToggleBar() {
+  var bar = document.getElementById('scopeToggleBar');
+  if (!bar) return;
+  bar.style.display = (isAdmin && SCOPE_TOGGLE_TABS.indexOf(currentTab) >= 0) ? 'flex' : 'none';
+  var isJob = reportScopeMode === 'job';
+  var u = document.getElementById('scopeBtnUnit'), j = document.getElementById('scopeBtnJob');
+  if (u) u.classList.toggle('active', !isJob);
+  if (j) j.classList.toggle('active', isJob);
+}
+function setReportScope(scope) {
+  if (reportScopeMode === scope) return;
   reportScopeMode = scope;
-  if (_pendingScopeTab) enterQuickAccess(_pendingScopeTab);
+  updateScopeToggleBar();
+  renderAll();
+  if (currentTab === 'trends') renderTrends();
 }
 
 // 首頁「招募管理」按鈕：不直接進畫面，而是在原地展開 BP／Recruiter 身分選擇區塊
@@ -991,39 +1002,16 @@ function goTabHistoryForward() {
 // 這幾個畫面改用專屬的「上一頁／下一頁」，在報表的幾個子畫面之間切換，跟全站的「上一步／下一步」
 // （沿著使用者實際點過的分頁瀏覽歷史走）是不同的東西，所以這幾個畫面改用下面這組專屬導覽、不再顯示上一步／下一步。
 var REPORT_VIEW_IDS = ['view-report', 'view-hc', 'view-unitStatus'];
-var REPORT_PAGE_ORDER = ['hc', 'unitStatus'];
+// 「上一頁／下一頁」按鈕放在右上角「已同步」左邊，行為跟瀏覽器一樣：沿著實際點過的畫面歷史（tabHistoryStack）往回／往前，
+// 只在報表相關畫面顯示（按鈕的 disabled 狀態由 updateTabHistoryButtons 統一更新）。
 function updateReportPageNavButtons() {
-  var idx = REPORT_PAGE_ORDER.indexOf(currentTab);
-  document.querySelectorAll('.report-page-nav-back').forEach(function(b){ b.disabled = idx <= 0; });
-  document.querySelectorAll('.report-page-nav-forward').forEach(function(b){ b.disabled = idx < 0 || idx >= REPORT_PAGE_ORDER.length - 1; });
+  var show = ['report', 'hc', 'unitStatus'].indexOf(currentTab) >= 0;
+  var box = document.getElementById('reportPageNavTop');
+  if (box) box.style.display = show ? 'flex' : 'none';
+  updateScopeToggleBar();
+  updateTabHistoryButtons();
 }
-function goReportPage(delta) {
-  var idx = REPORT_PAGE_ORDER.indexOf(currentTab);
-  if (idx < 0) return;
-  var nextIdx = idx + delta;
-  if (nextIdx < 0 || nextIdx >= REPORT_PAGE_ORDER.length) return;
-  var nextTab = REPORT_PAGE_ORDER[nextIdx];
-  switchTab(nextTab, findTabNavEl(nextTab));
-}
-// 在報表的子畫面（Headcount、各單位招募現況）大標題下方插入「上一頁／下一頁」導覽按鈕（只插入一次，避免重複）
-function initReportPageNav() {
-  ['view-hc', 'view-unitStatus'].forEach(function(viewId){
-    var viewEl = document.getElementById(viewId);
-    if (!viewEl) return;
-    var titleEl = viewEl.querySelector('.page-title');
-    if (!titleEl) return;
-    var next = titleEl.nextElementSibling;
-    if (next && next.classList && next.classList.contains('report-page-nav')) return;
-    var nav = document.createElement('div');
-    nav.className = 'report-page-nav';
-    nav.style.cssText = 'display:flex;gap:8px;margin:8px 0 4px;';
-    nav.innerHTML =
-      '<button class="btn-cancel report-page-nav-back" style="padding:4px 12px;font-size:12px;" onclick="goReportPage(-1)">← 上一頁</button>'+
-      '<button class="btn-cancel report-page-nav-forward" style="padding:4px 12px;font-size:12px;" onclick="goReportPage(1)">下一頁 →</button>';
-    titleEl.insertAdjacentElement('afterend', nav);
-  });
-  updateReportPageNavButtons();
-}
+function initReportPageNav() { updateReportPageNavButtons(); }
 
 // 在每個畫面的大標題下方插入「上一步／下一步」導覽按鈕（只插入一次，避免重複）
 function initTabHistoryNav() {
