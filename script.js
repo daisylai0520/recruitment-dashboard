@@ -805,6 +805,9 @@ function enterAs(roleToken, hrName, units) {
   }
 
   var tabBar = document.querySelector('.tab-bar');
+  // 快速進入的畫面沒有分頁列，標題會貼到最上方；留一段上方空間，位置跟招募管理（有分頁列）的畫面接近
+  var mainContainerEl = document.querySelector('#mainAppWrapper .container');
+  if (mainContainerEl) mainContainerEl.style.paddingTop = restrictedSingleTab ? '40px' : '';
 
   if (restrictedSingleTab) {
     // 快速查看模式：隱藏整條分頁列，只顯示指定的那一個畫面

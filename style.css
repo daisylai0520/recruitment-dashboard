@@ -32,6 +32,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primar
 .tab-bar{display:flex;border-bottom:1px solid var(--border);margin-bottom:24px;padding-top:20px;background:var(--bg);position:sticky;top:56px;z-index:90;overflow-x:auto;}
 .tab{font-size:14px;font-weight:500;padding:10px 20px;cursor:pointer;color:var(--text-secondary);border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .15s;}
 .tab:hover{color:var(--accent);}
+.report-tabs{display:flex;border-bottom:1px solid var(--border);margin-bottom:20px;overflow-x:auto;}
 .tab.active{color:var(--accent);border-bottom-color:var(--accent);}
 
 /* FILTER BAR */

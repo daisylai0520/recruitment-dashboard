@@ -21,10 +21,10 @@
 
     <!-- 大標題中間的 5 個捷徑按鈕 -->
     <div style="display:flex;gap:14px;justify-content:center;flex-wrap:wrap;">
-      <button onclick="showScopePicker('hcAdmin')" style="padding:16px 20px;border:1.5px solid var(--border);border-radius:12px;background:var(--surface);cursor:pointer;font-size:13px;font-weight:600;color:var(--text-primary);transition:all .15s;" onmouseover="this.style.borderColor='#4F46E5';this.style.boxShadow='0 4px 16px rgba(79,70,229,.12)'" onmouseout="this.style.borderColor='#E8EAED';this.style.boxShadow='none'">職缺管理</button>
+      <button onclick="reportScopeMode='unit';enterQuickAccess('hcAdmin')" style="padding:16px 20px;border:1.5px solid var(--border);border-radius:12px;background:var(--surface);cursor:pointer;font-size:13px;font-weight:600;color:var(--text-primary);transition:all .15s;" onmouseover="this.style.borderColor='#4F46E5';this.style.boxShadow='0 4px 16px rgba(79,70,229,.12)'" onmouseout="this.style.borderColor='#E8EAED';this.style.boxShadow='none'">職缺管理</button>
       <button onclick="showRecruitmentRolePicker()" style="padding:16px 20px;border:1.5px solid var(--border);border-radius:12px;background:var(--surface);cursor:pointer;font-size:13px;font-weight:600;color:var(--text-primary);transition:all .15s;" onmouseover="this.style.borderColor='#4F46E5';this.style.boxShadow='0 4px 16px rgba(79,70,229,.12)'" onmouseout="this.style.borderColor='#E8EAED';this.style.boxShadow='none'">招募管理</button>
-      <button onclick="showScopePicker('trends')" style="padding:16px 20px;border:1.5px solid var(--border);border-radius:12px;background:var(--surface);cursor:pointer;font-size:13px;font-weight:600;color:var(--text-primary);transition:all .15s;" onmouseover="this.style.borderColor='#4F46E5';this.style.boxShadow='0 4px 16px rgba(79,70,229,.12)'" onmouseout="this.style.borderColor='#E8EAED';this.style.boxShadow='none'">分析</button>
-      <button onclick="showScopePicker('report')" style="padding:16px 20px;border:1.5px solid var(--border);border-radius:12px;background:var(--surface);cursor:pointer;font-size:13px;font-weight:600;color:var(--text-primary);transition:all .15s;" onmouseover="this.style.borderColor='#4F46E5';this.style.boxShadow='0 4px 16px rgba(79,70,229,.12)'" onmouseout="this.style.borderColor='#E8EAED';this.style.boxShadow='none'">報表</button>
+      <button onclick="reportScopeMode='unit';enterQuickAccess('trends')" style="padding:16px 20px;border:1.5px solid var(--border);border-radius:12px;background:var(--surface);cursor:pointer;font-size:13px;font-weight:600;color:var(--text-primary);transition:all .15s;" onmouseover="this.style.borderColor='#4F46E5';this.style.boxShadow='0 4px 16px rgba(79,70,229,.12)'" onmouseout="this.style.borderColor='#E8EAED';this.style.boxShadow='none'">分析</button>
+      <button onclick="reportScopeMode='unit';enterQuickAccess('report')" style="padding:16px 20px;border:1.5px solid var(--border);border-radius:12px;background:var(--surface);cursor:pointer;font-size:13px;font-weight:600;color:var(--text-primary);transition:all .15s;" onmouseover="this.style.borderColor='#4F46E5';this.style.boxShadow='0 4px 16px rgba(79,70,229,.12)'" onmouseout="this.style.borderColor='#E8EAED';this.style.boxShadow='none'">報表</button>
       <button onclick="enterQuickAccess('salary')" style="padding:16px 20px;border:1.5px solid var(--border);border-radius:12px;background:var(--surface);cursor:pointer;font-size:13px;font-weight:600;color:var(--text-primary);transition:all .15s;" onmouseover="this.style.borderColor='#4F46E5';this.style.boxShadow='0 4px 16px rgba(79,70,229,.12)'" onmouseout="this.style.borderColor='#E8EAED';this.style.boxShadow='none'">市場薪資</button>
     </div>
 
@@ -82,10 +82,9 @@
     <button class="tab-toggle-btn" id="scopeBtnJob" onclick="setReportScope('job')">依職務查看</button>
   </nav>
   <!-- 報表項目切換列：報表、Headcount、各單位招募現況 三個畫面最上方都會顯示，新增報表項目時在這裡加按鈕、並在 REPORT_MENU_ITEMS 登記 -->
-  <nav id="reportMenuBar" style="display:none;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
-    <span style="font-size:12px;color:var(--text-tertiary);">報表</span>
-    <button class="tab-toggle-btn" id="reportMenuBtn-hc" onclick="switchTab('hc', findTabNavEl('hc'))">Headcount</button>
-    <button class="tab-toggle-btn" id="reportMenuBtn-unitStatus" onclick="switchTab('unitStatus', findTabNavEl('unitStatus'))">各單位招募現況</button>
+  <nav id="reportMenuBar" class="report-tabs" style="display:none;">
+    <div class="tab" id="reportMenuBtn-hc" onclick="switchTab('hc', findTabNavEl('hc'))">Headcount</div>
+    <div class="tab" id="reportMenuBtn-unitStatus" onclick="switchTab('unitStatus', findTabNavEl('unitStatus'))">各單位招募現況</div>
   </nav>
   <div class="tab-bar">
     <div class="tab active" data-tab-role="manager,recruiter,bp" onclick="switchTab('kanban',this)">Overview</div>
