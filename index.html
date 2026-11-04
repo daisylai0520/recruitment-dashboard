@@ -81,6 +81,12 @@
     <button class="tab-toggle-btn active" id="scopeBtnUnit" onclick="setReportScope('unit')">依單位查看</button>
     <button class="tab-toggle-btn" id="scopeBtnJob" onclick="setReportScope('job')">依職務查看</button>
   </nav>
+  <!-- 報表項目切換列：報表、Headcount、各單位招募現況 三個畫面最上方都會顯示，新增報表項目時在這裡加按鈕、並在 REPORT_MENU_ITEMS 登記 -->
+  <nav id="reportMenuBar" style="display:none;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
+    <span style="font-size:12px;color:var(--text-tertiary);">報表</span>
+    <button class="tab-toggle-btn" id="reportMenuBtn-hc" onclick="switchTab('hc', findTabNavEl('hc'))">Headcount</button>
+    <button class="tab-toggle-btn" id="reportMenuBtn-unitStatus" onclick="switchTab('unitStatus', findTabNavEl('unitStatus'))">各單位招募現況</button>
+  </nav>
   <div class="tab-bar">
     <div class="tab active" data-tab-role="manager,recruiter,bp" onclick="switchTab('kanban',this)">Overview</div>
     <div class="tab" data-tab-role="manager,recruiter,bp" onclick="switchTab('maintain',this)">Candidate</div>
@@ -386,12 +392,7 @@
   <div id="view-report" style="display:none">
     <div class="page-title">報表</div>
     <div class="page-sub">選擇下方項目查看報表內容</div>
-    <div style="display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap;">
-      <button onclick="switchTab('hc', findTabNavEl('hc'))" style="padding:8px 16px;border:1.5px solid var(--border);border-radius:8px;background:var(--surface);cursor:pointer;font-size:13px;font-weight:600;color:var(--text-primary);" onmouseover="this.style.borderColor='#4F46E5'" onmouseout="this.style.borderColor='var(--border)'">Headcount</button>
-      <button onclick="switchTab('unitStatus', findTabNavEl('unitStatus'))" style="padding:8px 16px;border:1.5px solid var(--border);border-radius:8px;background:var(--surface);cursor:pointer;font-size:13px;font-weight:600;color:var(--text-primary);" onmouseover="this.style.borderColor='#4F46E5'" onmouseout="this.style.borderColor='var(--border)'">各單位招募現況</button>
-      <button disabled title="敬請期待" style="padding:8px 16px;border:1.5px solid var(--border);border-radius:8px;background:var(--bg);cursor:not-allowed;font-size:13px;font-weight:600;color:var(--text-tertiary);">報表項目 3（敬請期待）</button>
-    </div>
-    <div class="empty" style="padding:40px 0;text-align:center;">點選上方項目查看報表內容；其他報表項目之後再陸續加上</div>
+    <div class="empty" style="padding:40px 0;text-align:center;">點選最上方的報表項目查看報表內容；其他報表項目之後再陸續加上</div>
   </div>
 
   <!-- ===== 報表：各單位招募現況 ===== -->

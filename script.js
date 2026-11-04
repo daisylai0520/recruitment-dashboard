@@ -1009,6 +1009,12 @@ function updateReportPageNavButtons() {
   var box = document.getElementById('reportPageNavTop');
   if (box) box.style.display = show ? 'flex' : 'none';
   updateScopeToggleBar();
+  var menu = document.getElementById('reportMenuBar');
+  if (menu) menu.style.display = show ? 'flex' : 'none';
+  ['hc', 'unitStatus'].forEach(function(k){
+    var b = document.getElementById('reportMenuBtn-' + k);
+    if (b) b.classList.toggle('active', currentTab === k);
+  });
   updateTabHistoryButtons();
 }
 function initReportPageNav() { updateReportPageNavButtons(); }
