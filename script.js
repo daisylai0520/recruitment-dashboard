@@ -637,6 +637,7 @@ function findJobFunctionByInviterName(name) {
 }
 
 function applyHeadcountData(json) {
+  hcLayout = parseHcLayout(json.hcLayout);
   headcountDropdownData = json.headcountDropdowns || {};
   hcReasonOptions = (json.hcReasonOptions||[]).map(function(v){return String(v).trim();}).filter(Boolean);
   rebuildHeadcountDropdowns();
@@ -2115,6 +2116,115 @@ async function commitMaintainCellTA(el) {
 // ===== HEADCOUNT OVERVIEW =====
 // 資料來源：自動從 Apps Script 回傳的 headcount 陣列載入（doGet 已包含 Headcount Records 分頁）
 var hcRawData = [];
+
+// ===== Headcount 欄位版面（欄位順序／欄寬），管理者可編輯，存在試算表「Layout Settings」工作表，所有人共用 =====
+var hcLayout = {order:[], widths:{}};   // 目前已儲存、大家看到的版面
+var hcLayoutEditMode = false;           // 管理者是否正在編輯版面
+var hcLayoutDraft = null;               // 編輯中的草稿（按「儲存版面」才會真的存）
+var _hcDragCol = null;
+function parseHcLayout(raw) {
+  try {
+    var o = raw ? JSON.parse(raw) : null;
+    return {
+      order: (o && Array.isArray(o.order)) ? o.order : [],
+      widths: (o && o.widths && typeof o.widths === 'object') ? o.widths : {}
+    };
+  } catch (e) { return {order:[], widths:{}}; }
+}
+function getActiveHcLayout() { return (hcLayoutEditMode && hcLayoutDraft) ? hcLayoutDraft : hcLayout; }
+// 依儲存的順序重排欄位；沒出現在儲存順序裡的欄位（例如新增欄位、或不同查看模式才出現的欄位）留在原本預設位置
+function applyHcLayoutOrder(headers, order) {
+  if (!order || !order.length) return headers;
+  var inOrder = headers.filter(function(h){ return order.indexOf(h) >= 0; })
+    .sort(function(a,b){ return order.indexOf(a) - order.indexOf(b); });
+  var k = 0;
+  return headers.map(function(h){ return order.indexOf(h) >= 0 ? inOrder[k++] : h; });
+}
+function renderHcLayoutTools() {
+  var el = document.getElementById('hcLayoutTools');
+  if (!el) return;
+  if (!isAdmin) { el.innerHTML = ''; return; }
+  el.innerHTML = hcLayoutEditMode
+    ? '<button class="refresh-btn" style="margin-left:0;color:var(--accent);border-color:var(--accent);" onclick="saveHcLayoutEdit()">✓ 儲存版面</button> '+
+      '<button class="refresh-btn" style="margin-left:0;" onclick="cancelHcLayoutEdit()">✕ 取消</button> '+
+      '<button class="refresh-btn" style="margin-left:0;" onclick="resetHcLayoutDraft()">↺ 重設預設</button> '+
+      '<span style="font-size:11px;color:var(--text-tertiary);">拖曳表頭可換順序，拖曳表頭右邊緣可調欄寬</span>'
+    : '<button class="refresh-btn" style="margin-left:0;" onclick="startHcLayoutEdit()">✏️ 編輯版面</button>';
+}
+function startHcLayoutEdit() {
+  if (!isAdmin) return;
+  hcLayoutDraft = {order: (hcLayout.order||[]).slice(), widths: Object.assign({}, hcLayout.widths||{})};
+  hcLayoutEditMode = true;
+  renderHeadcount();
+}
+function cancelHcLayoutEdit() {
+  hcLayoutEditMode = false; hcLayoutDraft = null;
+  renderHeadcount();
+}
+function resetHcLayoutDraft() {
+  hcLayoutDraft = {order:[], widths:{}};
+  renderHeadcount();
+}
+async function saveHcLayoutEdit() {
+  if (!hcLayoutDraft) return;
+  var toSave = {order: hcLayoutDraft.order, widths: hcLayoutDraft.widths};
+  showToast('儲存版面中...', true);
+  try {
+    var url = APPS_SCRIPT_URL + '?action=saveLayout&key=headcount&value=' + encodeURIComponent(JSON.stringify(toSave));
+    await fetch(noCacheUrl(url), {mode:'no-cors', cache:'no-store'});
+    hcLayout = toSave;
+    hcLayoutEditMode = false; hcLayoutDraft = null;
+    renderHeadcount();
+    showToast('✓ 版面已儲存（所有人共用）');
+  } catch (e) {
+    showToast('❌ 版面儲存失敗：'+e.message);
+  }
+}
+function hcColDragStart(ev, th) {
+  _hcDragCol = th.getAttribute('data-h');
+  try { ev.dataTransfer.effectAllowed = 'move'; ev.dataTransfer.setData('text/plain', _hcDragCol); } catch (e) {}
+}
+function hcColDrop(ev, th) {
+  ev.preventDefault();
+  var target = th.getAttribute('data-h');
+  var src = _hcDragCol; _hcDragCol = null;
+  if (!src || !target || src === target || !hcLayoutDraft) return;
+  var cur = (hcCurrentDisplayHeaders || []).slice();
+  var from = cur.indexOf(src), to = cur.indexOf(target);
+  if (from < 0 || to < 0) return;
+  cur.splice(from, 1);
+  cur.splice(to, 0, src);
+  hcLayoutDraft.order = cur;
+  renderHeadcount();
+}
+var hcCurrentDisplayHeaders = [];
+function startHcColResize(ev, handle) {
+  ev.preventDefault(); ev.stopPropagation();
+  var h = handle.getAttribute('data-h');
+  var cols = Array.prototype.slice.call(document.querySelectorAll('#hcCards col'))
+    .filter(function(c){ return c.getAttribute('data-h') === h; });
+  if (!cols.length) return;
+  var startX = ev.clientX;
+  var startW = parseInt(cols[0].style.width) || 100;
+  function setW(w) {
+    cols.forEach(function(c){ c.style.width = w+'px'; });
+    document.querySelectorAll('#hcCards table.hc-layout-table').forEach(function(t){
+      var sum = 0;
+      t.querySelectorAll('col').forEach(function(c){ sum += parseInt(c.style.width) || 0; });
+      t.style.width = sum+'px';
+    });
+  }
+  function onMove(e) { setW(Math.max(40, Math.min(900, startW + e.clientX - startX))); }
+  function onUp(e) {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    var w = Math.max(40, Math.min(900, startW + e.clientX - startX));
+    if (hcLayoutDraft) hcLayoutDraft.widths[h] = w;
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
 var hcViewMode = 'current'; // 'current' = 目前缺額, 'past' = 過往 Headcount（已補實）
 // 目前在哪個 Division 卡片裡打開「新增 Headcount」的表格內新增列（Excel 那種直接多一列的方式，不跳出視窗）；
 // null 代表目前沒有任何卡片在新增中。同時間只會有一個卡片在新增，避免畫面太亂。
@@ -2459,6 +2569,11 @@ function renderHeadcount() {
     var urgentColIdx = displayHeaders.findIndex(function(h){ return h.trim()==='急缺'; });
     displayHeaders.splice(urgentColIdx >= 0 ? urgentColIdx + 1 : displayHeaders.length, 0, secondaryColName);
   }
+  // 管理者在「編輯版面」存下來的欄位順序／欄寬（所有人共用）
+  var activeLayout = getActiveHcLayout();
+  displayHeaders = applyHcLayoutOrder(displayHeaders, activeLayout.order);
+  hcCurrentDisplayHeaders = displayHeaders.slice();
+  renderHcLayoutTools();
 
   var hcBuOptions = [...new Set(hcRawData.map(function(r){return String(r[divKey]||'').trim();}))].filter(Boolean).sort();
   renderMultiFilterDropdown('hcBuBar', 'hc-bu', hcBuOptions, '單位');
@@ -2526,6 +2641,7 @@ function renderHeadcount() {
       // 日期欄位也縮窄（內容固定是 YYYY/MM/DD，不需要太寬）；開缺理由選項文字通常比較長，改成加寬；
       // Duties／Memo 則依目前顯示資料的實際內容長度自動加長（像 Excel 欄位一樣），其他欄位可以寬一點。
       var colWidths = displayHeaders.map(function(h){
+        if (activeLayout.widths && activeLayout.widths[h]) return activeLayout.widths[h]; // 管理者自訂欄寬優先
         if (h === 'Duties') {
           var maxLen = 6;
           displayRows.forEach(function(rr){
@@ -2566,10 +2682,18 @@ function renderHeadcount() {
           '<span style="font-size:11px;font-weight:700;color:'+jc+';background:'+jc+'18;padding:1px 8px;border-radius:10px;">'+countInJob+(isPastMode?' 已補實':' 缺額')+'</span>'+
         '</div>'+
         '<div class="hc-scroll-wrap" style="border:1px solid var(--border);border-radius:8px;overflow-x:auto;">'+
-          '<table style="table-layout:fixed;border-collapse:collapse;">'+
-            '<colgroup>'+colWidths.map(function(w){ return '<col style="width:'+w+'px;">'; }).join('')+'</colgroup>'+
+          '<table class="hc-layout-table" style="table-layout:fixed;border-collapse:collapse;width:'+colWidths.reduce(function(a,b){return a+b;},0)+'px;">'+
+            '<colgroup>'+colWidths.map(function(w, ci){ return '<col data-h="'+(displayHeaders[ci]||'').replace(/"/g,'&quot;')+'" style="width:'+w+'px;">'; }).join('')+'</colgroup>'+
             '<thead><tr style="background:var(--bg);">'+
-              displayHeaders.map(function(h){ return '<th style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-align:'+(h==='急缺'?'center':'left')+';padding:5px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+h+'</th>'; }).join('')+
+              displayHeaders.map(function(h){
+                var hSafe = String(h).replace(/"/g,'&quot;');
+                var editAttr = hcLayoutEditMode
+                  ? ' data-h="'+hSafe+'" draggable="true" ondragstart="hcColDragStart(event,this)" ondragover="event.preventDefault()" ondrop="hcColDrop(event,this)"'
+                  : '';
+                var editStyle = hcLayoutEditMode ? 'cursor:grab;position:relative;background:var(--accent-bg, #EEF2FF);' : '';
+                var handle = hcLayoutEditMode ? '<span data-h="'+hSafe+'" onmousedown="startHcColResize(event,this)" style="position:absolute;top:0;right:0;width:7px;height:100%;cursor:col-resize;border-right:2px solid var(--accent);"></span>' : '';
+                return '<th'+editAttr+' style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-align:'+(h==='急缺'?'center':'left')+';padding:5px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'+editStyle+'">'+h+handle+'</th>';
+              }).join('')+
               '<th></th>'+
             '</tr></thead>'+
             '<tbody>'+rowsHtml+'</tbody>'+
