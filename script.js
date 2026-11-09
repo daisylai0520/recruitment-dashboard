@@ -637,7 +637,7 @@ function findJobFunctionByInviterName(name) {
 }
 
 function applyHeadcountData(json) {
-  hcLayout = parseHcLayout(json.hcLayout);
+  hcLayout = pickHcLayout(json.hcLayout);
   headcountDropdownData = json.headcountDropdowns || {};
   hcReasonOptions = (json.hcReasonOptions||[]).map(function(v){return String(v).trim();}).filter(Boolean);
   rebuildHeadcountDropdowns();
@@ -2124,9 +2124,37 @@ function parseHcLayout(raw) {
     var o = raw ? JSON.parse(raw) : null;
     return {
       order: (o && Array.isArray(o.order)) ? o.order : [],
-      widths: (o && o.widths && typeof o.widths === 'object') ? o.widths : {}
+      widths: (o && o.widths && typeof o.widths === 'object') ? o.widths : {},
+      ts: (o && Number(o.ts)) || 0   // 儲存時間，用來判斷「這台電腦存的」跟「試算表上的」哪個比較新
     };
-  } catch (e) { return {order:[], widths:{}}; }
+  } catch (e) { return {order:[], widths:{}, ts:0}; }
+}
+// 版面除了存到試算表（所有人共用），也在這台瀏覽器留一份備份。
+// 之前每次畫面重新整理（背景自動同步、存檔後重抓資料）都會用試算表回傳的版面整個蓋掉目前版面，
+// 只要試算表那份還沒更新到（例如後端還沒重新部署、或儲存請求失敗），欄寬／順序就會被改回預設——
+// 現在改成：哪一份「儲存時間比較新」就用哪一份，不會被比較舊的資料蓋回去。
+var HC_LAYOUT_LOCAL_KEY = 'rc_hc_layout_v1';
+function loadLocalHcLayout() {
+  try { return parseHcLayout(localStorage.getItem(HC_LAYOUT_LOCAL_KEY)); } catch (e) { return {order:[], widths:{}, ts:0}; }
+}
+function saveLocalHcLayout(layout) {
+  try { localStorage.setItem(HC_LAYOUT_LOCAL_KEY, JSON.stringify(layout)); } catch (e) {}
+}
+var _hcLayoutResynced = false;
+function pickHcLayout(serverRaw) {
+  var server = parseHcLayout(serverRaw);
+  var local = loadLocalHcLayout();
+  if (local.ts > server.ts) {
+    // 這台電腦存的比較新、試算表上還是舊的：沿用這台的，並在背景補送一次到試算表（每次開頁面只補一次）
+    if (isAdmin && !_hcLayoutResynced) {
+      _hcLayoutResynced = true;
+      try {
+        fetch(noCacheUrl(APPS_SCRIPT_URL + '?action=saveLayout&key=headcount&value=' + encodeURIComponent(JSON.stringify(local))), {mode:'no-cors', cache:'no-store'});
+      } catch (e) {}
+    }
+    return local;
+  }
+  return server;
 }
 function getActiveHcLayout() { return (hcLayoutEditMode && hcLayoutDraft) ? hcLayoutDraft : hcLayout; }
 // 依儲存的順序重排欄位；沒出現在儲存順序裡的欄位（例如新增欄位、或不同查看模式才出現的欄位）留在原本預設位置
@@ -2164,7 +2192,8 @@ function resetHcLayoutDraft() {
 }
 async function saveHcLayoutEdit() {
   if (!hcLayoutDraft) return;
-  var toSave = {order: hcLayoutDraft.order, widths: hcLayoutDraft.widths};
+  var toSave = {order: hcLayoutDraft.order, widths: hcLayoutDraft.widths, ts: Date.now()};
+  saveLocalHcLayout(toSave); // 先在這台瀏覽器存一份，不怕後面試算表那份還沒更新到
   showToast('儲存版面中...', true);
   try {
     var url = APPS_SCRIPT_URL + '?action=saveLayout&key=headcount&value=' + encodeURIComponent(JSON.stringify(toSave));
