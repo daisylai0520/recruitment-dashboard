@@ -4005,10 +4005,12 @@ function renderCandQuery() {
   renderMultiFilterDropdown('candResultBar', 'cand-result', getActualResultOptions(), '目前狀態');
   var candInviterOptions = [...new Set(allData.flatMap(function(d){return String(d.Inviter||'').split('、').map(function(s){return s.trim();});}))].filter(Boolean).sort();
   renderMultiFilterDropdown('candInviterBar', 'cand-inviter', candInviterOptions, 'Inviter');
+  // 104_Position：選項是目前人選資料裡實際出現過的值（可能複選，用「、」分隔，這裡拆開成單一選項）
+  renderMultiFilterDropdown('candPositionBar', 'cand-position', buildMultiValueOptions(allData, function(d){ return d['104_Position']; }), '104_Position');
 
-  // 單位／Job Function／目前狀態／Inviter 這四個屬於「篩選瀏覽」用途，才需要自動帶入本週；
+  // 單位／Job Function／目前狀態／Inviter／104_Position 這五個屬於「篩選瀏覽」用途，才需要自動帶入本週；
   // 搜尋框（姓名／履歷代碼）屬於「找特定的人」，不管有沒有narrow這四項，都不套用時間篩選，避免篩不到人
-  var hasOtherFilter = isMultiFilterNarrowed('cand-bu') || isMultiFilterNarrowed('cand-job') || isMultiFilterNarrowed('cand-result') || isMultiFilterNarrowed('cand-inviter');
+  var hasOtherFilter = isMultiFilterNarrowed('cand-bu') || isMultiFilterNarrowed('cand-job') || isMultiFilterNarrowed('cand-result') || isMultiFilterNarrowed('cand-inviter') || isMultiFilterNarrowed('cand-position');
 
   if (!searchTerms.length && !hasOtherFilter && !hasDateFilter) {
     container.innerHTML = '<div class="empty" style="padding:30px 0;text-align:center;">請輸入姓名或履歷代碼查詢，或使用上方篩選條件顯示人選</div>';
@@ -4028,7 +4030,7 @@ function renderCandQuery() {
     var textMatch = !searchTerms.length || matchesAnySearchTerm(d.Name, searchTerms) || matchesAnySearchTerm(d[resumeKey], searchTerms);
     // 有輸入搜尋文字（姓名／履歷代碼）時，一律不套用時間篩選，確保只要有這個人就找得到，不受時間範圍限制
     var dateOk = searchTerms.length ? true : dateFilterPass('candidateMaintenance', d);
-    return textMatch && multiFilterPass('cand-bu', d['單位']) && multiFilterPassMulti('cand-job', d['Job Function']) && multiFilterPass('cand-result', d.Result) && multiFilterPassMulti('cand-inviter', d.Inviter) && dateOk;
+    return textMatch && multiFilterPass('cand-bu', d['單位']) && multiFilterPassMulti('cand-job', d['Job Function']) && multiFilterPass('cand-result', d.Result) && multiFilterPassMulti('cand-inviter', d.Inviter) && multiFilterPassMulti('cand-position', d['104_Position']) && dateOk;
   });
 
   if (!matched.length) {
@@ -5829,6 +5831,7 @@ registerMultiFilterRerender('cand-bu', renderCandQuery);
 registerMultiFilterRerender('cand-job', renderCandQuery);
 registerMultiFilterRerender('cand-result', renderCandQuery);
 registerMultiFilterRerender('cand-inviter', renderCandQuery);
+registerMultiFilterRerender('cand-position', renderCandQuery);
 registerMultiFilterRerender('hc-bu', renderHeadcount);
 registerMultiFilterRerender('hc-job', renderHeadcount);
 registerMultiFilterRerender('salary-bu', renderSalaryScreen);
