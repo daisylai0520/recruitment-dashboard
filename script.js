@@ -4006,10 +4006,8 @@ function renderCandQuery() {
   var candInviterOptions = [...new Set(allData.flatMap(function(d){return String(d.Inviter||'').split('、').map(function(s){return s.trim();});}))].filter(Boolean).sort();
   renderMultiFilterDropdown('candInviterBar', 'cand-inviter', candInviterOptions, 'Inviter');
   // 104_Position：選項是目前人選資料裡實際出現過的值（可能複選，用「、」分隔，這裡拆開成單一選項）
-  // 選項跟下方人選資料裡「104_Position」那一格的下拉選單同一份（試算表資料驗證清單＋目前資料實際出現過的值）
-  var candPositionOptions = getPositionOptions().slice();
-  buildMultiValueOptions(allData, function(d){ return d['104_Position']; }).forEach(function(v){ if (candPositionOptions.indexOf(v) < 0) candPositionOptions.push(v); });
-  renderMultiFilterDropdown('candPositionBar', 'cand-position', candPositionOptions, '104_Position');
+  // 跟試算表欄位上的篩選一樣：選項就是 Candidate Records「104_Position」欄位裡實際有的值（複選的拆成單一選項）
+  renderMultiFilterDropdown('candPositionBar', 'cand-position', buildMultiValueOptions(allData, function(d){ return d['104_Position']; }), '104_Position');
 
   // 單位／Job Function／目前狀態／Inviter／104_Position 這五個屬於「篩選瀏覽」用途，才需要自動帶入本週；
   // 搜尋框（姓名／履歷代碼）屬於「找特定的人」，不管有沒有narrow這四項，都不套用時間篩選，避免篩不到人
